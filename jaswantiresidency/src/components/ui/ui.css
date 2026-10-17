@@ -1,0 +1,68 @@
+@import './shared.css';
+@import './utils.css';
+
+/* We removed duplicated Button/Input/Card styles as they are all in shared.css now */
+
+/* -------------------------------------
+   DATA TABLE - PREMIUM STYLING
+-------------------------------------- */
+.data-table-container {
+    background-color: var(--surface-light);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    animation: fadeInUp 0.4s ease-out;
+}
+
+.table-toolbar {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--surface-light);
+}
+
+.custom-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    text-align: left;
+}
+
+.custom-table th {
+    padding: 1rem 1.25rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary-light);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border-light);
+    background-color: #F8FAFC;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.custom-table td {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 0.95rem;
+    color: var(--text-primary-light);
+    transition: var(--transition-fast);
+}
+
+.custom-table tbody tr {
+    transition: var(--transition-fast);
+}
+
+.custom-table tbody tr:hover {
+    background-color: #F1F5F9;
+}
+
+.custom-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+
