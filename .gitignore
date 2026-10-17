@@ -1,0 +1,40 @@
+# ===========================
+# Backend (Spring Boot / Java)
+# ===========================
+backend/JaswantiResidency/.env
+backend/JaswantiResidency/target/
+backend/JaswantiResidency/*.log
+backend/JaswantiResidency/.mvn/wrapper/maven-wrapper.jar
+!backend/JaswantiResidency/.mvn/wrapper/maven-wrapper.properties
+backend/JaswantiResidency/.classpath
+backend/JaswantiResidency/.project
+backend/JaswantiResidency/.settings/
+
+# ===========================
+# Frontend (React / Node)
+# ===========================
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+
+# ===========================
+# IDE / OS
+# ===========================
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ===========================
+# Logs
+# ===========================
+*.log
+logs/
