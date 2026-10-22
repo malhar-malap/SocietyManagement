@@ -26,7 +26,7 @@ const Login = () => {
             const data = await apiLogin(credentials);
             login(data);
 
-            if (data.role === 'ADMIN') {
+            if (data.role === 'ADMIN' || data.role === 'MASTER_ADMIN') {
                 navigate('/admin/dashboard');
             } else {
                 navigate('/resident/dashboard');

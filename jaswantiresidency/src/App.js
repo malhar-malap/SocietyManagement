@@ -59,11 +59,12 @@ function App() {
                     </Route>
 
                     {/* Admin Routes */}
-                    <Route path="/admin" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminLayout /></ProtectedRoute>}>
+                    <Route path="/admin" element={<ProtectedRoute allowedRoles={['ADMIN', 'MASTER_ADMIN']}><AdminLayout /></ProtectedRoute>}>
                         <Route index element={<Navigate to="/admin/dashboard" replace />} />
                         <Route path="dashboard" element={<AdminDashboard />} />
                         <Route path="rooms" element={<AdminRooms />} />
                         <Route path="residents" element={<AdminResidents />} />
+                        <Route path="users" element={<AdminResidents />} />
                         <Route path="billing" element={<AdminBilling />} />
                         <Route path="transactions" element={<AdminTransactions />} />
                         <Route path="complaints" element={<AdminComplaints />} />

@@ -9,22 +9,21 @@ import './dashboard.css';
 const ResidentDashboard = () => {
     const { user } = useAuth();
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-    
+
     const [dashboardData, setDashboardData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
         const fetchDashboard = async () => {
-            if (!user?.userId || !user?.roomId) return;
             try {
                 const { getResidentDashboard } = await import('../api/residentApi');
-                const data = await getResidentDashboard(user.userId, user.roomId);
-                
-                const unpaidBills = data.bills.filter(b => b.status === 'PENDING');
+                const data = await getResidentDashboard();
+
+                const unpaidBills = (data.bills || []).filter(b => b.status === 'PENDING');
                 const outstandingAmount = unpaidBills.reduce((acc, bill) => acc + bill.amount, 0);
-                
-                const paidBills = data.bills.filter(b => b.status !== 'PENDING');
+
+                const paidBills = (data.bills || []).filter(b => b.status !== 'PENDING');
                 const lastPayment = paidBills.length > 0 ? paidBills[paidBills.length - 1] : null;
 
                 const nextDueDate = unpaidBills.length > 0 ? unpaidBills[0].dueDate : 'N/A';
@@ -57,13 +56,13 @@ const ResidentDashboard = () => {
             }
         };
         fetchDashboard();
-    }, [user]);
+    }, []);
 
     if (isLoading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading dashboard...</div>;
 
     return (
         <div className="dashboard-wrapper animate-fade-up">
-            
+
             {/* Hero Section */}
             <div className="dashboard-hero">
                 <h1 className="hero-greeting">Good morning, {user?.name} 👋</h1>
@@ -71,7 +70,7 @@ const ResidentDashboard = () => {
             </div>
 
             <div className="dashboard-grid mt-4">
-                
+
                 {/* Outstanding Balance Widget */}
                 <Card className="widget-card highlight-card animate-scale-in" style={{animationDelay: '0.1s'}}>
                     <div className="widget-header">
@@ -81,8 +80,8 @@ const ResidentDashboard = () => {
                     <div className="widget-body">
                         <h1 className="amount-large">₹{dashboardData.outstandingAmount}</h1>
                         <p className="due-date text-warning">Due by {dashboardData.dueDate}</p>
-                        <Button 
-                            onClick={() => setIsPaymentModalOpen(true)} 
+                        <Button
+                            onClick={() => setIsPaymentModalOpen(true)}
                             style={{width: '100%', marginTop: '1.5rem'}}
                         >
                             Pay Now
@@ -130,10 +129,10 @@ const ResidentDashboard = () => {
 
             {/* Render Payment Modal */}
             {isPaymentModalOpen && (
-                <PaymentModal 
-                    amount={dashboardData.outstandingAmount} 
+                <PaymentModal
+                    amount={dashboardData.outstandingAmount}
                     bills={dashboardData.unpaidBills}
-                    onClose={() => setIsPaymentModalOpen(false)} 
+                    onClose={() => setIsPaymentModalOpen(false)}
                 />
             )}
         </div>

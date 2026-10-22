@@ -23,7 +23,7 @@ const AdminLayout = () => {
                 <nav className="sidebar-nav">
                     <NavLink to="/admin/dashboard" className="nav-link"><Home size={18}/> Dashboard</NavLink>
                     <NavLink to="/admin/rooms" className="nav-link"><Home size={18}/> Rooms</NavLink>
-                    <NavLink to="/admin/residents" className="nav-link"><Users size={18}/> Residents</NavLink>
+                    <NavLink to="/admin/residents" className="nav-link"><Users size={18}/> {user?.role === 'MASTER_ADMIN' ? 'Users & Roles' : 'Residents'}</NavLink>
                     <NavLink to="/admin/billing" className="nav-link"><DollarSign size={18}/> Billing</NavLink>
                     <NavLink to="/admin/transactions" className="nav-link"><Activity size={18}/> Transactions</NavLink>
                     <NavLink to="/admin/complaints" className="nav-link"><FileText size={18}/> Complaints</NavLink>
@@ -37,7 +37,7 @@ const AdminLayout = () => {
                         </div>
                         <div className="sidebar-profile-info">
                             <span className="sidebar-profile-name">{user.name}</span>
-                            <span className="sidebar-profile-role">Administrator</span>
+                            <span className="sidebar-profile-role">{user.role === 'MASTER_ADMIN' ? 'Master Administrator' : 'Administrator'}</span>
                             <span className="sidebar-profile-status">Online</span>
                         </div>
                     </div>

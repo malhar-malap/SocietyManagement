@@ -21,14 +21,14 @@ public class SystemNotificationController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
     public ResponseEntity<List<SystemNotificationDto>> getMyNotifications(Authentication auth) {
         com.society.jaswanti.entity.User user = (com.society.jaswanti.entity.User) auth.getPrincipal();
         return ResponseEntity.ok(notificationService.getNotificationsForUser(user.getId()));
     }
 
     @PutMapping("/{id}/read")
-    @PreAuthorize("hasAnyRole('ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
     public ResponseEntity<Void> markAsRead(@PathVariable Long id) {
         notificationService.markAsRead(id);
         return ResponseEntity.ok().build();

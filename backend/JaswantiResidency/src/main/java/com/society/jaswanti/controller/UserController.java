@@ -34,7 +34,7 @@ public class UserController {
 
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
     public ResponseEntity<List<UserDto>> getAllUsers() {
         List<UserDto> users = userService.getAllUsers().stream()
                 .map(this::convertToDto)
@@ -43,7 +43,7 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or #id == authentication.principal.id")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN') or #id == authentication.principal.id")
     public ResponseEntity<UserDto> getUserById(@PathVariable Long id) {
         return userService.findById(id)
                 .map(user -> ResponseEntity.ok(convertToDto(user)))
@@ -51,7 +51,7 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
     public ResponseEntity<UserDto> updateUser(@PathVariable Long id, @RequestBody User user) {
         return userService.updateUser(id, user)
                 .map(updated -> ResponseEntity.ok(convertToDto(updated)))
@@ -59,9 +59,18 @@ public class UserController {
     }
 
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<UserDto> updateUserStatus(@PathVariable Long id, @RequestParam String status) {
-        return userService.updateUserStatus(id, status)
+    @PreAuthorize("hasRole('MASTER_ADMIN')")
+    public ResponseEntity<UserDto> updateUserStatus(@PathVariable Long id, @RequestParam String status, org.springframework.security.core.Authentication authentication) {
+        return userService.updateUserStatus(id, status, authentication)
+                .map(updated -> ResponseEntity.ok(convertToDto(updated)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/{id}/role")
+    @PreAuthorize("hasRole('MASTER_ADMIN')")
+    public ResponseEntity<UserDto> updateUserRole(@PathVariable Long id, @RequestParam String role,
+                                                   org.springframework.security.core.Authentication authentication) {
+        return userService.updateUserRole(id, role, authentication)
                 .map(updated -> ResponseEntity.ok(convertToDto(updated)))
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -69,13 +78,13 @@ public class UserController {
 
     
     @GetMapping("/profile/{id}")
-    @PreAuthorize("hasRole('ADMIN') or #id == authentication.principal.id")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN') or #id == authentication.principal.id")
     public ResponseEntity<UserDto> getProfile(@PathVariable Long id) {
         return getUserById(id);
     }
 
     @PostMapping("/{id}/change-password")
-    @PreAuthorize("hasRole('ADMIN') or #id == authentication.principal.id")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN') or #id == authentication.principal.id")
     public ResponseEntity<String> changePassword(@PathVariable Long id, @RequestBody ChangePasswordDto dto) {
         boolean success = userService.changePassword(id, dto.getOldPassword(), dto.getNewPassword());
         if (success) {
@@ -86,7 +95,7 @@ public class UserController {
     }
     
     @PostMapping("/{id}/setup")
-    @PreAuthorize("hasRole('ADMIN') or #id == authentication.principal.id")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN') or #id == authentication.principal.id")
     public ResponseEntity<String> setupProfile(@PathVariable Long id, @RequestBody com.society.jaswanti.dto.ProfileSetupDto dto) {
         boolean success = userService.setupProfile(id, dto);
         if (success) {
@@ -97,7 +106,7 @@ public class UserController {
     }
 
     @PostMapping("/{id}/verify-setup")
-    @PreAuthorize("hasRole('ADMIN') or #id == authentication.principal.id")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN') or #id == authentication.principal.id")
     public ResponseEntity<String> verifySetupEmail(@PathVariable Long id, @RequestParam String token) {
         boolean success = userService.verifySetupEmail(id, token);
         if (success) {
@@ -108,9 +117,9 @@ public class UserController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
-        userService.deleteUser(id);
+    @PreAuthorize("hasRole('MASTER_ADMIN')")
+    public ResponseEntity<Void> deleteUser(@PathVariable Long id, org.springframework.security.core.Authentication authentication) {
+        userService.deleteUser(id, authentication);
         return ResponseEntity.ok().build();
     }
 
@@ -125,8 +134,9 @@ public class UserController {
         );
         List<com.society.jaswanti.entity.Room> rooms = roomRepository.findByResidentId(user.getId());
         if (!rooms.isEmpty()) {
-            dto.setRoomNumber(rooms.get(0).getRoomNumber());
+            dto.setRoomNumber(rooms.stream().map(com.society.jaswanti.entity.Room::getRoomNumber).collect(Collectors.joining(", ")));
         }
+        dto.setActive(user.isActive());
         return dto;
     }
 }

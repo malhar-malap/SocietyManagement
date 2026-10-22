@@ -17,19 +17,19 @@ public class AnnouncementController {
     private AnnouncementService announcementService;
 
     @GetMapping("/active")
-    @PreAuthorize("hasAnyRole('ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
     public ResponseEntity<List<AnnouncementDto>> getActiveAnnouncements() {
         return ResponseEntity.ok(announcementService.getAllActiveAnnouncements());
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
     public ResponseEntity<List<AnnouncementDto>> getAllAnnouncements() {
         return ResponseEntity.ok(announcementService.getAllAnnouncements());
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
     public ResponseEntity<AnnouncementDto> createAnnouncement(
             @RequestBody com.society.jaswanti.entity.Announcement announcement,
             @RequestParam(required = false) Long adminId) {
@@ -37,7 +37,7 @@ public class AnnouncementController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
     public ResponseEntity<AnnouncementDto> updateAnnouncement(
             @PathVariable Long id,
             @RequestBody com.society.jaswanti.entity.Announcement announcement) {
@@ -47,7 +47,7 @@ public class AnnouncementController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
     public ResponseEntity<Void> deleteAnnouncement(@PathVariable Long id) {
         announcementService.deleteAnnouncement(id);
         return ResponseEntity.noContent().build();

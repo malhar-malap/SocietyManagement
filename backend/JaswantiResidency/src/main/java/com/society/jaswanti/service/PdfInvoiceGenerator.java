@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 @Service
 public class PdfInvoiceGenerator {
@@ -37,12 +39,14 @@ public class PdfInvoiceGenerator {
                 contentStream.newLineAtOffset(0, -20);
                 contentStream.showText("Billing Month: " + bill.getBillingMonth());
                 contentStream.newLineAtOffset(0, -20);
-                contentStream.showText("Base Amount: INR " + bill.getAmount());
+                BigDecimal baseAmount = bill.getAmount() != null ? bill.getAmount().setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+                contentStream.showText("Base Amount: INR " + baseAmount.toPlainString());
                 contentStream.newLineAtOffset(0, -20);
-                double lateFee = bill.getLateFee() != null ? bill.getLateFee() : 0.0;
-                contentStream.showText("Late Fee: INR " + lateFee);
+                BigDecimal lateFee = bill.getLateFee() != null ? bill.getLateFee().setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+                contentStream.showText("Late Fee: INR " + lateFee.toPlainString());
                 contentStream.newLineAtOffset(0, -20);
-                contentStream.showText("Total Amount: INR " + (bill.getAmount() + lateFee));
+                BigDecimal totalAmount = baseAmount.add(lateFee).setScale(2, RoundingMode.HALF_UP);
+                contentStream.showText("Total Amount: INR " + totalAmount.toPlainString());
                 contentStream.newLineAtOffset(0, -20);
                 contentStream.showText("Status: " + bill.getStatus().name());
                 contentStream.endText();

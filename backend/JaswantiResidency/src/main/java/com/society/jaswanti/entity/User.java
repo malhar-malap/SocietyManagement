@@ -27,6 +27,7 @@ public class User implements UserDetails {
     private LocalDateTime verifiedAt;
 
     @Column(nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String password;
 
     @Column(nullable = false)
@@ -52,10 +53,24 @@ public class User implements UserDetails {
     private String pendingEmail;
 
     @Column(name = "email_verification_token")
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String emailVerificationToken;
 
     @Column(name = "email_verification_expiry")
     private LocalDateTime emailVerificationExpiry;
+
+    @Column(name = "password_reset_otp_hash")
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private String passwordResetOtpHash;
+
+    @Column(name = "password_reset_otp_expiry")
+    private LocalDateTime passwordResetOtpExpiry;
+
+    @Column(name = "password_reset_otp_attempts", nullable = false)
+    private Integer passwordResetOtpAttempts = 0;
+
+    @Column(name = "password_reset_otp_last_sent_at")
+    private LocalDateTime passwordResetOtpLastSentAt;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -79,7 +94,7 @@ public class User implements UserDetails {
     @Override
     public String getUsername() {
         // Fallback to ID if email is not provided yet
-        return email != null ? email : String.valueOf(id); 
+        return email != null ? email : String.valueOf(id);
     }
 
     @Override
@@ -105,7 +120,7 @@ public class User implements UserDetails {
     // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
-    
+
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
 
@@ -114,25 +129,25 @@ public class User implements UserDetails {
 
     public LocalDateTime getVerifiedAt() { return verifiedAt; }
     public void setVerifiedAt(LocalDateTime verifiedAt) { this.verifiedAt = verifiedAt; }
-    
+
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
-    
+
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
-    
+
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
-    
+
     public Role getRole() { return role; }
     public void setRole(Role role) { this.role = role; }
 
     public UserStatus getStatus() { return status; }
     public void setStatus(UserStatus status) { this.status = status; }
-    
+
     public boolean isActive() { return isActive; }
     public void setActive(boolean active) { isActive = active; }
-    
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
@@ -147,4 +162,16 @@ public class User implements UserDetails {
 
     public LocalDateTime getEmailVerificationExpiry() { return emailVerificationExpiry; }
     public void setEmailVerificationExpiry(LocalDateTime emailVerificationExpiry) { this.emailVerificationExpiry = emailVerificationExpiry; }
+
+    public String getPasswordResetOtpHash() { return passwordResetOtpHash; }
+    public void setPasswordResetOtpHash(String passwordResetOtpHash) { this.passwordResetOtpHash = passwordResetOtpHash; }
+
+    public LocalDateTime getPasswordResetOtpExpiry() { return passwordResetOtpExpiry; }
+    public void setPasswordResetOtpExpiry(LocalDateTime passwordResetOtpExpiry) { this.passwordResetOtpExpiry = passwordResetOtpExpiry; }
+
+    public Integer getPasswordResetOtpAttempts() { return passwordResetOtpAttempts != null ? passwordResetOtpAttempts : 0; }
+    public void setPasswordResetOtpAttempts(Integer passwordResetOtpAttempts) { this.passwordResetOtpAttempts = passwordResetOtpAttempts; }
+
+    public LocalDateTime getPasswordResetOtpLastSentAt() { return passwordResetOtpLastSentAt; }
+    public void setPasswordResetOtpLastSentAt(LocalDateTime passwordResetOtpLastSentAt) { this.passwordResetOtpLastSentAt = passwordResetOtpLastSentAt; }
 }

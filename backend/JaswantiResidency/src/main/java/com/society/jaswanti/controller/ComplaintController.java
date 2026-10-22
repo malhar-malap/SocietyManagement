@@ -22,7 +22,7 @@ public class ComplaintController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN') or #residentId == authentication.principal.id")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN') or #residentId == authentication.principal.id")
     public ResponseEntity<ComplaintDto> createComplaint(
             @RequestParam("residentId") Long residentId,
             @RequestParam("category") String category,
@@ -32,9 +32,9 @@ public class ComplaintController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
     public ResponseEntity<List<ComplaintDto>> getAllComplaints(org.springframework.security.core.Authentication auth) {
-        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MASTER_ADMIN"))) {
             return ResponseEntity.ok(complaintService.getAllComplaints());
         } else {
             com.society.jaswanti.entity.User user = (com.society.jaswanti.entity.User) auth.getPrincipal();
@@ -43,13 +43,13 @@ public class ComplaintController {
     }
 
     @GetMapping("/resident/{residentId}")
-    @PreAuthorize("hasRole('ADMIN') or #residentId == authentication.principal.id")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN') or #residentId == authentication.principal.id")
     public ResponseEntity<List<ComplaintDto>> getComplaintsByResident(@PathVariable Long residentId) {
         return ResponseEntity.ok(complaintService.getComplaintsByResident(residentId));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
     public ResponseEntity<ComplaintDto> updateComplaint(@PathVariable Long id, @RequestBody com.society.jaswanti.entity.Complaint complaint) {
         return complaintService.updateComplaint(id, complaint)
                 .map(ResponseEntity::ok)
@@ -57,7 +57,7 @@ public class ComplaintController {
     }
 
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
     public ResponseEntity<ComplaintDto> updateComplaintStatus(@PathVariable Long id, @RequestParam String status) {
         return complaintService.updateComplaintStatus(id, status)
                 .map(ResponseEntity::ok)
@@ -65,7 +65,7 @@ public class ComplaintController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
     public ResponseEntity<Void> deleteComplaint(@PathVariable Long id) {
         complaintService.deleteComplaint(id);
         return ResponseEntity.noContent().build();

@@ -1,9 +1,14 @@
 package com.society.jaswanti.service;
 
 import com.society.jaswanti.entity.User;
+import com.society.jaswanti.entity.Role;
+import com.society.jaswanti.entity.UserStatus;
+import com.society.jaswanti.exception.LastMasterAdminProtectionException;
 import com.society.jaswanti.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.Authentication;
 
 import java.util.List;
 import java.util.Optional;
@@ -36,13 +41,39 @@ public class UserService {
         });
     }
 
-    public Optional<User> updateUserStatus(Long id, String status) {
+    @Transactional
+    public synchronized Optional<User> updateUserStatus(Long id, String status, Authentication actor) {
+        requireMasterAdmin(actor);
         return userRepository.findById(id).map(user -> {
-            try {
-                user.setStatus(com.society.jaswanti.entity.UserStatus.valueOf(status.toUpperCase()));
-            } catch (IllegalArgumentException e) {
-                // Ignore invalid status
+            UserStatus requestedStatus = UserStatus.valueOf(status.toUpperCase());
+            if (user.getRole() == Role.MASTER_ADMIN
+                    && user.isActive()
+                    && user.getStatus() == UserStatus.ACTIVE
+                    && requestedStatus != UserStatus.ACTIVE
+                    && activeMasterAdminCount() <= 1) {
+                throw new LastMasterAdminProtectionException();
             }
+            user.setStatus(requestedStatus);
+            if (requestedStatus == UserStatus.ACTIVE) {
+                user.setActive(true);
+            }
+            return userRepository.save(user);
+        });
+    }
+
+    @Transactional
+    public synchronized Optional<User> updateUserRole(Long id, String role, Authentication actor) {
+        requireMasterAdmin(actor);
+        Role requestedRole = Role.valueOf(role.toUpperCase());
+        return userRepository.findById(id).map(user -> {
+            if (user.getRole() == Role.MASTER_ADMIN
+                    && user.isActive()
+                    && user.getStatus() == UserStatus.ACTIVE
+                    && requestedRole != Role.MASTER_ADMIN
+                    && activeMasterAdminCount() <= 1) {
+                throw new LastMasterAdminProtectionException();
+            }
+            user.setRole(requestedRole);
             return userRepository.save(user);
         });
     }
@@ -59,12 +90,31 @@ public class UserService {
         return userRepository.findById(id);
     }
     
-    public void deleteUser(Long id) {
+    @Transactional
+    public synchronized void deleteUser(Long id, Authentication actor) {
+        requireMasterAdmin(actor);
         // We use soft delete by setting isActive to false instead of hard deleting
         userRepository.findById(id).ifPresent(user -> {
+            if (user.getRole() == Role.MASTER_ADMIN
+                    && user.isActive()
+                    && user.getStatus() == UserStatus.ACTIVE
+                    && activeMasterAdminCount() <= 1) {
+                throw new LastMasterAdminProtectionException();
+            }
             user.setActive(false);
             userRepository.save(user);
         });
+    }
+
+    private void requireMasterAdmin(Authentication actor) {
+        if (actor == null || actor.getAuthorities().stream()
+                .noneMatch(authority -> "ROLE_MASTER_ADMIN".equals(authority.getAuthority()))) {
+            throw new org.springframework.security.access.AccessDeniedException("Master Admin privileges are required");
+        }
+    }
+
+    private long activeMasterAdminCount() {
+        return userRepository.countByRoleAndIsActiveTrueAndStatus(Role.MASTER_ADMIN, UserStatus.ACTIVE);
     }
 
     public boolean changePassword(Long userId, String oldPassword, String newPassword) {

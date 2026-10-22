@@ -9,8 +9,6 @@ import com.society.jaswanti.entity.User;
 import com.society.jaswanti.entity.Role;
 import com.society.jaswanti.entity.UserStatus;
 import com.society.jaswanti.repository.UserRepository;
-import com.society.jaswanti.repository.RoomRepository;
-import com.society.jaswanti.entity.Room;
 
 @SpringBootApplication
 public class JaswantiResidencyApplication {
@@ -19,69 +17,53 @@ public class JaswantiResidencyApplication {
 		SpringApplication.run(JaswantiResidencyApplication.class, args);
 	}
 
+	/**
+	 * Out-of-band, one-time bootstrap. It is deliberately configuration-driven,
+	 * disabled by default, and has no HTTP endpoint or default credentials.
+	 * Set BOOTSTRAP_MASTER_ADMIN_ENABLED=true together with the three values for
+	 * one deployment, then remove/disable them after the application starts.
+	 */
 	@Bean
-	public CommandLineRunner loadData(UserRepository userRepository, RoomRepository roomRepository, PasswordEncoder passwordEncoder) {
-		return args -> {
-			// Fix passwords for all Flyway-seeded residents (their hashes may not match)
-			java.util.List<User> allUsers = userRepository.findAll();
-			boolean fixed = false;
-			for (User u : allUsers) {
-				if (u.getRole() == Role.ADMIN && u.getEmail() != null && u.getEmail().equals("admin@jaswanti.com")) {
-					boolean updated = false;
-					if (!passwordEncoder.matches("admin123", u.getPassword())) {
-						u.setPassword(passwordEncoder.encode("admin123"));
-						updated = true;
-					}
-					if (u.isForcePasswordChange()) {
-						u.setForcePasswordChange(false);
-						updated = true;
-					}
-					if (updated) {
-						userRepository.save(u);
-						fixed = true;
-					}
-				} else if (u.getRole() == Role.RESIDENT) {
-					// Set all resident passwords to 'resident123'
-					if (!passwordEncoder.matches("resident123", u.getPassword())) {
-						u.setPassword(passwordEncoder.encode("resident123"));
-						userRepository.save(u);
-						fixed = true;
-					}
-					// Clear the test email if it's already assigned to a resident so the user can reuse it
-					if (u.getEmail() != null && u.getEmail().equals("malhar3016m@gmail.com")) {
-						u.setEmail(null);
-						u.setEmailVerified(false);
-						userRepository.save(u);
-						fixed = true;
-					}
-				}
-			}
-			
-			if (allUsers.isEmpty()) {
-				// No users at all — create defaults
-				User admin = new User();
-				admin.setName("Society Admin");
-				admin.setEmail("admin@jaswanti.com");
-				admin.setPassword(passwordEncoder.encode("admin123"));
-				admin.setRole(Role.ADMIN);
-				admin.setStatus(UserStatus.ACTIVE);
-				admin.setEmailVerified(true);
-				admin.setForcePasswordChange(false);
-				userRepository.save(admin);
-				fixed = true;
-			}
-			
-			if (fixed) {
-				System.out.println("=========================================");
-				System.out.println("Passwords synchronized successfully!");
-			} else {
-				System.out.println("=========================================");
-				System.out.println("All passwords already in sync.");
-			}
-			System.out.println("ADMIN  -> email: admin@jaswanti.com | pass: admin123");
-			System.out.println("ALL RESIDENTS -> pass: resident123");
-			System.out.println("  e.g. resident602@jaswanti.com / resident123");
-			System.out.println("=========================================");
-		};
+	public CommandLineRunner bootstrapMasterAdmin(UserRepository userRepository,
+	                                              PasswordEncoder passwordEncoder,
+	                                              org.springframework.core.env.Environment environment) {
+		return args -> executeBootstrap(userRepository, passwordEncoder, environment::getProperty);
+	}
+
+	public static void executeBootstrap(UserRepository userRepository,
+	                                    PasswordEncoder passwordEncoder,
+	                                    java.util.function.Function<String, String> envLookup) {
+		if (!"true".equalsIgnoreCase(envLookup.apply("BOOTSTRAP_MASTER_ADMIN_ENABLED"))) {
+			return;
+		}
+
+		String email = requiredBootstrapValue("BOOTSTRAP_MASTER_ADMIN_EMAIL", envLookup);
+		String name = requiredBootstrapValue("BOOTSTRAP_MASTER_ADMIN_NAME", envLookup);
+		String password = requiredBootstrapValue("BOOTSTRAP_MASTER_ADMIN_PASSWORD", envLookup);
+		if (userRepository.countByRoleAndIsActiveTrueAndStatus(Role.MASTER_ADMIN, UserStatus.ACTIVE) > 0) {
+			throw new IllegalStateException("Master Admin bootstrap is already complete; disable BOOTSTRAP_MASTER_ADMIN_ENABLED.");
+		}
+		if (userRepository.findByEmailIgnoreCase(email).isPresent()) {
+			throw new IllegalStateException("Bootstrap email is already associated with an account.");
+		}
+
+		User masterAdmin = new User();
+		masterAdmin.setName(name);
+		masterAdmin.setEmail(email);
+		masterAdmin.setPassword(passwordEncoder.encode(password));
+		masterAdmin.setRole(Role.MASTER_ADMIN);
+		masterAdmin.setStatus(UserStatus.ACTIVE);
+		masterAdmin.setActive(true);
+		masterAdmin.setEmailVerified(true);
+		masterAdmin.setForcePasswordChange(true);
+		userRepository.save(masterAdmin);
+	}
+
+	private static String requiredBootstrapValue(String variable, java.util.function.Function<String, String> envLookup) {
+		String value = envLookup.apply(variable);
+		if (value == null || value.isBlank()) {
+			throw new IllegalStateException(variable + " must be set for Master Admin bootstrap.");
+		}
+		return value;
 	}
 }

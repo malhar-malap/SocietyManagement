@@ -2,6 +2,8 @@
 
 A full-stack housing society management web application for **Jaswanti Residency** (C Wing, 80 rooms).
 
+> **Product scope and development roadmap:** See [PROJECT_GUIDE.md](PROJECT_GUIDE.md) for the agreed MVP, Resident/Admin/Master Admin responsibilities, security and ledger rules, phased roadmap, and instructions for continuing development with Antigravity.
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -43,9 +45,22 @@ npm install
 npm start
 ```
 
-## Default Credentials (Development)
+### Master Admin Initial Bootstrap
+The `MASTER_ADMIN` role has no public registration endpoint and no default seeded credentials. To initialize the first Master Admin, configure the following environment variables in your deployment or `.env` file before starting the backend:
 
-| Role | Login | Password |
-|---|---|---|
-| Admin | admin@jaswanti.com | admin123 |
-| Resident | resident602@jaswanti.com (or room number `C-602`) | resident123 |
+```env
+BOOTSTRAP_MASTER_ADMIN_ENABLED=true
+BOOTSTRAP_MASTER_ADMIN_EMAIL=masteradmin@jaswanti.com
+BOOTSTRAP_MASTER_ADMIN_NAME="Master Administrator"
+BOOTSTRAP_MASTER_ADMIN_PASSWORD=your_temporary_strong_password
+```
+
+Start the backend once with these variables present to create the account. Once initialized, remove the variables or set `BOOTSTRAP_MASTER_ADMIN_ENABLED=false`. Bootstrap fails closed if any variable is missing, if the email is already in use, or if an active Master Admin already exists.
+
+## Development Credentials
+
+| Role | Login | Password | Notes |
+|---|---|---|---|
+| Admin | `admin@jaswanti.com` | `admin123` | Pre-seeded routine operational administrator |
+| Resident | `resident602@jaswanti.com` (or room `C-602`) | `Temp_C-602` | Seed residents use pattern `Temp_<roomNumber>` and require profile/password setup on first login |
+| Master Admin | Configured via bootstrap | Configured via bootstrap | No default seeded password; created via one-time bootstrap variables above |

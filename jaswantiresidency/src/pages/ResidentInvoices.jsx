@@ -5,10 +5,8 @@ import StatusChip from '../components/ui/StatusChip';
 import Button from '../components/ui/Button';
 import PaymentModal from '../components/PaymentModal';
 import { Download, CreditCard } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
 
 const ResidentInvoices = () => {
-    const { user } = useAuth();
     const [invoices, setInvoices] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -16,10 +14,9 @@ const ResidentInvoices = () => {
 
     useEffect(() => {
         const fetchInvoices = async () => {
-            if (!user?.roomId) return;
             try {
-                const { getBillsByRoom } = await import('../api/billingApi');
-                const data = await getBillsByRoom(user.roomId);
+                const { getMyBills } = await import('../api/billingApi');
+                const data = await getMyBills();
                 // Sort so newest are first
                 const sorted = data.sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
                 setInvoices(sorted);
@@ -35,7 +32,7 @@ const ResidentInvoices = () => {
             }
         };
         fetchInvoices();
-    }, [user]);
+    }, []);
 
     const handlePayClick = (bill) => {
         setSelectedBill(bill);
@@ -64,26 +61,26 @@ const ResidentInvoices = () => {
 
     return (
         <div>
-            <PageHeader 
-                title="My Invoices" 
-                breadcrumbs={['Resident', 'Invoices']} 
+            <PageHeader
+                title="My Invoices"
+                breadcrumbs={['Resident', 'Invoices']}
             />
-            
-            <DataTable 
-                columns={columns} 
-                data={invoices} 
+
+            <DataTable
+                columns={columns}
+                data={invoices}
                 isLoading={isLoading}
                 emptyMessage="No invoices found."
             />
 
             {isPaymentModalOpen && (
-                <PaymentModal 
-                    amount={selectedBill?.amount} 
+                <PaymentModal
+                    amount={selectedBill?.amount}
                     bills={[selectedBill]}
                     onClose={() => {
                         setIsPaymentModalOpen(false);
                         setSelectedBill(null);
-                    }} 
+                    }}
                 />
             )}
         </div>

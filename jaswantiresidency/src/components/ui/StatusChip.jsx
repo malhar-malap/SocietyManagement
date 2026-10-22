@@ -14,6 +14,8 @@ const StatusChip = ({ status }) => {
             case 'in progress':
                 return 'chip-warning';
             case 'blocked':
+            case 'deactivated':
+            case 'inactive':
             case 'overdue':
                 return 'chip-danger';
             case 'paid (cash)':

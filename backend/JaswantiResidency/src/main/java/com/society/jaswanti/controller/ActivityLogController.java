@@ -24,7 +24,7 @@ public class ActivityLogController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
     public ResponseEntity<List<ActivityLog>> getLogs() {
         return ResponseEntity.ok(activityLogRepository.findAll(Sort.by(Sort.Direction.DESC, "timestamp")));
     }

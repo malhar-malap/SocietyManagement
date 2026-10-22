@@ -5,8 +5,17 @@ export const getResidents = async () => {
   return response.data;
 };
 
+export const getMyRooms = async () => {
+  const response = await api.get('/rooms/my-rooms');
+  return response.data;
+};
+
 export const getResidentDashboard = async (residentId, roomId) => {
-  const response = await api.get(`/resident/dashboard?residentId=${residentId}&roomId=${roomId}`);
+  const params = [];
+  if (residentId) params.push(`residentId=${residentId}`);
+  if (roomId) params.push(`roomId=${roomId}`);
+  const query = params.length > 0 ? `?${params.join('&')}` : '';
+  const response = await api.get(`/resident/dashboard${query}`);
   return response.data;
 };
 

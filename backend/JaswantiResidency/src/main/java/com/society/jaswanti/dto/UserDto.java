@@ -9,6 +9,7 @@ public class UserDto {
     private String status;
     private String role;
     private String roomNumber; // derived
+    private boolean active = true;
 
     public UserDto() {}
 
@@ -35,4 +36,6 @@ public class UserDto {
     public void setRole(String role) { this.role = role; }
     public String getRoomNumber() { return roomNumber; }
     public void setRoomNumber(String roomNumber) { this.roomNumber = roomNumber; }
+    public boolean isActive() { return active; }
+    public void setActive(boolean active) { this.active = active; }
 }

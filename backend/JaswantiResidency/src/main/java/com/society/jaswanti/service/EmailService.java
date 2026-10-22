@@ -1,13 +1,20 @@
 package com.society.jaswanti.service;
 
-import org.springframework.mail.SimpleMailMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 @Service
 public class EmailService {
 
+    private static final Logger logger = LoggerFactory.getLogger(EmailService.class);
+
     private final JavaMailSender mailSender;
+
+    @Value("${spring.mail.username:noreply@jaswanti.com}")
+    private String fromEmail;
 
     public EmailService(JavaMailSender mailSender) {
         this.mailSender = mailSender;
@@ -16,10 +23,10 @@ public class EmailService {
     public void sendEmail(String to, String subject, String body) {
         try {
             jakarta.mail.internet.MimeMessage mimeMessage = mailSender.createMimeMessage();
-            org.springframework.mail.javamail.MimeMessageHelper helper = 
+            org.springframework.mail.javamail.MimeMessageHelper helper =
                 new org.springframework.mail.javamail.MimeMessageHelper(mimeMessage, "utf-8");
-            
-            // Modern, impressive HTML email template
+
+            // Modern HTML email template
             String htmlMsg = "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden;'>"
                     + "<div style='background-color: #d32f2f; padding: 20px; text-align: center; color: white;'>"
                     + "  <h1 style='margin: 0; font-size: 24px; font-weight: bold;'>Jaswanti Residency</h1>"
@@ -36,11 +43,11 @@ public class EmailService {
             helper.setText(htmlMsg, true); // true indicates HTML
             helper.setTo(to);
             helper.setSubject(subject);
-            helper.setFrom("simplymalhar@gmail.com");
-            
+            helper.setFrom(fromEmail);
+
             mailSender.send(mimeMessage);
-        } catch (jakarta.mail.MessagingException e) {
-            System.err.println("Failed to send HTML email: " + e.getMessage());
+        } catch (Exception e) {
+            logger.error("Failed to send HTML email: {}", e.getMessage());
         }
     }
 }

@@ -21,11 +21,11 @@ export const getProfile = async () => {
 };
 
 export const forgotPassword = async (email) => {
-  const response = await api.post(`/auth/forgot-password?email=${email}`);
+  const response = await api.post('/auth/forgot-password', { email });
   return response.data;
 };
 
 export const resetPassword = async (email, otp, newPassword) => {
-  const response = await api.post(`/auth/reset-password?email=${email}&otp=${otp}&newPassword=${newPassword}`);
+  const response = await api.post('/auth/reset-password', { email, otp, newPassword });
   return response.data;
 };

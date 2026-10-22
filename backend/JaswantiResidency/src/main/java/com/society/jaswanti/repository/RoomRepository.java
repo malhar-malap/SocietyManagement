@@ -9,6 +9,9 @@ import java.util.Optional;
 
 @Repository
 public interface RoomRepository extends JpaRepository<Room, Long> {
-    List<Room> findByResidentId(Long residentId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT r FROM Room r WHERE EXISTS (SELECT 1 FROM RoomResident rr WHERE rr.room = r AND rr.resident.id = :residentId AND rr.isActive = true) OR (NOT EXISTS (SELECT 1 FROM RoomResident rr2 WHERE rr2.room = r) AND r.resident.id = :residentId)")
+    List<Room> findByResidentId(@org.springframework.data.repository.query.Param("residentId") Long residentId);
+
     Optional<Room> findByRoomNumber(String roomNumber);
 }
