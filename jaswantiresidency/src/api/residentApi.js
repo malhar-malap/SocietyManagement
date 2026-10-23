@@ -24,6 +24,11 @@ export const getResidentProfile = async (id) => {
   return response.data;
 };
 
+export const updateResidentProfile = async (id, data) => {
+  const response = await api.put(`/users/profile/${id}`, data);
+  return response.data;
+};
+
 export const changePassword = async (id, data) => {
   const response = await api.post(`/users/${id}/change-password`, data);
   return response.data;

@@ -29,6 +29,7 @@ public class AuthController {
     private final CustomUserDetailsService userDetailsService;
     private final JwtService jwtService;
     private final RoomRepository roomRepository;
+    private final com.society.jaswanti.repository.RoomResidentRepository roomResidentRepository;
     private final com.society.jaswanti.repository.UserRepository userRepository;
     private final com.society.jaswanti.service.EmailService emailService;
     private final PasswordResetService passwordResetService;
@@ -37,6 +38,7 @@ public class AuthController {
                           CustomUserDetailsService userDetailsService,
                           JwtService jwtService,
                           RoomRepository roomRepository,
+                          com.society.jaswanti.repository.RoomResidentRepository roomResidentRepository,
                           com.society.jaswanti.repository.UserRepository userRepository,
                           com.society.jaswanti.service.EmailService emailService,
                           PasswordResetService passwordResetService) {
@@ -44,9 +46,23 @@ public class AuthController {
         this.userDetailsService = userDetailsService;
         this.jwtService = jwtService;
         this.roomRepository = roomRepository;
+        this.roomResidentRepository = roomResidentRepository;
         this.userRepository = userRepository;
         this.emailService = emailService;
         this.passwordResetService = passwordResetService;
+    }
+
+    private Long resolveRoomId(Long userId) {
+        if (userId == null) return null;
+        List<Room> rooms = roomRepository.findByResidentId(userId);
+        if (!rooms.isEmpty()) {
+            return rooms.get(0).getId();
+        }
+        List<com.society.jaswanti.entity.RoomResident> rrs = roomResidentRepository.findByResidentIdAndIsActiveTrue(userId);
+        if (!rrs.isEmpty() && rrs.get(0).getRoom() != null) {
+            return rrs.get(0).getRoom().getId();
+        }
+        return null;
     }
 
     @PostMapping("/login")
@@ -61,8 +77,7 @@ public class AuthController {
         String accessToken = jwtService.generateToken(user);
         String refreshToken = jwtService.generateRefreshToken(user);
 
-        List<Room> rooms = roomRepository.findByResidentId(user.getId());
-        Long roomId = rooms.isEmpty() ? null : rooms.get(0).getId();
+        Long roomId = resolveRoomId(user.getId());
 
         return ResponseEntity.ok(new AuthResponse(
                 accessToken,
@@ -85,8 +100,7 @@ public class AuthController {
             if (jwtService.isTokenValid(refreshToken, user)) {
                 String accessToken = jwtService.generateToken(user);
 
-                List<Room> rooms = roomRepository.findByResidentId(user.getId());
-                Long roomId = rooms.isEmpty() ? null : rooms.get(0).getId();
+                Long roomId = resolveRoomId(user.getId());
 
                 return ResponseEntity.ok(new AuthResponse(
                         accessToken,

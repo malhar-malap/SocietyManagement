@@ -6,6 +6,7 @@ import Button from '../components/ui/Button';
 import PaymentModal from '../components/PaymentModal';
 import { Download, CreditCard, UploadCloud, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { getMyBills, getMyPaymentSubmissions } from '../api/billingApi';
+import { downloadAuthenticatedFile } from '../api/fileUtils';
 
 const ResidentInvoices = () => {
     const [activeTab, setActiveTab] = useState('invoices'); // 'invoices' | 'submissions'
@@ -76,7 +77,12 @@ const ResidentInvoices = () => {
             header: 'Actions',
             render: (row) => (
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <Button variant="secondary" title="Download PDF Invoice" style={{ padding: '0.4rem 0.6rem' }} onClick={() => window.open(`/api/bills/${row.id}/invoice-pdf`, '_blank')}>
+                    <Button
+                        variant="secondary"
+                        title="Download PDF Invoice"
+                        style={{ padding: '0.4rem 0.6rem' }}
+                        onClick={() => downloadAuthenticatedFile(`/bills/${row.id}/invoice-pdf`, `invoice_${row.billingMonth || row.id}.pdf`)}
+                    >
                         <Download size={16} />
                     </Button>
                     {['PENDING', 'PARTIALLY_PAID'].includes(row.status) && (

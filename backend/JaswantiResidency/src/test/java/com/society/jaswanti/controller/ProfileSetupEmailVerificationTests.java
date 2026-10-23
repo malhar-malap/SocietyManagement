@@ -17,7 +17,9 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
@@ -206,5 +208,64 @@ class ProfileSetupEmailVerificationTests {
                         .header("Authorization", "Bearer " + residentToken))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().string("Invalid or expired verification token."));
+    }
+
+    @Test
+    @DisplayName("Resident can update own profile name and phone via PUT /api/users/profile/{id}")
+    void testResidentCanUpdateOwnProfileNameAndPhone() throws Exception {
+        String updatePayload = """
+                {
+                    "name": "Jane Resident",
+                    "phone": "9876500000"
+                }
+                """;
+
+        mockMvc.perform(put("/api/users/profile/" + residentUser.getId())
+                        .header("Authorization", "Bearer " + residentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updatePayload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fullName", is("Jane Resident")))
+                .andExpect(jsonPath("$.phoneNumber", is("9876500000")));
+
+        User updated = userRepository.findById(residentUser.getId()).orElseThrow();
+        assertThat(updated.getName()).isEqualTo("Jane Resident");
+        assertThat(updated.getPhone()).isEqualTo("9876500000");
+    }
+
+    @Test
+    @DisplayName("Another resident cannot update someone else's profile (403 Forbidden)")
+    void testOtherResidentCannotUpdateSomeoneElsesProfile() throws Exception {
+        User otherResident = new User();
+        otherResident.setEmail("other.resident@jaswanti.com");
+        otherResident.setName("Other Resident");
+        otherResident.setPassword("Pass123!");
+        otherResident.setRole(Role.RESIDENT);
+        otherResident.setStatus(UserStatus.ACTIVE);
+        otherResident.setActive(true);
+        otherResident = userRepository.save(otherResident);
+        String otherToken = jwtService.generateToken(otherResident);
+
+        String updatePayload = """
+                {
+                    "name": "Hacked Name",
+                    "phone": "1234567890"
+                }
+                """;
+
+        mockMvc.perform(put("/api/users/profile/" + residentUser.getId())
+                        .header("Authorization", "Bearer " + otherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updatePayload))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Direct GET with token query parameter authenticates successfully without 403")
+    void testJwtTokenQueryParamFallback() throws Exception {
+        mockMvc.perform(get("/api/users/profile/" + residentUser.getId())
+                        .param("token", residentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id", is(residentUser.getId().intValue())));
     }
 }

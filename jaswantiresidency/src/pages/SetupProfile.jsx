@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
+import { Eye, EyeOff } from 'lucide-react';
 import api from '../api/axiosConfig';
 
 const SetupProfile = () => {
@@ -16,10 +17,12 @@ const SetupProfile = () => {
         newPassword: '',
         confirmPassword: ''
     });
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [successMessage, setSuccessMessage] = useState(null);
-    
+
     // For Verification Step
     const [verificationStep, setVerificationStep] = useState(false);
     const [verificationToken, setVerificationToken] = useState('');
@@ -33,7 +36,7 @@ const SetupProfile = () => {
     const handleSetupSubmit = async (e) => {
         if (e) e.preventDefault();
         setError(null);
-        
+
         if (formData.newPassword !== formData.confirmPassword) {
             setError("Passwords do not match.");
             return;
@@ -101,8 +104,12 @@ const SetupProfile = () => {
             const res = await api.post(`/users/${userId}/verify-setup?token=${encodeURIComponent(cleanToken)}`);
 
             // If backend returns updated AuthResponse JSON with fresh tokens
+            let destination = '/resident/dashboard';
             if (res.data && res.data.accessToken) {
                 login(res.data);
+                if (res.data.role === 'ADMIN' || res.data.role === 'MASTER_ADMIN') {
+                    destination = '/admin/dashboard';
+                }
             } else {
                 const newUserData = { ...user, forcePasswordChange: false };
                 login({
@@ -110,10 +117,13 @@ const SetupProfile = () => {
                     accessToken: localStorage.getItem('accessToken'),
                     refreshToken: localStorage.getItem('refreshToken')
                 });
+                if (user?.role === 'ADMIN' || user?.role === 'MASTER_ADMIN') {
+                    destination = '/admin/dashboard';
+                }
             }
 
-            // Redirect to home/dashboard
-            navigate('/');
+            // Directly navigate to dashboard without logging out
+            navigate(destination, { replace: true });
         } catch (err) {
             const msg = err?.response?.data || err?.message || "Invalid or expired verification token.";
             setError(typeof msg === 'string' ? msg : JSON.stringify(msg));
@@ -130,51 +140,88 @@ const SetupProfile = () => {
                         <p style={{ color: 'var(--text-light)', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
                             Welcome to Jaswanti Residency! For your security, you must update your profile, provide your personal email, and set your new password before accessing the portal.
                         </p>
-                        
+
                         {error && <div className="alert alert-error">{error}</div>}
 
-                        <Input 
-                            label="Full Name" 
-                            name="name" 
-                            value={formData.name} 
-                            onChange={handleChange} 
-                            required 
+                        <Input
+                            label="Full Name"
+                            name="name"
+                            value={formData.name}
+                            onChange={handleChange}
+                            required
                         />
-                        <Input 
-                            label="Phone Number" 
-                            name="phone" 
-                            value={formData.phone} 
-                            onChange={handleChange} 
+                        <Input
+                            label="Phone Number"
+                            name="phone"
+                            value={formData.phone}
+                            onChange={handleChange}
                             placeholder="e.g. 9876543210"
-                            required 
+                            required
                         />
-                        <Input 
-                            label="Personal Email" 
-                            type="email" 
-                            name="personalEmail" 
-                            value={formData.personalEmail} 
-                            onChange={handleChange} 
+                        <Input
+                            label="Personal Email"
+                            type="email"
+                            name="personalEmail"
+                            value={formData.personalEmail}
+                            onChange={handleChange}
                             placeholder="name@example.com"
-                            required 
+                            required
                         />
-                        <Input 
-                            label="New Password" 
-                            type="password" 
-                            name="newPassword" 
-                            value={formData.newPassword} 
-                            onChange={handleChange} 
-                            placeholder="Minimum 6 characters"
-                            required 
-                        />
-                        <Input 
-                            label="Confirm New Password" 
-                            type="password" 
-                            name="confirmPassword" 
-                            value={formData.confirmPassword} 
-                            onChange={handleChange} 
-                            placeholder="Repeat new password"
-                            required 
-                        />
+                        <div style={{ position: 'relative' }}>
+                            <Input
+                                label="New Password"
+                                type={showNewPassword ? "text" : "password"}
+                                name="newPassword"
+                                value={formData.newPassword}
+                                onChange={handleChange}
+                                placeholder="Minimum 6 characters"
+                                required
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowNewPassword(!showNewPassword)}
+                                style={{
+                                    position: 'absolute',
+                                    right: '12px',
+                                    top: '36px',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    color: 'var(--text-secondary-light)'
+                                }}
+                                title={showNewPassword ? "Hide password" : "Show password"}
+                            >
+                                {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
+
+                        <div style={{ position: 'relative' }}>
+                            <Input
+                                label="Confirm New Password"
+                                type={showConfirmPassword ? "text" : "password"}
+                                name="confirmPassword"
+                                value={formData.confirmPassword}
+                                onChange={handleChange}
+                                placeholder="Repeat new password"
+                                required
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                style={{
+                                    position: 'absolute',
+                                    right: '12px',
+                                    top: '36px',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    color: 'var(--text-secondary-light)'
+                                }}
+                                title={showConfirmPassword ? "Hide password" : "Show password"}
+                            >
+                                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
 
                         <Button type="submit" disabled={loading} style={{ marginTop: '0.5rem' }}>
                             {loading ? 'Sending Code...' : 'Submit Profile Details'}
@@ -184,7 +231,7 @@ const SetupProfile = () => {
                     <form onSubmit={handleVerifySubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                         {successMessage && <div className="alert alert-success">{successMessage}</div>}
                         {error && <div className="alert alert-error">{error}</div>}
-                        
+
                         <p style={{ color: 'var(--text-light)', fontSize: '0.9rem' }}>
                             A 4-digit verification code was sent to <strong>{formData.personalEmail}</strong>. Enter it below to complete your setup.
                         </p>

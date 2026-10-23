@@ -53,7 +53,22 @@ public class RoomService {
     }
 
     public List<Room> getRoomsByResidentId(Long residentId) {
-        return roomRepository.findByResidentId(residentId);
+        if (residentId == null) return java.util.Collections.emptyList();
+        java.util.Set<Long> roomIds = new java.util.LinkedHashSet<>();
+        roomResidentRepository.findByResidentIdAndIsActiveTrue(residentId).forEach(rr -> {
+            if (rr.getRoom() != null && rr.getRoom().getId() != null) {
+                roomIds.add(rr.getRoom().getId());
+            }
+        });
+        roomRepository.findByResidentId(residentId).forEach(r -> {
+            if (r.getId() != null && !roomResidentRepository.existsByRoomId(r.getId())) {
+                roomIds.add(r.getId());
+            }
+        });
+        if (roomIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return roomRepository.findAllById(roomIds);
     }
 
     public List<RoomResidentDto> getRoomOccupants(Long roomId) {

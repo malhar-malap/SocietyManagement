@@ -4,6 +4,7 @@ import StatusChip from './ui/StatusChip';
 import { CheckCircle2, XCircle, Image as ImageIcon, AlertCircle, RefreshCw } from 'lucide-react';
 import { getPaymentSubmissions, approvePaymentSubmission, rejectPaymentSubmission } from '../api/billingApi';
 import { getBankAccounts } from '../api/adminApi';
+import { viewAuthenticatedFile, getAuthenticatedMediaUrl } from '../api/fileUtils';
 import './ui/shared.css';
 
 const PendingPaymentApprovalsModal = ({ isOpen, onClose, onActionSuccess }) => {
@@ -234,10 +235,10 @@ const PendingPaymentApprovalsModal = ({ isOpen, onClose, onActionSuccess }) => {
                                     </label>
                                     <div style={{ border: '1px solid var(--border-light)', borderRadius: 6, overflow: 'hidden', textAlign: 'center', background: '#f1f5f9', padding: '0.5rem' }}>
                                         <img
-                                            src={`/api/payments/submissions/${selectedSub.id}/screenshot`}
+                                            src={getAuthenticatedMediaUrl(`/payments/submissions/${selectedSub.id}/screenshot`)}
                                             alt="Payment Proof Screenshot"
                                             style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', cursor: 'pointer' }}
-                                            onClick={() => window.open(`/api/payments/submissions/${selectedSub.id}/screenshot`, '_blank')}
+                                            onClick={() => viewAuthenticatedFile(`/payments/submissions/${selectedSub.id}/screenshot`)}
                                             onError={(e) => {
                                                 e.target.onerror = null;
                                                 e.target.style.display = 'none';

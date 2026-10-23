@@ -8,6 +8,7 @@ import GenerateBillsDialog from '../components/GenerateBillsDialog';
 import RecordPaymentModal from '../components/RecordPaymentModal';
 import PendingPaymentApprovalsModal from '../components/PendingPaymentApprovalsModal';
 import { getBills, exportBillsExcel, downloadImportTemplate, importBillsExcel } from '../api/adminApi';
+import { downloadAuthenticatedFile } from '../api/fileUtils';
 
 const AdminBilling = () => {
     const [bills, setBills] = useState([]);
@@ -133,7 +134,7 @@ const AdminBilling = () => {
                         variant="secondary"
                         title="Download Invoice PDF"
                         style={{ padding: '0.4rem 0.6rem' }}
-                        onClick={() => window.open(`/api/bills/${row.id}/invoice-pdf`, '_blank')}
+                        onClick={() => downloadAuthenticatedFile(`/bills/${row.id}/invoice-pdf`, `invoice_${row.billingMonth || row.id}.pdf`)}
                     >
                         <Download size={16} />
                     </Button>

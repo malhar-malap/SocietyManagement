@@ -25,10 +25,14 @@ public class UserController {
 
     private final UserService userService;
     private final com.society.jaswanti.repository.RoomRepository roomRepository;
+    private final com.society.jaswanti.repository.RoomResidentRepository roomResidentRepository;
 
-    public UserController(UserService userService, com.society.jaswanti.repository.RoomRepository roomRepository) {
+    public UserController(UserService userService,
+                          com.society.jaswanti.repository.RoomRepository roomRepository,
+                          com.society.jaswanti.repository.RoomResidentRepository roomResidentRepository) {
         this.userService = userService;
         this.roomRepository = roomRepository;
+        this.roomResidentRepository = roomResidentRepository;
     }
 
 
@@ -83,6 +87,14 @@ public class UserController {
         return getUserById(id);
     }
 
+    @PutMapping("/profile/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN') or #id == authentication.principal.id")
+    public ResponseEntity<UserDto> updateProfile(@PathVariable Long id, @RequestBody com.society.jaswanti.dto.UpdateProfileRequest request, org.springframework.security.core.Authentication auth) {
+        return userService.updateProfile(id, request, auth)
+                .map(user -> ResponseEntity.ok(convertToDto(user)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @PostMapping("/{id}/change-password")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN') or #id == authentication.principal.id")
     public ResponseEntity<String> changePassword(@PathVariable Long id, @RequestBody ChangePasswordDto dto) {
@@ -133,9 +145,21 @@ public class UserController {
                 user.getStatus() != null ? user.getStatus().name() : "ACTIVE",
                 user.getRole() != null ? user.getRole().name() : "RESIDENT"
         );
-        List<com.society.jaswanti.entity.Room> rooms = roomRepository.findByResidentId(user.getId());
-        if (!rooms.isEmpty()) {
-            dto.setRoomNumber(rooms.stream().map(com.society.jaswanti.entity.Room::getRoomNumber).collect(Collectors.joining(", ")));
+        java.util.Set<String> roomNumbers = new java.util.LinkedHashSet<>();
+        roomResidentRepository.findByResidentIdAndIsActiveTrue(user.getId())
+                .forEach(rr -> {
+                    if (rr.getRoom() != null && rr.getRoom().getRoomNumber() != null) {
+                        roomNumbers.add(rr.getRoom().getRoomNumber());
+                    }
+                });
+        roomRepository.findByResidentId(user.getId())
+                .forEach(r -> {
+                    if (r.getRoomNumber() != null) {
+                        roomNumbers.add(r.getRoomNumber());
+                    }
+                });
+        if (!roomNumbers.isEmpty()) {
+            dto.setRoomNumber(String.join(", ", roomNumbers));
         }
         dto.setActive(user.isActive());
         return dto;

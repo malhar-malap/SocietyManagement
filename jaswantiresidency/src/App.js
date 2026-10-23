@@ -1,6 +1,6 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 // Layouts
@@ -29,13 +29,33 @@ import AdminComplaints from './pages/AdminComplaints';
 import AdminAnnouncements from './pages/AdminAnnouncements';
 import AdminActivityLogs from './pages/AdminActivityLogs';
 
-const ErrorPage = ({ code, message }) => (
-    <div style={{ padding: '4rem 2rem', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '4rem', color: 'var(--primary-color)' }}>{code}</h1>
-        <h2>{message}</h2>
-        <a href="/" style={{ color: 'var(--primary-color)', marginTop: '2rem', display: 'inline-block' }}>Go Home</a>
-    </div>
-);
+const RootRedirect = () => {
+    const { user, loading } = useAuth();
+    if (loading) return null;
+    if (!user) return <Navigate to="/login" replace />;
+    if (user.forcePasswordChange) return <Navigate to="/setup" replace />;
+    if (user.role === 'ADMIN' || user.role === 'MASTER_ADMIN') {
+        return <Navigate to="/admin/dashboard" replace />;
+    }
+    return <Navigate to="/resident/dashboard" replace />;
+};
+
+const ErrorPage = ({ code, message }) => {
+    const { user } = useAuth();
+    const homeTarget = !user
+        ? "/login"
+        : (user.role === 'ADMIN' || user.role === 'MASTER_ADMIN' ? "/admin/dashboard" : "/resident/dashboard");
+
+    return (
+        <div style={{ padding: '4rem 2rem', textAlign: 'center' }}>
+            <h1 style={{ fontSize: '4rem', color: 'var(--primary-color)' }}>{code}</h1>
+            <h2>{message}</h2>
+            <Link to={homeTarget} style={{ color: 'var(--primary-color)', marginTop: '2rem', display: 'inline-block', fontWeight: 600 }}>
+                Return to Dashboard
+            </Link>
+        </div>
+    );
+};
 
 function App() {
     return (
@@ -43,12 +63,12 @@ function App() {
             <BrowserRouter>
                 <Routes>
                     {/* Public Routes */}
-                    <Route path="/" element={<Navigate to="/login" replace />} />
+                    <Route path="/" element={<RootRedirect />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/verify-email" element={<VerifyEmail />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
                     <Route path="/setup" element={<ProtectedRoute><SetupProfile /></ProtectedRoute>} />
-                    
+
                     {/* Resident Routes */}
                     <Route path="/resident" element={<ProtectedRoute allowedRoles={['RESIDENT']}><ResidentLayout /></ProtectedRoute>}>
                         <Route index element={<Navigate to="/resident/dashboard" replace />} />

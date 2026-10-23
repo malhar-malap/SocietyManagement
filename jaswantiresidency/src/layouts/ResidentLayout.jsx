@@ -1,5 +1,5 @@
 import React from 'react';
-import { Outlet, Navigate } from 'react-router-dom';
+import { Outlet, Navigate, NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './layout.css';
 import { Home, FileText, Bell, LogOut, DollarSign, User, AlertCircle } from 'lucide-react';
@@ -14,10 +14,10 @@ const ResidentLayout = () => {
             <aside className="sidebar">
                 <div className="sidebar-brand">Jaswanti Residency</div>
                 <nav className="sidebar-nav">
-                    <a href="/resident/dashboard" className="nav-link"><Home size={18}/> Dashboard</a>
-                    <a href="/resident/invoices" className="nav-link"><DollarSign size={18}/> Bills & Invoices</a>
-                    <a href="/resident/complaints" className="nav-link"><AlertCircle size={18}/> Complaints</a>
-                    <a href="/resident/profile" className="nav-link"><User size={18}/> Profile</a>
+                    <NavLink to="/resident/dashboard" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}><Home size={18}/> Dashboard</NavLink>
+                    <NavLink to="/resident/invoices" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}><DollarSign size={18}/> Bills & Invoices</NavLink>
+                    <NavLink to="/resident/complaints" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}><AlertCircle size={18}/> Complaints</NavLink>
+                    <NavLink to="/resident/profile" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}><User size={18}/> Profile</NavLink>
                 </nav>
             </aside>
             <main className="main-content">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { IndianRupee, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
@@ -65,7 +66,7 @@ const ResidentDashboard = () => {
 
             {/* Hero Section */}
             <div className="dashboard-hero">
-                <h1 className="hero-greeting">Good morning, {user?.name} 👋</h1>
+                <h1 className="hero-greeting">Hello, {user?.name || 'Resident'} 👋</h1>
                 <p className="hero-subtext">Welcome back to Jaswanti Residency.</p>
             </div>
 
@@ -104,7 +105,7 @@ const ResidentDashboard = () => {
                         ) : (
                             <p className="subtitle" style={{marginTop: '1rem'}}>No previous payments found.</p>
                         )}
-                        <a href="/resident/invoices" className="text-link" style={{marginTop: '1rem', display: 'inline-block'}}>View Invoice History</a>
+                        <Link to="/resident/invoices" className="text-link" style={{marginTop: '1rem', display: 'inline-block'}}>View Invoice History</Link>
                     </div>
                 </Card>
 

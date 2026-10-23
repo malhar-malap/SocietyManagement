@@ -9,6 +9,7 @@ import {
     ShieldAlert, RefreshCw, Download, Mail, Scale
 } from 'lucide-react';
 import { emailReceipt, reconcileBankAccounts } from '../api/adminApi';
+import { downloadAuthenticatedFile } from '../api/fileUtils';
 import '../components/ui/shared.css';
 
 const EXPENSE_CATEGORIES = [
@@ -336,7 +337,7 @@ const AdminTransactions = () => {
                         <button
                             className="custom-btn secondary"
                             style={{ padding: '0.3rem 0.5rem', fontSize: '0.75rem' }}
-                            onClick={() => window.open(`/api/transactions/${row.id}/receipt-pdf`, '_blank')}
+                            onClick={() => downloadAuthenticatedFile(`/transactions/${row.id}/receipt-pdf`, `receipt_${row.receiptNumber || row.id}.pdf`)}
                             title="Download Receipt PDF"
                         >
                             <Download size={13} />

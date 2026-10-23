@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Building2, CreditCard, Bell, Shield, Mail, Lock, Eye, EyeOff } from 'lucide-react';
@@ -9,8 +9,18 @@ const Login = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const { login } = useAuth();
+    const { user, login } = useAuth();
     const navigate = useNavigate();
+
+    useEffect(() => {
+        if (user && !user.forcePasswordChange) {
+            if (user.role === 'ADMIN' || user.role === 'MASTER_ADMIN') {
+                navigate('/admin/dashboard', { replace: true });
+            } else {
+                navigate('/resident/dashboard', { replace: true });
+            }
+        }
+    }, [user, navigate]);
 
     const handleChange = (e) => {
         setCredentials({ ...credentials, [e.target.name]: e.target.value });

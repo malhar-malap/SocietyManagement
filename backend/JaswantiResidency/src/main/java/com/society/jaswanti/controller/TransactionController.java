@@ -62,7 +62,9 @@ public class TransactionController {
                     .map(User::getId)
                     .orElse(null);
         }
-        return null;
+        return userRepository.findByEmail(auth.getName())
+                .map(User::getId)
+                .orElse(null);
     }
 
     private boolean isAuthorizedForRoom(Authentication auth, Long roomId) {
@@ -78,7 +80,6 @@ public class TransactionController {
             return true;
         }
 
-        // Safe legacy fallback only if no relationships have ever been recorded for this room
         if (!roomResidentRepository.existsByRoomId(roomId)) {
             return roomRepository.findById(roomId)
                     .map(r -> r.getResident() != null && r.getResident().getId().equals(userId))

@@ -57,7 +57,9 @@ public class DashboardController {
                     .map(User::getId)
                     .orElse(null);
         }
-        return null;
+        return userRepository.findByEmail(auth.getName())
+                .map(User::getId)
+                .orElse(null);
     }
 
     private List<Long> getAuthorizedRoomIdsForResident(Long userId) {
@@ -77,7 +79,7 @@ public class DashboardController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('RESIDENT')")
+    @PreAuthorize("hasAnyRole('RESIDENT', 'ADMIN', 'MASTER_ADMIN')")
     public ResponseEntity<DashboardDto> getResidentDashboard(
             @RequestParam(value = "residentId", required = false) Long residentId,
             @RequestParam(value = "roomId", required = false) Long roomId,

@@ -1,4 +1,5 @@
 import api from './axiosConfig';
+import { downloadAuthenticatedFile } from './fileUtils';
 
 export const getAdminDashboard = async () => {
     const response = await api.get('/dashboard/admin');
@@ -93,15 +94,15 @@ export const getBills = async (financialYear) => {
 };
 
 export const exportBillsExcel = (financialYear) => {
-    let url = '/api/bills/export-excel';
+    let url = '/bills/export-excel';
     if (financialYear) {
         url += `?financialYear=${encodeURIComponent(financialYear)}`;
     }
-    window.open(url, '_blank');
+    return downloadAuthenticatedFile(url, `maintenance_bills_${financialYear || 'all'}.xlsx`);
 };
 
 export const downloadImportTemplate = () => {
-    window.open('/api/bills/import-template', '_blank');
+    return downloadAuthenticatedFile('/bills/import-template', 'bill_import_template.xlsx');
 };
 
 export const importBillsExcel = async (file) => {

@@ -2,12 +2,15 @@ package com.society.jaswanti.service;
 
 import com.society.jaswanti.dto.AuthResponse;
 import com.society.jaswanti.dto.ProfileSetupDto;
+import com.society.jaswanti.dto.UpdateProfileRequest;
 import com.society.jaswanti.entity.Role;
 import com.society.jaswanti.entity.Room;
+import com.society.jaswanti.entity.RoomResident;
 import com.society.jaswanti.entity.User;
 import com.society.jaswanti.entity.UserStatus;
 import com.society.jaswanti.exception.LastMasterAdminProtectionException;
 import com.society.jaswanti.repository.RoomRepository;
+import com.society.jaswanti.repository.RoomResidentRepository;
 import com.society.jaswanti.repository.UserRepository;
 import com.society.jaswanti.security.JwtService;
 import org.slf4j.Logger;
@@ -32,17 +35,20 @@ public class UserService {
     private final EmailService emailService;
     private final JwtService jwtService;
     private final RoomRepository roomRepository;
+    private final RoomResidentRepository roomResidentRepository;
 
     public UserService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        EmailService emailService,
                        JwtService jwtService,
-                       RoomRepository roomRepository) {
+                       RoomRepository roomRepository,
+                       RoomResidentRepository roomResidentRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
         this.jwtService = jwtService;
         this.roomRepository = roomRepository;
+        this.roomResidentRepository = roomResidentRepository;
     }
 
     public User registerUser(User user) {
@@ -149,6 +155,20 @@ public class UserService {
         return false;
     }
 
+    @Transactional
+    public Optional<User> updateProfile(Long userId, UpdateProfileRequest request, Authentication auth) {
+        return userRepository.findById(userId).map(user -> {
+            if (request.getName() != null && !request.getName().isBlank()) {
+                user.setName(request.getName().trim());
+            }
+            if (request.getPhone() != null) {
+                user.setPhone(request.getPhone().trim());
+            }
+            logger.info("Updated profile for user ID {}: name='{}', phone='{}'", userId, user.getName(), user.getPhone());
+            return userRepository.save(user);
+        });
+    }
+
     public boolean verifyEmail(Long userId) {
         Optional<User> userOpt = userRepository.findById(userId);
         if (userOpt.isPresent()) {
@@ -251,7 +271,15 @@ public class UserService {
                 String refreshToken = jwtService.generateRefreshToken(user);
 
                 List<Room> rooms = roomRepository.findByResidentId(user.getId());
-                Long roomId = rooms.isEmpty() ? null : rooms.get(0).getId();
+                Long roomId = null;
+                if (!rooms.isEmpty()) {
+                    roomId = rooms.get(0).getId();
+                } else {
+                    List<RoomResident> rrs = roomResidentRepository.findByResidentIdAndIsActiveTrue(user.getId());
+                    if (!rrs.isEmpty() && rrs.get(0).getRoom() != null) {
+                        roomId = rrs.get(0).getRoom().getId();
+                    }
+                }
 
                 logger.info("Setup verification successful for user ID {} (verified email: {})", user.getId(), user.getEmail());
 

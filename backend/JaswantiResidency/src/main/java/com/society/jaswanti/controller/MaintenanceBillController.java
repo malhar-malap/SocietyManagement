@@ -63,7 +63,9 @@ public class MaintenanceBillController {
                     .map(User::getId)
                     .orElse(null);
         }
-        return null;
+        return userRepository.findByEmail(auth.getName())
+                .map(User::getId)
+                .orElse(null);
     }
 
     private boolean isAuthorizedForBill(Authentication auth, Long billId) {
@@ -106,7 +108,6 @@ public class MaintenanceBillController {
                 .distinct()
                 .collect(Collectors.toCollection(ArrayList::new));
 
-        // Legacy fallback only for rooms with zero relationship records
         List<Room> legacyRooms = roomRepository.findByResidentId(userId);
         for (Room r : legacyRooms) {
             if (r.getId() != null && !roomResidentRepository.existsByRoomId(r.getId()) && !roomIds.contains(r.getId())) {
