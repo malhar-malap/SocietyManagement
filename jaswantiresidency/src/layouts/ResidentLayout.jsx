@@ -26,7 +26,7 @@ const ResidentLayout = () => {
                     <div className="topbar-actions">
                         <button className="icon-btn"><Bell size={20} /></button>
                         <div className="profile-menu">
-                            <span className="profile-name"><User size={16}/> {user.name}</span>
+                            <span className="profile-name"><User size={16}/> {user?.name || 'Resident'}</span>
                             <button onClick={logout} className="logout-btn"><LogOut size={16}/> Logout</button>
                         </div>
                     </div>

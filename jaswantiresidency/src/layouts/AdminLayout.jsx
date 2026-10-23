@@ -36,7 +36,7 @@ const AdminLayout = () => {
                             {user.name ? user.name.charAt(0).toUpperCase() : 'A'}
                         </div>
                         <div className="sidebar-profile-info">
-                            <span className="sidebar-profile-name">{user.name}</span>
+                            <span className="sidebar-profile-name">{user?.name || 'Administrator'}</span>
                             <span className="sidebar-profile-role">{user.role === 'MASTER_ADMIN' ? 'Master Administrator' : 'Administrator'}</span>
                             <span className="sidebar-profile-status">Online</span>
                         </div>

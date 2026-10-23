@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 
 const AdminAnnouncements = () => {
     const { user } = useAuth();
+    const isMasterAdmin = user?.role === 'MASTER_ADMIN';
     const [announcements, setAnnouncements] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -71,16 +72,19 @@ const AdminAnnouncements = () => {
         { header: 'Start Date', render: (row) => row.createdDate ? new Date(row.createdDate).toLocaleDateString() : 'N/A' },
         { header: 'Expiry Date', render: (row) => row.expiryDate ? new Date(row.expiryDate).toLocaleDateString() : 'N/A' },
         { header: 'Status', render: (row) => <StatusChip status={row.expiryDate && new Date(row.expiryDate) < new Date() ? 'Expired' : 'Active'} /> },
-        { header: 'Actions', render: (row) => (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <Button variant="secondary" title="Edit" style={{ padding: '0.4rem 0.6rem' }} onClick={() => { setSelectedAnnouncement(row); setIsModalOpen(true); }}>
-                    <Edit size={16} />
-                </Button>
-                <Button variant="secondary" title="Delete" style={{ padding: '0.4rem 0.6rem' }} onClick={() => { setSelectedAnnouncement(row); setIsDeleteModalOpen(true); }}>
-                    <Trash2 size={16} className="text-danger" />
-                </Button>
-            </div>
-        )}
+        ...(isMasterAdmin ? [{
+            header: 'Actions',
+            render: (row) => (
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <Button variant="secondary" title="Edit" style={{ padding: '0.4rem 0.6rem' }} onClick={() => { setSelectedAnnouncement(row); setIsModalOpen(true); }}>
+                        <Edit size={16} />
+                    </Button>
+                    <Button variant="secondary" title="Delete" style={{ padding: '0.4rem 0.6rem' }} onClick={() => { setSelectedAnnouncement(row); setIsDeleteModalOpen(true); }}>
+                        <Trash2 size={16} className="text-danger" />
+                    </Button>
+                </div>
+            )
+        }] : [])
     ];
 
     return (
@@ -89,9 +93,11 @@ const AdminAnnouncements = () => {
                 title="Announcements" 
                 breadcrumbs={['Admin', 'Announcements']} 
                 actionButton={
-                    <Button onClick={() => { setSelectedAnnouncement(null); setIsModalOpen(true); }}>
-                        <Plus size={18} /> New Notice
-                    </Button>
+                    isMasterAdmin ? (
+                        <Button onClick={() => { setSelectedAnnouncement(null); setIsModalOpen(true); }}>
+                            <Plus size={18} /> New Notice
+                        </Button>
+                    ) : null
                 }
             />
 

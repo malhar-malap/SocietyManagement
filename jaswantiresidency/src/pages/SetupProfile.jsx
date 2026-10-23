@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Card from '../components/ui/Card';
@@ -26,6 +26,16 @@ const SetupProfile = () => {
     // For Verification Step
     const [verificationStep, setVerificationStep] = useState(false);
     const [verificationToken, setVerificationToken] = useState('');
+
+    useEffect(() => {
+        if (user && !user.forcePasswordChange) {
+            if (user.role === 'ADMIN' || user.role === 'MASTER_ADMIN') {
+                navigate('/admin/dashboard', { replace: true });
+            } else {
+                navigate('/resident/dashboard', { replace: true });
+            }
+        }
+    }, [user, navigate]);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Building2, CreditCard, Bell, Shield, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import './auth.css';
@@ -160,7 +160,7 @@ const Login = () => {
                                 <input type="checkbox" className="custom-checkbox" />
                                 <span>Remember me</span>
                             </label>
-                            <a href="/forgot-password" className="forgot-link">Forgot Password?</a>
+                            <Link to="/forgot-password" className="forgot-link">Forgot Password?</Link>
                         </div>
 
                         {error && (
