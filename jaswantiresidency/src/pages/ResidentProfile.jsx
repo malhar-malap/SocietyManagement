@@ -4,11 +4,13 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Phone, Home, ShieldCheck } from 'lucide-react';
+import { Mail, Phone, Home, ShieldCheck, Award, Download, FileText } from 'lucide-react';
+import api from '../api/axiosConfig';
 
 const ResidentProfile = () => {
     const { user } = useAuth();
     const [profile, setProfile] = useState(null);
+    const [myRooms, setMyRooms] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     
     const [oldPassword, setOldPassword] = useState('');
@@ -21,7 +23,10 @@ const ResidentProfile = () => {
             if (!user?.userId) return;
             try {
                 const { getResidentProfile } = await import('../api/residentApi');
-                const data = await getResidentProfile(user.userId);
+                const [data, roomsRes] = await Promise.all([
+                    getResidentProfile(user.userId),
+                    api.get('/rooms/my-rooms').catch(() => ({ data: [] }))
+                ]);
                 setProfile({
                     name: data.fullName,
                     email: data.email,
@@ -29,6 +34,7 @@ const ResidentProfile = () => {
                     room: data.roomNumber || 'Unassigned',
                     isEmailVerified: data.status === 'ACTIVE'
                 });
+                setMyRooms(roomsRes.data || []);
             } catch (err) {
                 console.error("Failed to fetch profile", err);
             } finally {
@@ -98,6 +104,54 @@ const ResidentProfile = () => {
                             </div>
                         </div>
                     </div>
+                </Card>
+
+                <Card title="Units & Share Certificates">
+                    {myRooms.length === 0 ? (
+                        <p style={{ color: 'var(--text-secondary-light)', fontSize: '0.875rem' }}>No linked units found.</p>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {myRooms.map(r => (
+                                <div key={r.id} style={{ background: '#f8fafc', padding: '0.875rem', borderRadius: 8, border: '1px solid var(--border-light)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                                        <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Room {r.roomNumber} ({r.wing} Wing, Floor {r.floor})</span>
+                                        <span style={{ fontSize: '0.75rem', padding: '0.15rem 0.5rem', borderRadius: 4, background: '#e0e7ff', color: '#3730a3', fontWeight: 600 }}>
+                                            {r.unitCategory || 'RESIDENTIAL'}
+                                        </span>
+                                    </div>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary-light)', marginBottom: '0.5rem' }}>
+                                        {r.nocApplicable && (
+                                            <span style={{ color: 'var(--primary)', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
+                                                NOC Applicable: ₹{Number(r.nocAmount || 0).toFixed(2)}/month
+                                            </span>
+                                        )}
+                                        <div>
+                                            Share Certificate: <strong>{r.shareCertificateNumber || 'Not Issued Yet'}</strong>
+                                            {r.shareCertificateIssuedDate && ` (Issued: ${r.shareCertificateIssuedDate})`}
+                                        </div>
+                                    </div>
+                                    {r.shareCertificateData || r.shareCertificateNumber ? (
+                                        <a
+                                            href={`/api/rooms/${r.id}/share-certificate/download`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '0.4rem',
+                                                color: 'var(--primary)',
+                                                fontWeight: 600,
+                                                fontSize: '0.85rem',
+                                                textDecoration: 'none'
+                                            }}
+                                        >
+                                            <Download size={14} /> Download Share Certificate
+                                        </a>
+                                    ) : null}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </Card>
 
                 <Card title="Security Settings">

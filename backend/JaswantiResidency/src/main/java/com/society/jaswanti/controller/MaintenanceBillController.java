@@ -35,19 +35,22 @@ public class MaintenanceBillController {
     private final UserRepository userRepository;
     private final RoomResidentRepository roomResidentRepository;
     private final PdfInvoiceGenerator pdfInvoiceGenerator;
+    private final com.society.jaswanti.service.ExcelBillingService excelBillingService;
 
     public MaintenanceBillController(MaintenanceBillService billService,
                                      com.society.jaswanti.service.PaymentRecordingService paymentRecordingService,
                                      RoomRepository roomRepository,
                                      UserRepository userRepository,
                                      RoomResidentRepository roomResidentRepository,
-                                     PdfInvoiceGenerator pdfInvoiceGenerator) {
+                                     PdfInvoiceGenerator pdfInvoiceGenerator,
+                                     com.society.jaswanti.service.ExcelBillingService excelBillingService) {
         this.billService = billService;
         this.paymentRecordingService = paymentRecordingService;
         this.roomRepository = roomRepository;
         this.userRepository = userRepository;
         this.roomResidentRepository = roomResidentRepository;
         this.pdfInvoiceGenerator = pdfInvoiceGenerator;
+        this.excelBillingService = excelBillingService;
     }
 
     private Long getAuthenticatedUserId(Authentication auth) {
@@ -149,6 +152,16 @@ public class MaintenanceBillController {
     @GetMapping("/{id}/pdf")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
     public ResponseEntity<byte[]> downloadInvoicePdf(@PathVariable Long id, Authentication auth) {
+        return streamInvoicePdf(id, auth);
+    }
+
+    @GetMapping("/{id}/invoice-pdf")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    public ResponseEntity<byte[]> downloadInvoicePdfAlias(@PathVariable Long id, Authentication auth) {
+        return streamInvoicePdf(id, auth);
+    }
+
+    private ResponseEntity<byte[]> streamInvoicePdf(Long id, Authentication auth) {
         if (!isAuthorizedForBill(auth, id)) return ResponseEntity.status(403).build();
 
         MaintenanceBill bill = billService.getBillEntityById(id)
@@ -186,8 +199,79 @@ public class MaintenanceBillController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
-    public ResponseEntity<List<MaintenanceBillDto>> getAllBills() {
-        return ResponseEntity.ok(billService.getAllBills());
+    public ResponseEntity<List<MaintenanceBillDto>> getAllBills(
+            @RequestParam(required = false) String financialYear,
+            @RequestParam(required = false) String fromMonth,
+            @RequestParam(required = false) String toMonth,
+            @RequestParam(required = false) ChargeType chargeType) {
+        List<MaintenanceBillDto> all = billService.getAllBills().stream()
+                .filter(b -> chargeType == null || b.getChargeType() == chargeType)
+                .filter(b -> matchesPeriodFilter(b.getBillingMonth(), financialYear, fromMonth, toMonth))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(all);
+    }
+
+    @GetMapping("/export-excel")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    public ResponseEntity<byte[]> exportBillsExcel(
+            @RequestParam(required = false) String financialYear,
+            @RequestParam(required = false) String fromMonth,
+            @RequestParam(required = false) String toMonth,
+            @RequestParam(required = false) ChargeType chargeType) {
+        List<MaintenanceBill> matchingBills = billService.getAllBillEntities().stream()
+                .filter(b -> chargeType == null || b.getChargeType() == chargeType)
+                .filter(b -> matchesPeriodFilter(b.getBillingMonth(), financialYear, fromMonth, toMonth))
+                .collect(Collectors.toList());
+
+        byte[] excelBytes = excelBillingService.exportBillsToExcel(matchingBills);
+
+        String filename = "maintenance_bills_" + (financialYear != null ? financialYear : "all") + ".xlsx";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .header(HttpHeaders.CONTENT_TYPE, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                .body(excelBytes);
+    }
+
+    @GetMapping("/import-template")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    public ResponseEntity<byte[]> downloadImportTemplate() {
+        byte[] templateBytes = excelBillingService.generateImportTemplate();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"bill_import_template.xlsx\"")
+                .header(HttpHeaders.CONTENT_TYPE, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                .body(templateBytes);
+    }
+
+    @PostMapping(value = "/import-excel", consumes = {org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE})
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    public ResponseEntity<com.society.jaswanti.dto.ImportBillsResponse> importBillsExcel(
+            @RequestPart("file") org.springframework.web.multipart.MultipartFile file) throws java.io.IOException {
+        return ResponseEntity.ok(excelBillingService.importBillsFromExcel(file));
+    }
+
+    private boolean matchesPeriodFilter(String billingMonth, String financialYear, String fromMonth, String toMonth) {
+        if (billingMonth == null) return false;
+        String start = fromMonth;
+        String end = toMonth;
+        if (financialYear != null && !financialYear.isBlank()) {
+            String[] parts = financialYear.trim().split("[-/]");
+            if (parts.length >= 1) {
+                try {
+                    int y1 = Integer.parseInt(parts[0].trim());
+                    int y2 = parts.length > 1 ? Integer.parseInt(parts[1].trim()) : y1 + 1;
+                    if (y2 < 100) y2 += 2000;
+                    start = String.format("%04d-04", y1);
+                    end = String.format("%04d-03", y2);
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        if (start != null && !start.isBlank() && billingMonth.compareTo(start) < 0) {
+            return false;
+        }
+        if (end != null && !end.isBlank() && billingMonth.compareTo(end) > 0) {
+            return false;
+        }
+        return true;
     }
 
     @GetMapping("/my-bills")

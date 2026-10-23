@@ -1,6 +1,8 @@
 package com.society.jaswanti.entity;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "rooms")
@@ -22,6 +24,31 @@ public class Room {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "resident_id")
     private User resident;
+
+    @Column(name = "unit_category", nullable = false)
+    private String unitCategory = "RESIDENTIAL";
+
+    @Column(name = "noc_applicable", nullable = false)
+    private boolean nocApplicable = false;
+
+    @Column(name = "noc_amount", precision = 12, scale = 2, nullable = false)
+    private BigDecimal nocAmount = BigDecimal.ZERO;
+
+    @Column(name = "share_certificate_number")
+    private String shareCertificateNumber;
+
+    @Column(name = "share_certificate_issued_date")
+    private LocalDate shareCertificateIssuedDate;
+
+    @Lob
+    @Column(name = "share_certificate_data")
+    private byte[] shareCertificateData;
+
+    @Column(name = "share_certificate_filename")
+    private String shareCertificateFilename;
+
+    @Column(name = "share_certificate_content_type")
+    private String shareCertificateContentType;
 
     // Constructors
     public Room() {}
@@ -47,4 +74,28 @@ public class Room {
 
     public User getResident() { return resident; }
     public void setResident(User resident) { this.resident = resident; }
+
+    public String getUnitCategory() { return unitCategory; }
+    public void setUnitCategory(String unitCategory) { this.unitCategory = unitCategory; }
+
+    public boolean isNocApplicable() { return nocApplicable; }
+    public void setNocApplicable(boolean nocApplicable) { this.nocApplicable = nocApplicable; }
+
+    public BigDecimal getNocAmount() { return nocAmount; }
+    public void setNocAmount(BigDecimal nocAmount) { this.nocAmount = nocAmount; }
+
+    public String getShareCertificateNumber() { return shareCertificateNumber; }
+    public void setShareCertificateNumber(String shareCertificateNumber) { this.shareCertificateNumber = shareCertificateNumber; }
+
+    public LocalDate getShareCertificateIssuedDate() { return shareCertificateIssuedDate; }
+    public void setShareCertificateIssuedDate(LocalDate shareCertificateIssuedDate) { this.shareCertificateIssuedDate = shareCertificateIssuedDate; }
+
+    public byte[] getShareCertificateData() { return shareCertificateData; }
+    public void setShareCertificateData(byte[] shareCertificateData) { this.shareCertificateData = shareCertificateData; }
+
+    public String getShareCertificateFilename() { return shareCertificateFilename; }
+    public void setShareCertificateFilename(String shareCertificateFilename) { this.shareCertificateFilename = shareCertificateFilename; }
+
+    public String getShareCertificateContentType() { return shareCertificateContentType; }
+    public void setShareCertificateContentType(String shareCertificateContentType) { this.shareCertificateContentType = shareCertificateContentType; }
 }

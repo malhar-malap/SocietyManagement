@@ -2,6 +2,7 @@ package com.society.jaswanti.service;
 
 import com.society.jaswanti.dto.ComplaintDto;
 import com.society.jaswanti.entity.Complaint;
+import com.society.jaswanti.entity.ComplaintStatus;
 import com.society.jaswanti.entity.User;
 import com.society.jaswanti.repository.ComplaintRepository;
 import com.society.jaswanti.repository.UserRepository;
@@ -9,10 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -20,97 +20,131 @@ public class ComplaintService {
     private final ComplaintRepository complaintRepository;
     private final UserRepository userRepository;
     private final com.society.jaswanti.repository.RoomRepository roomRepository;
-    private final String uploadDir = "uploads/complaints/";
 
-    public ComplaintService(ComplaintRepository complaintRepository, UserRepository userRepository, com.society.jaswanti.repository.RoomRepository roomRepository) {
+    public ComplaintService(ComplaintRepository complaintRepository,
+                            UserRepository userRepository,
+                            com.society.jaswanti.repository.RoomRepository roomRepository) {
         this.complaintRepository = complaintRepository;
         this.userRepository = userRepository;
         this.roomRepository = roomRepository;
     }
 
     public ComplaintDto createComplaint(Long residentId, String category, String description, MultipartFile file) throws IOException {
+        return createSubmission(residentId, category, description, "COMPLAINT", null, null, null, file);
+    }
+
+    public ComplaintDto createSubmission(Long residentId,
+                                         String category,
+                                         String description,
+                                         String submissionType,
+                                         String permissionCategory,
+                                         LocalDate startDate,
+                                         LocalDate endDate,
+                                         MultipartFile file) throws IOException {
         User resident = userRepository.findById(residentId).orElseThrow(() -> new RuntimeException("User not found"));
-        
-        Complaint complaint = new Complaint(resident, category, description);
-        
+
+        Complaint complaint = new Complaint(resident, category != null && !category.isBlank() ? category : "GENERAL", description);
+        complaint.setSubmissionType(submissionType != null && !submissionType.isBlank() ? submissionType.toUpperCase() : "COMPLAINT");
+        complaint.setPermissionCategory(permissionCategory);
+        complaint.setStartDate(startDate);
+        complaint.setEndDate(endDate);
+        complaint.setStatus(ComplaintStatus.OPEN);
+
         if (file != null && !file.isEmpty()) {
-            if (file.getSize() > 5 * 1024 * 1024) {
-                throw new RuntimeException("File size exceeds 5MB limit");
+            if (file.getSize() > 10 * 1024 * 1024) {
+                throw new RuntimeException("File size exceeds 10MB limit");
             }
-            String contentType = file.getContentType();
-            if (contentType == null || (!contentType.startsWith("image/") && !contentType.equals("application/pdf"))) {
-                throw new RuntimeException("Invalid file type. Only images and PDFs are allowed.");
-            }
-            
-            Path uploadPath = Paths.get(uploadDir);
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
-            String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-            Path filePath = uploadPath.resolve(fileName);
-            Files.copy(file.getInputStream(), filePath);
-            complaint.setImageUrl(filePath.toString());
+            complaint.setImageData(file.getBytes());
+            complaint.setImageFilename(file.getOriginalFilename());
+            complaint.setImageContentType(file.getContentType());
         }
-        
+
         Complaint saved = complaintRepository.save(complaint);
+        if (saved.getImageData() != null && saved.getImageData().length > 0) {
+            saved.setImageUrl("/api/complaints/" + saved.getId() + "/attachment");
+            saved = complaintRepository.save(saved);
+        }
+
         return convertToDto(saved);
     }
 
     public List<ComplaintDto> getComplaintsByResident(Long residentId) {
-        return complaintRepository.findByResidentId(residentId).stream()
-                .map(this::convertToDto)
-                .collect(Collectors.toList());
-    }
-    
-    public List<ComplaintDto> getAllComplaints() {
-        return complaintRepository.findAll().stream()
+        return complaintRepository.findByResidentIdOrderByCreatedDateDesc(residentId).stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
     }
 
-    public java.util.Optional<ComplaintDto> updateComplaint(Long id, Complaint updatedComplaint) {
+    public List<ComplaintDto> getAllComplaints() {
+        return complaintRepository.findAllByOrderByCreatedDateDesc().stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+    }
+
+    public Optional<ComplaintDto> updateComplaint(Long id, Complaint updatedComplaint) {
         return complaintRepository.findById(id).map(complaint -> {
             if (updatedComplaint.getCategory() != null) complaint.setCategory(updatedComplaint.getCategory());
             if (updatedComplaint.getDescription() != null) complaint.setDescription(updatedComplaint.getDescription());
+            if (updatedComplaint.getSubmissionType() != null) complaint.setSubmissionType(updatedComplaint.getSubmissionType());
+            if (updatedComplaint.getPermissionCategory() != null) complaint.setPermissionCategory(updatedComplaint.getPermissionCategory());
+            if (updatedComplaint.getStartDate() != null) complaint.setStartDate(updatedComplaint.getStartDate());
+            if (updatedComplaint.getEndDate() != null) complaint.setEndDate(updatedComplaint.getEndDate());
             return convertToDto(complaintRepository.save(complaint));
         });
     }
 
-    public java.util.Optional<ComplaintDto> updateComplaintStatus(Long id, String status) {
+    public Optional<ComplaintDto> updateComplaintStatus(Long id, String status) {
         return complaintRepository.findById(id).map(complaint -> {
             try {
-                complaint.setStatus(com.society.jaswanti.entity.ComplaintStatus.valueOf(status.toUpperCase()));
-            } catch (IllegalArgumentException e) {
-                // Ignore invalid status
+                complaint.setStatus(ComplaintStatus.valueOf(status.toUpperCase()));
+            } catch (IllegalArgumentException ignored) {}
+            return convertToDto(complaintRepository.save(complaint));
+        });
+    }
+
+    public Optional<ComplaintDto> respondToSubmission(Long id, String status, String adminResponse) {
+        return complaintRepository.findById(id).map(complaint -> {
+            if (status != null && !status.isBlank()) {
+                try {
+                    complaint.setStatus(ComplaintStatus.valueOf(status.toUpperCase()));
+                } catch (IllegalArgumentException ignored) {}
+            }
+            if (adminResponse != null) {
+                complaint.setAdminResponse(adminResponse);
             }
             return convertToDto(complaintRepository.save(complaint));
         });
+    }
+
+    public Optional<Complaint> getComplaintEntity(Long id) {
+        return complaintRepository.findById(id);
     }
 
     public void deleteComplaint(Long id) {
         complaintRepository.deleteById(id);
     }
 
-    private ComplaintDto convertToDto(Complaint complaint) {
+    public ComplaintDto convertToDto(Complaint complaint) {
         String roomNumber = null;
-        java.util.List<com.society.jaswanti.entity.Room> rooms = roomRepository.findByResidentId(complaint.getResident().getId());
-        if (!rooms.isEmpty()) {
-            roomNumber = rooms.get(0).getRoomNumber();
+        if (complaint.getResident() != null) {
+            java.util.List<com.society.jaswanti.entity.Room> rooms = roomRepository.findByResidentId(complaint.getResident().getId());
+            if (!rooms.isEmpty()) {
+                roomNumber = rooms.get(0).getRoomNumber();
+            }
         }
-        
+
         String fullDesc = complaint.getDescription();
-        String title = "Complaint";
+        String title = complaint.getSubmissionType() != null ? complaint.getSubmissionType() : "Complaint";
         String desc = fullDesc;
-        
+
         if (fullDesc != null && fullDesc.contains(" - ")) {
             int splitIdx = fullDesc.indexOf(" - ");
             title = fullDesc.substring(0, splitIdx);
             desc = fullDesc.substring(splitIdx + 3);
         }
 
-        return new ComplaintDto(
+        ComplaintDto dto = new ComplaintDto(
                 complaint.getId(),
-                complaint.getResident().getId(),
+                complaint.getResident() != null ? complaint.getResident().getId() : null,
                 roomNumber,
                 complaint.getCategory(),
                 title,
@@ -119,5 +153,13 @@ public class ComplaintService {
                 complaint.getStatus(),
                 complaint.getCreatedDate()
         );
+        dto.setResidentName(complaint.getResident() != null ? complaint.getResident().getName() : "Resident");
+        dto.setSubmissionType(complaint.getSubmissionType() != null ? complaint.getSubmissionType() : "COMPLAINT");
+        dto.setPermissionCategory(complaint.getPermissionCategory());
+        dto.setStartDate(complaint.getStartDate());
+        dto.setEndDate(complaint.getEndDate());
+        dto.setAdminResponse(complaint.getAdminResponse());
+        dto.setHasAttachment(complaint.getImageData() != null && complaint.getImageData().length > 0);
+        return dto;
     }
 }

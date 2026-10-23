@@ -120,4 +120,54 @@ public class RoomController {
             Authentication auth) {
         return ResponseEntity.ok(roomService.correctOccupancyDates(occupantId, request, auth));
     }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    public ResponseEntity<Room> updateRoom(@PathVariable Long id, @RequestBody Room room, Authentication auth) {
+        return ResponseEntity.ok(roomService.updateRoom(id, room, auth));
+    }
+
+    @PostMapping(value = "/{id}/share-certificate", consumes = {org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE})
+    @PreAuthorize("hasRole('MASTER_ADMIN')")
+    public ResponseEntity<com.society.jaswanti.dto.ShareCertificateDto> uploadShareCertificate(
+            @PathVariable Long id,
+            @RequestParam(value = "certificateNumber", required = false) String certificateNumber,
+            @RequestParam(value = "issuedDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate issuedDate,
+            @RequestPart(value = "file", required = false) org.springframework.web.multipart.MultipartFile file,
+            Authentication auth) throws java.io.IOException {
+        return ResponseEntity.ok(roomService.uploadShareCertificate(id, file, certificateNumber, issuedDate, auth));
+    }
+
+    @GetMapping("/{id}/share-certificate")
+    @PreAuthorize("hasAnyRole('MASTER_ADMIN', 'ADMIN', 'RESIDENT')")
+    public ResponseEntity<com.society.jaswanti.dto.ShareCertificateDto> getShareCertificate(
+            @PathVariable Long id,
+            Authentication auth) {
+        return ResponseEntity.ok(roomService.getShareCertificateDto(id, auth));
+    }
+
+    @GetMapping("/{id}/share-certificate/download")
+    @PreAuthorize("hasAnyRole('MASTER_ADMIN', 'ADMIN', 'RESIDENT')")
+    public ResponseEntity<byte[]> downloadShareCertificate(
+            @PathVariable Long id,
+            Authentication auth) {
+        Room room = roomService.getAuthorizedRoomForCertificate(id, auth);
+        if (room.getShareCertificateData() == null || room.getShareCertificateData().length == 0) {
+            return ResponseEntity.notFound().build();
+        }
+
+        org.springframework.http.MediaType mediaType = org.springframework.http.MediaType.APPLICATION_OCTET_STREAM;
+        if (room.getShareCertificateContentType() != null) {
+            try {
+                mediaType = org.springframework.http.MediaType.parseMediaType(room.getShareCertificateContentType());
+            } catch (Exception ignored) {}
+        }
+
+        String filename = room.getShareCertificateFilename() != null ? room.getShareCertificateFilename() : "share_certificate_" + room.getRoomNumber() + ".pdf";
+
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(room.getShareCertificateData());
+    }
 }

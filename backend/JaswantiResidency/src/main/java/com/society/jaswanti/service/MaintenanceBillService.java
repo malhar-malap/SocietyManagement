@@ -90,6 +90,21 @@ public class MaintenanceBillService {
                 bill.setChargeType(type);
                 newBills.add(bill);
             }
+
+            // Phase 2B: Automatic companion NOC bill generation for commercial/applicable units
+            if (type == ChargeType.MAINTENANCE && room.isNocApplicable() && room.getNocAmount() != null && room.getNocAmount().compareTo(BigDecimal.ZERO) > 0) {
+                boolean nocExists = billRepository.existsByRoomIdAndBillingMonthInAndChargeType(room.getId(), equivalents, ChargeType.NOC);
+                if (!nocExists) {
+                    MaintenanceBill nocBill = new MaintenanceBill();
+                    nocBill.setRoom(room);
+                    nocBill.setBillingMonth(canonicalMonth);
+                    nocBill.setAmount(room.getNocAmount().setScale(2, RoundingMode.HALF_UP));
+                    nocBill.setDueDate(dueDate);
+                    nocBill.setStatus(com.society.jaswanti.entity.BillStatus.PENDING);
+                    nocBill.setChargeType(ChargeType.NOC);
+                    newBills.add(nocBill);
+                }
+            }
         }
         try {
             return billRepository.saveAll(newBills).stream()
@@ -178,6 +193,10 @@ public class MaintenanceBillService {
         return billRepository.findAll().stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
+    }
+
+    public List<MaintenanceBill> getAllBillEntities() {
+        return billRepository.findAll();
     }
 
     public Page<MaintenanceBillDto> getBillsPaginated(Specification<MaintenanceBill> spec, Pageable pageable) {

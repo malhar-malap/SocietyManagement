@@ -27,17 +27,20 @@ public class PaymentRecordingService {
     private final ReceiptSequenceRepository receiptSequenceRepository;
     private final UserRepository userRepository;
     private final ActivityLogService activityLogService;
+    private final SocietyBankAccountRepository bankAccountRepository;
 
     public PaymentRecordingService(MaintenanceBillRepository billRepository,
                                    TransactionRepository transactionRepository,
                                    ReceiptSequenceRepository receiptSequenceRepository,
                                    UserRepository userRepository,
-                                   ActivityLogService activityLogService) {
+                                   ActivityLogService activityLogService,
+                                   SocietyBankAccountRepository bankAccountRepository) {
         this.billRepository = billRepository;
         this.transactionRepository = transactionRepository;
         this.receiptSequenceRepository = receiptSequenceRepository;
         this.userRepository = userRepository;
         this.activityLogService = activityLogService;
+        this.bankAccountRepository = bankAccountRepository;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -126,9 +129,35 @@ public class PaymentRecordingService {
         bill.setPaidAmount(newPaid);
         bill = billRepository.save(bill);
 
-        // 8. Persist transaction
+        // 8. Determine and lock bank account
+        SocietyBankAccount targetAccount = null;
+        if (request.getBankAccountId() != null) {
+            targetAccount = bankAccountRepository.findByIdForUpdate(request.getBankAccountId())
+                    .orElseThrow(() -> new IllegalArgumentException("Bank account not found with ID: " + request.getBankAccountId()));
+        } else if (request.getPaymentMode() == PaymentMode.CASH) {
+            targetAccount = bankAccountRepository.findFirstByAccountTypeAndIsActiveTrue(SocietyBankAccountType.CASH_LEDGER)
+                    .map(a -> bankAccountRepository.findByIdForUpdate(a.getId()).orElse(a))
+                    .orElseGet(() -> bankAccountRepository.findFirstByIsActiveTrue()
+                            .map(a -> bankAccountRepository.findByIdForUpdate(a.getId()).orElse(a)).orElse(null));
+        } else {
+            targetAccount = bankAccountRepository.findFirstByAccountTypeAndIsActiveTrue(SocietyBankAccountType.BANK)
+                    .map(a -> bankAccountRepository.findByIdForUpdate(a.getId()).orElse(a))
+                    .orElseGet(() -> bankAccountRepository.findFirstByIsActiveTrue()
+                            .map(a -> bankAccountRepository.findByIdForUpdate(a.getId()).orElse(a)).orElse(null));
+        }
+
+        if (targetAccount != null) {
+            targetAccount.setCurrentBalance(targetAccount.getCurrentBalance().add(normalizedAmount).setScale(2, RoundingMode.HALF_UP));
+            targetAccount = bankAccountRepository.save(targetAccount);
+        }
+
+        // 9. Persist transaction
         Transaction tx = new Transaction();
         tx.setBill(bill);
+        tx.setBankAccount(targetAccount);
+        tx.setEntryDirection("CREDIT");
+        tx.setCategory("MAINTENANCE");
+        tx.setApprovedAt(LocalDateTime.now());
         tx.setAmount(normalizedAmount);
         tx.setStatus("SUCCESS");
         tx.setPaymentMode(request.getPaymentMode().name());
@@ -144,11 +173,13 @@ public class PaymentRecordingService {
         tx.setTimestamp(LocalDateTime.now());
         tx = transactionRepository.save(tx);
 
-        // 9. Append-only activity log
+        // 10. Append-only activity log
         String roomDisplay = bill.getRoom() != null ? bill.getRoom().getRoomNumber() : "ID " + bill.getId();
-        String desc = String.format("Recorded payment: Receipt=%s, Bill ID=%d, Room=%s, Month=%s, Amount=%s, Mode=%s, Reference=%s, Status=%s, Balance=%s, Notes=%s",
+        String accountDisplay = targetAccount != null ? targetAccount.getAccountName() : "None";
+        String desc = String.format("Recorded payment: Receipt=%s, Bill ID=%d, Room=%s, Month=%s, Amount=%s, Mode=%s, BankAccount=%s, Reference=%s, Status=%s, Balance=%s, Notes=%s",
                 receiptNumber, bill.getId(), roomDisplay, bill.getBillingMonth(), normalizedAmount,
                 request.getPaymentMode(),
+                accountDisplay,
                 tx.getReferenceNumber() != null ? tx.getReferenceNumber() : "N/A",
                 bill.getStatus(),
                 newRemaining,

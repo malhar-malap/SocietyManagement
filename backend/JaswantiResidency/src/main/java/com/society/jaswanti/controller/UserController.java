@@ -97,23 +97,24 @@ public class UserController {
     @PostMapping("/{id}/setup")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN') or #id == authentication.principal.id")
     public ResponseEntity<String> setupProfile(@PathVariable Long id, @RequestBody com.society.jaswanti.dto.ProfileSetupDto dto) {
-        boolean success = userService.setupProfile(id, dto);
-        if (success) {
-            return ResponseEntity.ok("Profile setup initiated. Please check your email for verification.");
-        } else {
-            return ResponseEntity.badRequest().body("Failed to setup profile");
+        try {
+            boolean success = userService.setupProfile(id, dto);
+            if (success) {
+                return ResponseEntity.ok("Profile setup initiated. Please check your email for verification.");
+            } else {
+                return ResponseEntity.badRequest().body("Failed to setup profile: user not found.");
+            }
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
     @PostMapping("/{id}/verify-setup")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN') or #id == authentication.principal.id")
-    public ResponseEntity<String> verifySetupEmail(@PathVariable Long id, @RequestParam String token) {
-        boolean success = userService.verifySetupEmail(id, token);
-        if (success) {
-            return ResponseEntity.ok("Email verified and profile setup completed successfully.");
-        } else {
-            return ResponseEntity.badRequest().body("Invalid or expired verification token.");
-        }
+    public ResponseEntity<?> verifySetupEmail(@PathVariable Long id, @RequestParam String token) {
+        return userService.verifySetupEmail(id, token)
+                .<ResponseEntity<?>>map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.badRequest().body("Invalid or expired verification token."));
     }
 
     @DeleteMapping("/{id}")

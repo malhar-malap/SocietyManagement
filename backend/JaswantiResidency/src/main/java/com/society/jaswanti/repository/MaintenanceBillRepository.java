@@ -13,7 +13,9 @@ import java.util.Optional;
 @Repository
 public interface MaintenanceBillRepository extends JpaRepository<MaintenanceBill, Long>, JpaSpecificationExecutor<MaintenanceBill> {
     List<MaintenanceBill> findByRoomId(Long roomId);
+    List<MaintenanceBill> findByRoomIdOrderByBillingMonthDesc(Long roomId);
     List<MaintenanceBill> findByBillingMonth(String billingMonth);
+    Optional<MaintenanceBill> findFirstByRoomIdAndBillingMonth(Long roomId, String billingMonth);
     List<MaintenanceBill> findByRoomIdAndBillingMonthAndChargeType(Long roomId, String billingMonth, ChargeType chargeType);
     Optional<MaintenanceBill> findFirstByRoomIdAndBillingMonthAndChargeType(Long roomId, String billingMonth, ChargeType chargeType);
     boolean existsByRoomIdAndBillingMonthAndChargeType(Long roomId, String billingMonth, ChargeType chargeType);

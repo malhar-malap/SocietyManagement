@@ -2,25 +2,35 @@ package com.society.jaswanti.controller;
 
 import com.razorpay.Order;
 import com.razorpay.RazorpayException;
-import com.society.jaswanti.dto.OrderResponseDto;
-import com.society.jaswanti.dto.PaymentRequestDto;
-import com.society.jaswanti.dto.PaymentVerifyDto;
+import com.society.jaswanti.dto.*;
+import com.society.jaswanti.entity.ResidentPaymentSubmission;
 import com.society.jaswanti.service.PaymentService;
+import com.society.jaswanti.service.PaymentSubmissionService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/payments")
+@CrossOrigin(origins = "*")
 public class PaymentController {
 
     @Autowired
     private PaymentService paymentService;
+
+    @Autowired
+    private PaymentSubmissionService paymentSubmissionService;
 
     @Autowired
     private com.society.jaswanti.service.MaintenanceBillService billService;
@@ -67,6 +77,94 @@ public class PaymentController {
         }).orElse(false);
     }
 
+    // ==========================================
+    // 100% Screenshot-Based Resident Submissions
+    // ==========================================
+
+    @PostMapping(value = "/submissions", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
+    @PreAuthorize("hasAnyRole('RESIDENT', 'ADMIN', 'MASTER_ADMIN')")
+    public ResponseEntity<ResidentPaymentSubmissionDto> submitPaymentMultipart(
+            @RequestParam("roomId") Long roomId,
+            @RequestParam("amount") BigDecimal amount,
+            @RequestParam("paymentMode") String paymentMode,
+            @RequestParam(value = "referenceNumber", required = false) String referenceNumber,
+            @RequestParam(value = "residentDescription", required = false) String residentDescription,
+            @RequestParam(value = "selectedBillIds", required = false) List<Long> selectedBillIds,
+            @RequestParam(value = "advanceMonthsCount", defaultValue = "0") int advanceMonthsCount,
+            @RequestPart(value = "screenshot", required = false) MultipartFile screenshot,
+            Authentication auth) throws IOException {
+        CreatePaymentSubmissionRequest req = new CreatePaymentSubmissionRequest();
+        req.setRoomId(roomId);
+        req.setAmount(amount);
+        req.setPaymentMode(paymentMode);
+        req.setReferenceNumber(referenceNumber);
+        req.setResidentDescription(residentDescription);
+        req.setSelectedBillIds(selectedBillIds);
+        req.setAdvanceMonthsCount(advanceMonthsCount);
+        return ResponseEntity.status(HttpStatus.CREATED).body(paymentSubmissionService.createSubmission(req, screenshot, auth));
+    }
+
+    @PostMapping(value = "/submissions", consumes = {MediaType.APPLICATION_JSON_VALUE})
+    @PreAuthorize("hasAnyRole('RESIDENT', 'ADMIN', 'MASTER_ADMIN')")
+    public ResponseEntity<ResidentPaymentSubmissionDto> submitPaymentJson(
+            @Valid @RequestBody CreatePaymentSubmissionRequest request,
+            Authentication auth) throws IOException {
+        return ResponseEntity.status(HttpStatus.CREATED).body(paymentSubmissionService.createSubmission(request, null, auth));
+    }
+
+    @GetMapping("/submissions/my-submissions")
+    @PreAuthorize("hasAnyRole('RESIDENT', 'ADMIN', 'MASTER_ADMIN')")
+    public ResponseEntity<List<ResidentPaymentSubmissionDto>> getMySubmissions(Authentication auth) {
+        return ResponseEntity.ok(paymentSubmissionService.getMySubmissions(auth));
+    }
+
+    @GetMapping("/submissions")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    public ResponseEntity<List<ResidentPaymentSubmissionDto>> getAllSubmissions() {
+        return ResponseEntity.ok(paymentSubmissionService.getAllSubmissions());
+    }
+
+    @GetMapping("/submissions/{id}/screenshot")
+    @PreAuthorize("hasAnyRole('RESIDENT', 'ADMIN', 'MASTER_ADMIN')")
+    public ResponseEntity<byte[]> getScreenshot(@PathVariable Long id, Authentication auth) {
+        ResidentPaymentSubmission submission = paymentSubmissionService.getSubmissionEntity(id);
+        if (submission.getScreenshotData() == null || submission.getScreenshotData().length == 0) {
+            return ResponseEntity.notFound().build();
+        }
+        MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        if (submission.getScreenshotContentType() != null) {
+            try {
+                mediaType = MediaType.parseMediaType(submission.getScreenshotContentType());
+            } catch (Exception ignored) {}
+        }
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .body(submission.getScreenshotData());
+    }
+
+    @PostMapping("/submissions/{id}/approve")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    public ResponseEntity<ResidentPaymentSubmissionDto> approveSubmission(
+            @PathVariable Long id,
+            @Valid @RequestBody ApprovePaymentSubmissionRequest request,
+            Authentication auth) {
+        return ResponseEntity.ok(paymentSubmissionService.approveSubmission(id, request, auth));
+    }
+
+    @PostMapping("/submissions/{id}/reject")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    public ResponseEntity<ResidentPaymentSubmissionDto> rejectSubmission(
+            @PathVariable Long id,
+            @Valid @RequestBody RejectPaymentSubmissionRequest request,
+            Authentication auth) {
+        return ResponseEntity.ok(paymentSubmissionService.rejectSubmission(id, request, auth));
+    }
+
+    // ==========================================
+    // Deprecated Legacy Razorpay Endpoints
+    // ==========================================
+
+    @Deprecated
     @PostMapping("/create-order")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
     public ResponseEntity<?> createOrder(@RequestBody PaymentRequestDto requestDto, Authentication auth) {
@@ -86,11 +184,11 @@ public class PaymentController {
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (RazorpayException e) {
-            e.printStackTrace();
             return ResponseEntity.status(500).body("Error creating order");
         }
     }
 
+    @Deprecated
     @PostMapping("/verify")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
     public ResponseEntity<?> verifyPayment(@RequestBody PaymentVerifyDto verifyDto, Authentication auth) {

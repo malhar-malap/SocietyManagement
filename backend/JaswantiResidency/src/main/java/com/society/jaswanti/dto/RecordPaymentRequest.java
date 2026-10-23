@@ -33,6 +33,8 @@ public class RecordPaymentRequest {
 
     private String idempotencyKey;
 
+    private Long bankAccountId;
+
     public RecordPaymentRequest() {}
 
     public RecordPaymentRequest(BigDecimal amount, PaymentMode paymentMode, String referenceNumber, LocalDate paymentDate, String notes) {
@@ -97,5 +99,13 @@ public class RecordPaymentRequest {
 
     public void setIdempotencyKey(String idempotencyKey) {
         this.idempotencyKey = idempotencyKey;
+    }
+
+    public Long getBankAccountId() {
+        return bankAccountId;
+    }
+
+    public void setBankAccountId(Long bankAccountId) {
+        this.bankAccountId = bankAccountId;
     }
 }

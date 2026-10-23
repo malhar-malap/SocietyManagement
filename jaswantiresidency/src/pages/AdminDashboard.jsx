@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Card from '../components/ui/Card';
-import { Users, DollarSign, Activity, FileText, UserX, Bell, TrendingUp, TrendingDown } from 'lucide-react';
+import { Users, DollarSign, Activity, FileText, UserX, Bell, TrendingUp, TrendingDown, Building2, Wallet, Banknote } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
 import './dashboard.css';
 import './admin.css';
@@ -63,6 +63,56 @@ const AdminDashboard = () => {
             <div className="dashboard-hero">
                 <h1 className="hero-greeting">Good morning, Admin 👋</h1>
                 <p className="hero-subtext">Here's what's happening at Jaswanti Residency today.</p>
+            </div>
+
+            {/* Live Society Bank Accounts & Cash Ledger */}
+            <div style={{ marginTop: '1.5rem', marginBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary-light)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Building2 size={20} style={{ color: 'var(--primary-color)' }} />
+                        Society Bank Accounts & Liquid Balances
+                    </h3>
+                    <span style={{ fontSize: '0.75rem', color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '0.2rem 0.6rem', borderRadius: 20, fontWeight: 600 }}>
+                        ● Live Running Balances
+                    </span>
+                </div>
+                <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+                    <Card className="stat-card animate-scale-in" style={{ borderLeft: '4px solid #10b981' }}>
+                        <div className="stat-content">
+                            <div className="stat-info">
+                                <p className="stat-label">Total Liquid Funds</p>
+                                <h2 className="stat-value" style={{ color: '#10b981' }}>
+                                    ₹{Number(stats.totalLiquidBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </h2>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary-light)', marginTop: '0.25rem' }}>Bank + Petty Cash</p>
+                            </div>
+                            <div className="stat-icon-wrapper" style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>
+                                <Wallet size={24} />
+                            </div>
+                        </div>
+                    </Card>
+                    {(stats.bankAccounts && stats.bankAccounts.length > 0 ? stats.bankAccounts : [
+                        { id: 1, accountName: 'Main Maintenance Bank A/c', accountType: 'BANK', bankName: 'HDFC Bank', currentBalance: 0 },
+                        { id: 2, accountName: 'Petty Cash Ledger', accountType: 'CASH_LEDGER', currentBalance: 0 }
+                    ]).map((acc, idx) => (
+                        <Card key={acc.id || idx} className="stat-card animate-scale-in" style={{ borderLeft: acc.accountType === 'CASH_LEDGER' ? '4px solid #f59e0b' : '4px solid #3b82f6' }}>
+                            <div className="stat-content">
+                                <div className="stat-info">
+                                    <p className="stat-label">{acc.accountName}</p>
+                                    <h2 className="stat-value">
+                                        ₹{Number(acc.currentBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </h2>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary-light)', marginTop: '0.25rem' }}>
+                                        {acc.accountType === 'BANK' ? `${acc.bankName || 'Bank'} Account` : 'Cash Ledger'}
+                                    </p>
+                                </div>
+                                <div className="stat-icon-wrapper" style={{ background: acc.accountType === 'CASH_LEDGER' ? 'rgba(245,158,11,0.12)' : 'rgba(59,130,246,0.12)', color: acc.accountType === 'CASH_LEDGER' ? '#f59e0b' : '#3b82f6' }}>
+                                    {acc.accountType === 'CASH_LEDGER' ? <Banknote size={24} /> : <Building2 size={24} />}
+                                </div>
+                            </div>
+                        </Card>
+                    ))}
+                </div>
             </div>
 
             <div className="dashboard-grid mt-4">

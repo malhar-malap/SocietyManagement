@@ -23,6 +23,12 @@ public class TransactionDto {
     private String notes;
     private String recordedByName;
     private String idempotencyKey;
+    private String entryDirection = "CREDIT";
+    private String category = "MAINTENANCE";
+    private Long bankAccountId;
+    private String bankAccountName;
+    private LocalDateTime approvedAt;
+    private boolean locked;
 
     public TransactionDto() {}
 
@@ -101,4 +107,22 @@ public class TransactionDto {
 
     public String getIdempotencyKey() { return idempotencyKey; }
     public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
+
+    public String getEntryDirection() { return entryDirection; }
+    public void setEntryDirection(String entryDirection) { this.entryDirection = entryDirection; }
+
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+
+    public Long getBankAccountId() { return bankAccountId; }
+    public void setBankAccountId(Long bankAccountId) { this.bankAccountId = bankAccountId; }
+
+    public String getBankAccountName() { return bankAccountName; }
+    public void setBankAccountName(String bankAccountName) { this.bankAccountName = bankAccountName; }
+
+    public LocalDateTime getApprovedAt() { return approvedAt; }
+    public void setApprovedAt(LocalDateTime approvedAt) { this.approvedAt = approvedAt; }
+
+    public boolean isLocked() { return locked; }
+    public void setLocked(boolean locked) { this.locked = locked; }
 }

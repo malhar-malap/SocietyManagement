@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -29,15 +30,18 @@ public class AdminDashboardController {
     private final ComplaintRepository complaintRepository;
     private final AnnouncementRepository announcementRepository;
     private final com.society.jaswanti.repository.RoomResidentRepository roomResidentRepository;
+    private final com.society.jaswanti.repository.SocietyBankAccountRepository bankAccountRepository;
 
     public AdminDashboardController(UserRepository userRepository, MaintenanceBillRepository billRepository,
                                     ComplaintRepository complaintRepository, AnnouncementRepository announcementRepository,
-                                    com.society.jaswanti.repository.RoomResidentRepository roomResidentRepository) {
+                                    com.society.jaswanti.repository.RoomResidentRepository roomResidentRepository,
+                                    com.society.jaswanti.repository.SocietyBankAccountRepository bankAccountRepository) {
         this.userRepository = userRepository;
         this.billRepository = billRepository;
         this.complaintRepository = complaintRepository;
         this.announcementRepository = announcementRepository;
         this.roomResidentRepository = roomResidentRepository;
+        this.bankAccountRepository = bankAccountRepository;
     }
 
     @GetMapping
@@ -82,6 +86,25 @@ public class AdminDashboardController {
 
         long activeAnnouncements = announcementRepository.findAll().size(); // Or filter active ones
         stats.put("activeAnnouncements", activeAnnouncements);
+
+        List<com.society.jaswanti.entity.SocietyBankAccount> accounts = bankAccountRepository.findByIsActiveTrue();
+        stats.put("bankAccounts", accounts);
+
+        BigDecimal totalBankBalance = accounts.stream()
+                .filter(a -> a.getAccountType() == com.society.jaswanti.entity.SocietyBankAccountType.BANK)
+                .map(com.society.jaswanti.entity.SocietyBankAccount::getCurrentBalance)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+        stats.put("totalBankBalance", totalBankBalance);
+
+        BigDecimal totalCashBalance = accounts.stream()
+                .filter(a -> a.getAccountType() == com.society.jaswanti.entity.SocietyBankAccountType.CASH_LEDGER)
+                .map(com.society.jaswanti.entity.SocietyBankAccount::getCurrentBalance)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+        stats.put("totalCashBalance", totalCashBalance);
+
+        stats.put("totalLiquidBalance", totalBankBalance.add(totalCashBalance).setScale(2, RoundingMode.HALF_UP));
 
         return ResponseEntity.ok(stats);
     }

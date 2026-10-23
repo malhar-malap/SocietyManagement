@@ -1,6 +1,7 @@
 package com.society.jaswanti.entity;
 
 import jakarta.persistence.*;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -21,8 +22,33 @@ public class Complaint {
     @Column(nullable = false, length = 1000)
     private String description;
 
+    @Column(name = "submission_type", nullable = false, length = 30)
+    private String submissionType = "COMPLAINT"; // COMPLAINT, QUERY, SUGGESTION, PERMISSION
+
+    @Column(name = "permission_category", length = 50)
+    private String permissionCategory; // RENOVATION, INTERIOR_WORK, MOVE_IN_OUT, ADDRESS_PROOF, OTHER
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @Column(name = "end_date")
+    private LocalDate endDate;
+
+    @Column(name = "admin_response", length = 2000)
+    private String adminResponse;
+
     @Column(name = "image_url")
     private String imageUrl;
+
+    @Lob
+    @Column(name = "image_data")
+    private byte[] imageData;
+
+    @Column(name = "image_filename")
+    private String imageFilename;
+
+    @Column(name = "image_content_type")
+    private String imageContentType;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -53,8 +79,32 @@ public class Complaint {
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
 
+    public String getSubmissionType() { return submissionType; }
+    public void setSubmissionType(String submissionType) { this.submissionType = submissionType; }
+
+    public String getPermissionCategory() { return permissionCategory; }
+    public void setPermissionCategory(String permissionCategory) { this.permissionCategory = permissionCategory; }
+
+    public LocalDate getStartDate() { return startDate; }
+    public void setStartDate(LocalDate startDate) { this.startDate = startDate; }
+
+    public LocalDate getEndDate() { return endDate; }
+    public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
+
+    public String getAdminResponse() { return adminResponse; }
+    public void setAdminResponse(String adminResponse) { this.adminResponse = adminResponse; }
+
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+
+    public byte[] getImageData() { return imageData; }
+    public void setImageData(byte[] imageData) { this.imageData = imageData; }
+
+    public String getImageFilename() { return imageFilename; }
+    public void setImageFilename(String imageFilename) { this.imageFilename = imageFilename; }
+
+    public String getImageContentType() { return imageContentType; }
+    public void setImageContentType(String imageContentType) { this.imageContentType = imageContentType; }
 
     public ComplaintStatus getStatus() { return status; }
     public void setStatus(ComplaintStatus status) { this.status = status; }

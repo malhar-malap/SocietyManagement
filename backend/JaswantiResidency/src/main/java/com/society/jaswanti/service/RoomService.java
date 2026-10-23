@@ -321,4 +321,103 @@ public class RoomService {
         dto.setPrimaryContact(rr.isPrimaryContact());
         return dto;
     }
+
+    @Transactional
+    public Room updateRoom(Long id, Room updatedRoom, Authentication auth) {
+        Room room = roomRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Room not found with ID: " + id));
+        if (updatedRoom.getRoomNumber() != null) room.setRoomNumber(updatedRoom.getRoomNumber());
+        if (updatedRoom.getWing() != null) room.setWing(updatedRoom.getWing());
+        if (updatedRoom.getFloor() != null) room.setFloor(updatedRoom.getFloor());
+        if (updatedRoom.getUnitCategory() != null) room.setUnitCategory(updatedRoom.getUnitCategory());
+        room.setNocApplicable(updatedRoom.isNocApplicable());
+        if (updatedRoom.getNocAmount() != null) room.setNocAmount(updatedRoom.getNocAmount());
+        if (updatedRoom.getShareCertificateNumber() != null) room.setShareCertificateNumber(updatedRoom.getShareCertificateNumber());
+        if (updatedRoom.getShareCertificateIssuedDate() != null) room.setShareCertificateIssuedDate(updatedRoom.getShareCertificateIssuedDate());
+        return roomRepository.save(room);
+    }
+
+    @Transactional
+    public com.society.jaswanti.dto.ShareCertificateDto uploadShareCertificate(
+            Long roomId,
+            org.springframework.web.multipart.MultipartFile file,
+            String certificateNumber,
+            LocalDate issuedDate,
+            Authentication auth) throws java.io.IOException {
+        User actor = resolveAuthenticatedUser(auth);
+        if (actor.getRole() != Role.MASTER_ADMIN) {
+            throw new AccessDeniedException("Only MASTER_ADMIN can upload or modify official share certificates");
+        }
+
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("Room not found with ID: " + roomId));
+
+        if (certificateNumber != null && !certificateNumber.isBlank()) {
+            room.setShareCertificateNumber(certificateNumber.trim());
+        }
+        if (issuedDate != null) {
+            room.setShareCertificateIssuedDate(issuedDate);
+        }
+
+        if (file != null && !file.isEmpty()) {
+            room.setShareCertificateData(file.getBytes());
+            room.setShareCertificateFilename(file.getOriginalFilename());
+            room.setShareCertificateContentType(file.getContentType());
+        }
+
+        room = roomRepository.save(room);
+
+        activityLogService.logActivity(actor, "UPLOAD_SHARE_CERTIFICATE", "ROOM",
+                String.format("Master Admin %s uploaded share certificate %s for Room %s",
+                        actor.getName(), room.getShareCertificateNumber(), room.getRoomNumber()));
+
+        return toShareCertificateDto(room);
+    }
+
+    public com.society.jaswanti.dto.ShareCertificateDto getShareCertificateDto(Long roomId, Authentication auth) {
+        Room room = getAuthorizedRoomForCertificate(roomId, auth);
+        return toShareCertificateDto(room);
+    }
+
+    public Room getAuthorizedRoomForCertificate(Long roomId, Authentication auth) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("Room not found with ID: " + roomId));
+
+        User actor = resolveAuthenticatedUser(auth);
+        if (actor.getRole() == Role.MASTER_ADMIN || actor.getRole() == Role.ADMIN) {
+            return room;
+        }
+
+        boolean isAuthorized = roomResidentRepository.existsByRoomIdAndResidentIdAndIsActiveTrue(roomId, actor.getId());
+        if (!isAuthorized && !roomResidentRepository.existsByRoomId(roomId)) {
+            isAuthorized = (room.getResident() != null && room.getResident().getId().equals(actor.getId()));
+        }
+
+        if (!isAuthorized) {
+            throw new AccessDeniedException("You are not authorized to view the share certificate for room " + room.getRoomNumber());
+        }
+        return room;
+    }
+
+    public com.society.jaswanti.dto.ShareCertificateDto toShareCertificateDto(Room room) {
+        com.society.jaswanti.dto.ShareCertificateDto dto = new com.society.jaswanti.dto.ShareCertificateDto();
+        dto.setRoomId(room.getId());
+        dto.setRoomNumber(room.getRoomNumber());
+        dto.setWing(room.getWing());
+        dto.setUnitCategory(room.getUnitCategory());
+        dto.setShareCertificateNumber(room.getShareCertificateNumber());
+        dto.setShareCertificateIssuedDate(room.getShareCertificateIssuedDate());
+        dto.setHasDocument(room.getShareCertificateData() != null && room.getShareCertificateData().length > 0);
+        dto.setFilename(room.getShareCertificateFilename());
+        dto.setContentType(room.getShareCertificateContentType());
+        return dto;
+    }
+
+    private User resolveAuthenticatedUser(Authentication auth) {
+        if (auth == null || auth.getName() == null) {
+            throw new AccessDeniedException("Authentication required");
+        }
+        return userRepository.findByEmail(auth.getName())
+                .orElseThrow(() -> new AccessDeniedException("User not found: " + auth.getName()));
+    }
 }

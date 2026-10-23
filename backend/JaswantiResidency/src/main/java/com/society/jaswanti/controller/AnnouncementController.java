@@ -16,6 +16,9 @@ public class AnnouncementController {
     @Autowired
     private AnnouncementService announcementService;
 
+    @Autowired
+    private com.society.jaswanti.repository.UserRepository userRepository;
+
     @GetMapping("/active")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
     public ResponseEntity<List<AnnouncementDto>> getActiveAnnouncements() {
@@ -29,15 +32,20 @@ public class AnnouncementController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasRole('MASTER_ADMIN')")
     public ResponseEntity<AnnouncementDto> createAnnouncement(
             @RequestBody com.society.jaswanti.entity.Announcement announcement,
-            @RequestParam(required = false) Long adminId) {
-        return ResponseEntity.ok(announcementService.createAnnouncement(announcement, adminId));
+            @RequestParam(required = false) Long adminId,
+            org.springframework.security.core.Authentication auth) {
+        Long effectiveAdminId = adminId;
+        if (effectiveAdminId == null && auth != null) {
+            effectiveAdminId = userRepository.findByEmail(auth.getName()).map(com.society.jaswanti.entity.User::getId).orElse(null);
+        }
+        return ResponseEntity.ok(announcementService.createAnnouncement(announcement, effectiveAdminId));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasRole('MASTER_ADMIN')")
     public ResponseEntity<AnnouncementDto> updateAnnouncement(
             @PathVariable Long id,
             @RequestBody com.society.jaswanti.entity.Announcement announcement) {
@@ -47,7 +55,7 @@ public class AnnouncementController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasRole('MASTER_ADMIN')")
     public ResponseEntity<Void> deleteAnnouncement(@PathVariable Long id) {
         announcementService.deleteAnnouncement(id);
         return ResponseEntity.noContent().build();

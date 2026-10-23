@@ -4,5 +4,6 @@ public enum ChargeType {
     MAINTENANCE,
     SINKING_FUND,
     SPECIAL_ASSESSMENT,
-    PENALTY
+    PENALTY,
+    NOC
 }

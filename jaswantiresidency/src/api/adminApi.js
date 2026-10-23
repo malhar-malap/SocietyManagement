@@ -21,6 +21,25 @@ export const createRoom = async (roomData) => {
     return response.data;
 };
 
+export const updateRoom = async (id, roomData) => {
+    const response = await api.put(`/rooms/${id}`, roomData);
+    return response.data;
+};
+
+export const uploadShareCertificate = async (id, formData) => {
+    const response = await api.post(`/rooms/${id}/share-certificate`, formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    });
+    return response.data;
+};
+
+export const getShareCertificate = async (id) => {
+    const response = await api.get(`/rooms/${id}/share-certificate`);
+    return response.data;
+};
+
 export const addResident = async (residentData) => {
     const response = await api.post('/users/register', residentData);
     return response.data;
@@ -64,8 +83,40 @@ export const getActivityLogs = async () => {
 
 // Billing Endpoints
 
-export const getBills = async () => {
-    const response = await api.get('/bills');
+export const getBills = async (financialYear) => {
+    let url = '/bills';
+    if (financialYear) {
+        url += `?financialYear=${encodeURIComponent(financialYear)}`;
+    }
+    const response = await api.get(url);
+    return response.data;
+};
+
+export const exportBillsExcel = (financialYear) => {
+    let url = '/api/bills/export-excel';
+    if (financialYear) {
+        url += `?financialYear=${encodeURIComponent(financialYear)}`;
+    }
+    window.open(url, '_blank');
+};
+
+export const downloadImportTemplate = () => {
+    window.open('/api/bills/import-template', '_blank');
+};
+
+export const importBillsExcel = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/bills/import-excel', formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    });
+    return response.data;
+};
+
+export const emailReceipt = async (transactionId) => {
+    const response = await api.post(`/transactions/${transactionId}/email-receipt`);
     return response.data;
 };
 
@@ -106,6 +157,20 @@ export const getComplaints = async () => {
 
 export const updateComplaintStatus = async (id, status) => {
     const response = await api.put(`/complaints/${id}/status?status=${status}`);
+    return response.data;
+};
+
+export const respondToComplaint = async (id, data) => {
+    const response = await api.post(`/complaints/${id}/respond`, data);
+    return response.data;
+};
+
+export const submitComplaint = async (formData) => {
+    const response = await api.post('/complaints', formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    });
     return response.data;
 };
 
@@ -161,5 +226,51 @@ export const endRoomOccupancy = async (occupantId, endDate) => {
 
 export const correctRoomOccupantDates = async (occupantId, data) => {
     const response = await api.put(`/rooms/occupants/${occupantId}/correct-dates`, data);
+    return response.data;
+};
+
+// Society Bank Accounts & Expenses
+export const getBankAccounts = async () => {
+    const response = await api.get('/bank-accounts');
+    return response.data;
+};
+
+export const reconcileBankAccounts = async () => {
+    const response = await api.get('/bank-accounts/reconcile');
+    return response.data;
+};
+
+export const reconcileBankAccount = async (id) => {
+    const response = await api.get(`/bank-accounts/${id}/reconcile`);
+    return response.data;
+};
+
+export const createBankAccount = async (data) => {
+    const response = await api.post('/bank-accounts', data);
+    return response.data;
+};
+
+export const updateBankAccount = async (id, data) => {
+    const response = await api.put(`/bank-accounts/${id}`, data);
+    return response.data;
+};
+
+export const recordExpense = async (data) => {
+    const response = await api.post('/transactions/expense', data);
+    return response.data;
+};
+
+export const reverseTransaction = async (id, reason) => {
+    const response = await api.post(`/transactions/${id}/reverse`, { reason });
+    return { data: response.data, status: response.status };
+};
+
+export const getAmendmentRequests = async () => {
+    const response = await api.get('/transactions/amendment-requests');
+    return response.data;
+};
+
+export const resolveAmendmentRequest = async (id, action, reviewNotes) => {
+    const response = await api.post(`/transactions/amendment-requests/${id}/resolve`, { action, reviewNotes });
     return response.data;
 };

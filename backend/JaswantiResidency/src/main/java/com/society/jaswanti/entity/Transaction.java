@@ -16,8 +16,21 @@ public class Transaction {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "bill_id", nullable = false)
+    @JoinColumn(name = "bill_id", nullable = true)
     private MaintenanceBill bill;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "bank_account_id")
+    private SocietyBankAccount bankAccount;
+
+    @Column(name = "entry_direction", nullable = false, length = 20)
+    private String entryDirection = "CREDIT"; // CREDIT, DEBIT
+
+    @Column(name = "category", nullable = false, length = 50)
+    private String category = "MAINTENANCE";
+
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt = LocalDateTime.now();
 
     @Column(name = "gateway_payment_id")
     private String gatewayPaymentId;
@@ -115,4 +128,16 @@ public class Transaction {
 
     public String getIdempotencyKey() { return idempotencyKey; }
     public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
+
+    public SocietyBankAccount getBankAccount() { return bankAccount; }
+    public void setBankAccount(SocietyBankAccount bankAccount) { this.bankAccount = bankAccount; }
+
+    public String getEntryDirection() { return entryDirection; }
+    public void setEntryDirection(String entryDirection) { this.entryDirection = entryDirection; }
+
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+
+    public LocalDateTime getApprovedAt() { return approvedAt; }
+    public void setApprovedAt(LocalDateTime approvedAt) { this.approvedAt = approvedAt; }
 }
