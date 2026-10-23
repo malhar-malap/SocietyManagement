@@ -200,7 +200,7 @@ public class TransactionController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
     public ResponseEntity<byte[]> downloadReceiptPdf(@PathVariable Long id, Authentication auth) {
         Transaction tx = transactionService.getTransactionById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Transaction not found with ID: " + id));
+                .orElseThrow(() -> new com.society.jaswanti.exception.ResourceNotFoundException("Transaction not found with ID: " + id));
 
         if (!canAccessTransaction(auth, tx)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
@@ -218,7 +218,7 @@ public class TransactionController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
     public ResponseEntity<java.util.Map<String, Object>> emailReceiptPdf(@PathVariable Long id, Authentication auth) {
         Transaction tx = transactionService.getTransactionById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Transaction not found with ID: " + id));
+                .orElseThrow(() -> new com.society.jaswanti.exception.ResourceNotFoundException("Transaction not found with ID: " + id));
 
         if (!canAccessTransaction(auth, tx)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();

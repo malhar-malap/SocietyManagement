@@ -127,7 +127,7 @@ public class PaymentController {
     @GetMapping("/submissions/{id}/screenshot")
     @PreAuthorize("hasAnyRole('RESIDENT', 'ADMIN', 'MASTER_ADMIN')")
     public ResponseEntity<byte[]> getScreenshot(@PathVariable Long id, Authentication auth) {
-        ResidentPaymentSubmission submission = paymentSubmissionService.getSubmissionEntity(id);
+        ResidentPaymentSubmission submission = paymentSubmissionService.getAuthorizedSubmissionForScreenshot(id, auth);
         if (submission.getScreenshotData() == null || submission.getScreenshotData().length == 0) {
             return ResponseEntity.notFound().build();
         }

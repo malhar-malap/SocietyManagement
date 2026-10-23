@@ -163,10 +163,10 @@ public class MaintenanceBillController {
     }
 
     private ResponseEntity<byte[]> streamInvoicePdf(Long id, Authentication auth) {
-        if (!isAuthorizedForBill(auth, id)) return ResponseEntity.status(403).build();
-
         MaintenanceBill bill = billService.getBillEntityById(id)
-                .orElseThrow(() -> new RuntimeException("Bill not found"));
+                .orElseThrow(() -> new com.society.jaswanti.exception.ResourceNotFoundException("Bill not found with ID: " + id));
+
+        if (!isAuthorizedForBill(auth, id)) return ResponseEntity.status(403).build();
 
         byte[] pdfContent = pdfInvoiceGenerator.generateInvoice(bill);
 

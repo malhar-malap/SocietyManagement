@@ -134,7 +134,7 @@ public class ComplaintController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
     public ResponseEntity<byte[]> getAttachment(@PathVariable Long id, Authentication auth) {
         Complaint complaint = complaintService.getComplaintEntity(id)
-                .orElseThrow(() -> new IllegalArgumentException("Complaint not found with ID: " + id));
+                .orElseThrow(() -> new com.society.jaswanti.exception.ResourceNotFoundException("Complaint not found with ID: " + id));
 
         if (!isAdminOrMaster(auth)) {
             Long userId = getAuthenticatedUserId(auth);

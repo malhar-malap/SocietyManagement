@@ -343,4 +343,87 @@ class ResidentPaymentSubmissionTests {
         SocietyBankAccount updatedBank = bankAccountRepository.findById(bankAccount.getId()).orElseThrow();
         assertThat(updatedBank.getCurrentBalance()).isEqualByComparingTo("20500.00");
     }
+
+    @Test
+    @DisplayName("Resident A cannot read Resident B payment screenshot, owner, co-resident, admin, and master admin can")
+    void testScreenshotAccessPermissionsAndIdor() throws Exception {
+        // Create co-resident in room 101
+        User coResident = new User();
+        coResident.setName("Co Resident");
+        coResident.setEmail("co.resident@example.com");
+        coResident.setPassword("$2a$10$hashedpassword");
+        coResident.setRole(Role.RESIDENT);
+        coResident.setStatus(UserStatus.ACTIVE);
+        coResident.setActive(true);
+        coResident = userRepository.save(coResident);
+
+        RoomResident rrCo = new RoomResident();
+        rrCo.setRoom(room101);
+        rrCo.setResident(coResident);
+        rrCo.setRelationshipType(RelationshipType.TENANT);
+        rrCo.setActive(true);
+        rrCo.setStartDate(LocalDate.now());
+        rrCo.setCreatedAt(LocalDateTime.now());
+        roomResidentRepository.save(rrCo);
+
+        // Create master admin
+        User masterAdmin = new User();
+        masterAdmin.setName("Master Admin User");
+        masterAdmin.setEmail("master.admin@example.com");
+        masterAdmin.setPassword("$2a$10$hashedpassword");
+        masterAdmin.setRole(Role.MASTER_ADMIN);
+        masterAdmin.setStatus(UserStatus.ACTIVE);
+        masterAdmin.setActive(true);
+        masterAdmin = userRepository.save(masterAdmin);
+
+        String coResidentToken = jwtService.generateToken(coResident);
+        String masterAdminToken = jwtService.generateToken(masterAdmin);
+
+        // Create submission by residentUser for room101
+        ResidentPaymentSubmission sub = new ResidentPaymentSubmission();
+        sub.setRoom(room101);
+        sub.setSubmittedByUser(residentUser);
+        sub.setAmount(new BigDecimal("3500.00"));
+        sub.setPaymentMode("UPI");
+        sub.setStatus("PENDING");
+        sub.setScreenshotData("fake screenshot bytes".getBytes());
+        sub.setScreenshotContentType("image/png");
+        sub.setScreenshotFilename("proof.png");
+        sub.setCreatedAt(LocalDateTime.now());
+        sub = submissionRepository.save(sub);
+
+        // 1. Other resident B (not in room 101, not creator) -> 403 Forbidden
+        mockMvc.perform(get("/api/payments/submissions/" + sub.getId() + "/screenshot")
+                        .header("Authorization", "Bearer " + otherResidentToken))
+                .andExpect(status().isForbidden());
+
+        // 2. Owner resident A -> 200 OK
+        mockMvc.perform(get("/api/payments/submissions/" + sub.getId() + "/screenshot")
+                        .header("Authorization", "Bearer " + residentToken))
+                .andExpect(status().isOk());
+
+        // 3. Co-resident in room 101 -> 200 OK
+        mockMvc.perform(get("/api/payments/submissions/" + sub.getId() + "/screenshot")
+                        .header("Authorization", "Bearer " + coResidentToken))
+                .andExpect(status().isOk());
+
+        // 4. Admin -> 200 OK
+        mockMvc.perform(get("/api/payments/submissions/" + sub.getId() + "/screenshot")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk());
+
+        // 5. Master Admin -> 200 OK
+        mockMvc.perform(get("/api/payments/submissions/" + sub.getId() + "/screenshot")
+                        .header("Authorization", "Bearer " + masterAdminToken))
+                .andExpect(status().isOk());
+
+        // 6. Missing submission -> 404 Not Found for both resident and admin
+        mockMvc.perform(get("/api/payments/submissions/99999/screenshot")
+                        .header("Authorization", "Bearer " + residentToken))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/payments/submissions/99999/screenshot")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNotFound());
+    }
 }

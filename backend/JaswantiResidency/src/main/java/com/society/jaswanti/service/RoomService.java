@@ -96,7 +96,7 @@ public class RoomService {
         }
 
         Room room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new IllegalArgumentException("Room not found with ID: " + roomId));
+                .orElseThrow(() -> new com.society.jaswanti.exception.ResourceNotFoundException("Room not found with ID: " + roomId));
         User resident = userRepository.findById(request.getResidentId())
                 .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + request.getResidentId()));
 
@@ -365,7 +365,7 @@ public class RoomService {
         }
 
         Room room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new IllegalArgumentException("Room not found with ID: " + roomId));
+                .orElseThrow(() -> new com.society.jaswanti.exception.ResourceNotFoundException("Room not found with ID: " + roomId));
 
         if (certificateNumber != null && !certificateNumber.isBlank()) {
             room.setShareCertificateNumber(certificateNumber.trim());
@@ -396,7 +396,7 @@ public class RoomService {
 
     public Room getAuthorizedRoomForCertificate(Long roomId, Authentication auth) {
         Room room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new IllegalArgumentException("Room not found with ID: " + roomId));
+                .orElseThrow(() -> new com.society.jaswanti.exception.ResourceNotFoundException("Room not found with ID: " + roomId));
 
         User actor = resolveAuthenticatedUser(auth);
         if (actor.getRole() == Role.MASTER_ADMIN || actor.getRole() == Role.ADMIN) {

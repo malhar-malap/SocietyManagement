@@ -118,7 +118,34 @@ public class PaymentSubmissionService {
 
     public ResidentPaymentSubmission getSubmissionEntity(Long id) {
         return submissionRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Submission not found with ID: " + id));
+                .orElseThrow(() -> new com.society.jaswanti.exception.ResourceNotFoundException("Submission not found with ID: " + id));
+    }
+
+    public ResidentPaymentSubmission getAuthorizedSubmissionForScreenshot(Long id, Authentication auth) {
+        ResidentPaymentSubmission submission = submissionRepository.findById(id)
+                .orElseThrow(() -> new com.society.jaswanti.exception.ResourceNotFoundException("Submission not found with ID: " + id));
+
+        User actor = resolveAuthenticatedUser(auth);
+        if (actor.getRole() == Role.ADMIN || actor.getRole() == Role.MASTER_ADMIN) {
+            return submission;
+        }
+
+        if (submission.getSubmittedByUser() != null && submission.getSubmittedByUser().getId().equals(actor.getId())) {
+            return submission;
+        }
+
+        Room room = submission.getRoom();
+        if (room != null) {
+            boolean isRoomResident = roomResidentRepository.existsByRoomIdAndResidentIdAndIsActiveTrue(room.getId(), actor.getId());
+            if (!isRoomResident && !roomResidentRepository.existsByRoomId(room.getId())) {
+                isRoomResident = (room.getResident() != null && room.getResident().getId().equals(actor.getId()));
+            }
+            if (isRoomResident) {
+                return submission;
+            }
+        }
+
+        throw new AccessDeniedException("You are not authorized to access this payment screenshot");
     }
 
     @Transactional(rollbackFor = Exception.class)
