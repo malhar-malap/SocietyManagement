@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, CheckCircle2, MessageSquare, Trash2, Filter, Paperclip } from 'lucide-react';
+import { MessageSquare, Trash2, Paperclip } from 'lucide-react';
 import UpdateComplaintModal from '../components/UpdateComplaintModal';
 import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
 import PageHeader from '../components/ui/PageHeader';
@@ -7,6 +7,7 @@ import DataTable from '../components/ui/DataTable';
 import Button from '../components/ui/Button';
 import StatusChip from '../components/ui/StatusChip';
 import { getComplaints, respondToComplaint, deleteComplaint } from '../api/adminApi';
+import { viewAuthenticatedFile } from '../api/fileUtils';
 
 const AdminComplaints = () => {
     const [complaints, setComplaints] = useState([]);
@@ -99,14 +100,13 @@ const AdminComplaints = () => {
                         </div>
                     )}
                     {row.hasAttachment && (
-                        <a
-                            href={`/api/complaints/${row.id}/attachment`}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: '#2563eb', marginTop: '0.2rem' }}
+                        <button
+                            type="button"
+                            onClick={() => viewAuthenticatedFile(`/complaints/${row.id}/attachment`)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: '#2563eb', marginTop: '0.2rem' }}
                         >
                             <Paperclip size={12} /> View Attached Proof
-                        </a>
+                        </button>
                     )}
                 </div>
             )

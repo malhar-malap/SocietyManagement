@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Button from './ui/Button';
-import { Upload, CheckCircle2, AlertCircle, Building2, Smartphone, QrCode } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Building2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import './ui/shared.css';
 

@@ -3,7 +3,7 @@ import PageHeader from '../components/ui/PageHeader';
 import DataTable from '../components/ui/DataTable';
 import StatusChip from '../components/ui/StatusChip';
 import Button from '../components/ui/Button';
-import { Plus, Edit, Trash2, Megaphone } from 'lucide-react';
+import { Plus, Edit, Trash2 } from 'lucide-react';
 import AnnouncementModal from '../components/AnnouncementModal';
 import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
 import { useAuth } from '../context/AuthContext';

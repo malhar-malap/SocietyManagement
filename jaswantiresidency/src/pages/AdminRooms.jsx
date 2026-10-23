@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import PageHeader from '../components/ui/PageHeader';
 import DataTable from '../components/ui/DataTable';
 import Button from '../components/ui/Button';
-import { Users, Plus, Edit2, Award, Building2 } from 'lucide-react';
+import { Users, Plus, Edit2, Award } from 'lucide-react';
 import { getRooms } from '../api/adminApi';
 import OccupancyModal from '../components/OccupancyModal';
 import RoomEditModal from '../components/RoomEditModal';
@@ -12,7 +12,6 @@ import { useAuth } from '../context/AuthContext';
 const AdminRooms = () => {
     const { user } = useAuth();
     const isAdminOrMaster = user?.role === 'ADMIN' || user?.role === 'MASTER_ADMIN';
-    const isMasterAdmin = user?.role === 'MASTER_ADMIN';
 
     const [rooms, setRooms] = useState([]);
     const [isLoading, setIsLoading] = useState(true);

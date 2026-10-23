@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, MessageSquare } from 'lucide-react';
+import { X, CheckCircle } from 'lucide-react';
 import './ui/shared.css';
+import { viewAuthenticatedFile } from '../api/fileUtils';
 
 const UpdateComplaintModal = ({ isOpen, onClose, onConfirm, complaintDetails }) => {
     const [status, setStatus] = useState('OPEN');
@@ -56,14 +57,13 @@ const UpdateComplaintModal = ({ isOpen, onClose, onConfirm, complaintDetails }) 
                         )}
                         {complaintDetails?.hasAttachment && (
                             <div style={{ marginTop: '0.4rem' }}>
-                                <a
-                                    href={`/api/complaints/${complaintDetails?.id}/attachment`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '0.8rem' }}
+                                <button
+                                    type="button"
+                                    onClick={() => viewAuthenticatedFile(`/complaints/${complaintDetails?.id}/attachment`)}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--primary)', fontWeight: 600, fontSize: '0.8rem' }}
                                 >
                                     View Attached File / Proof
-                                </a>
+                                </button>
                             </div>
                         )}
                     </div>

@@ -13,7 +13,6 @@ const ResidentDashboard = () => {
 
     const [dashboardData, setDashboardData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState(null);
 
     useEffect(() => {
         const fetchDashboard = async () => {

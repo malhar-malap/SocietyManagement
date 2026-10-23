@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Button from './ui/Button';
-import StatusChip from './ui/StatusChip';
-import { CheckCircle2, XCircle, Image as ImageIcon, AlertCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { getPaymentSubmissions, approvePaymentSubmission, rejectPaymentSubmission } from '../api/billingApi';
 import { getBankAccounts } from '../api/adminApi';
 import { viewAuthenticatedFile, getAuthenticatedMediaUrl } from '../api/fileUtils';
@@ -19,9 +18,8 @@ const PendingPaymentApprovalsModal = ({ isOpen, onClose, onActionSuccess }) => {
     const [isRejecting, setIsRejecting] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState('');
-    const [viewingScreenshotId, setViewingScreenshotId] = useState(null);
 
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         setIsLoading(true);
         setError('');
         try {
@@ -40,13 +38,13 @@ const PendingPaymentApprovalsModal = ({ isOpen, onClose, onActionSuccess }) => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [selectedBankId]);
 
     useEffect(() => {
         if (isOpen) {
             loadData();
         }
-    }, [isOpen]);
+    }, [isOpen, loadData]);
 
     const handleSelectSubmission = (sub) => {
         setSelectedSub(sub);

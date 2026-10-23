@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import { Users, DollarSign, Activity, FileText, UserX, Bell, TrendingUp, TrendingDown, Building2, Wallet, Banknote } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
+import { XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
 import './dashboard.css';
 import './admin.css';
 
@@ -175,7 +176,7 @@ const AdminDashboard = () => {
                         <div className="stat-info">
                             <p className="stat-label">Unpaid Residents</p>
                             <h2 className="stat-value">{stats.unpaidResidents}</h2>
-                            <a href="/admin/billing" className="text-link" style={{margin:0, fontSize: '0.8rem'}}>View details &gt;</a>
+                            <Link to="/admin/billing" className="text-link" style={{margin:0, fontSize: '0.8rem'}}>View details &gt;</Link>
                         </div>
                         <div className="stat-icon-wrapper" style={{background: 'rgba(225,29,72,0.1)', color: 'var(--primary-color)'}}>
                             <UserX size={24} />
@@ -188,7 +189,7 @@ const AdminDashboard = () => {
                         <div className="stat-info">
                             <p className="stat-label">Active Announcements</p>
                             <h2 className="stat-value">{stats.activeAnnouncements}</h2>
-                            <a href="/admin/announcements" className="text-link" style={{margin:0, fontSize: '0.8rem'}}>View all &gt;</a>
+                            <Link to="/admin/announcements" className="text-link" style={{margin:0, fontSize: '0.8rem'}}>View all &gt;</Link>
                         </div>
                         <div className="stat-icon-wrapper" style={{background: 'rgba(225,29,72,0.1)', color: 'var(--primary-color)'}}>
                             <Bell size={24} />
@@ -259,7 +260,7 @@ const AdminDashboard = () => {
 
             {/* Bottom Section: Recent Activity */}
             <div className="dashboard-grid mt-4">
-                <Card className="col-span-2 glass" title="Recent Transactions" action={<a href="/admin/transactions" className="text-link" style={{margin:0, fontSize: '0.85rem'}}>View All</a>}>
+                <Card className="col-span-2 glass" title="Recent Transactions" action={<Link to="/admin/transactions" className="text-link" style={{margin:0, fontSize: '0.85rem'}}>View All</Link>}>
                     <table className="recent-table">
                         <thead>
                             <tr>
@@ -292,7 +293,7 @@ const AdminDashboard = () => {
                     </table>
                 </Card>
                 
-                <Card className="glass" title="Latest Announcements" action={<a href="/admin/announcements" className="text-link" style={{margin:0, fontSize: '0.85rem'}}>View All</a>}>
+                <Card className="glass" title="Latest Announcements" action={<Link to="/admin/announcements" className="text-link" style={{margin:0, fontSize: '0.85rem'}}>View All</Link>}>
                     <div className="recent-announcements">
                         <div className="ann-card">
                             <div className="ann-icon"><Bell size={16}/></div>

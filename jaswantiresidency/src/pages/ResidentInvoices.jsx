@@ -4,7 +4,7 @@ import DataTable from '../components/ui/DataTable';
 import StatusChip from '../components/ui/StatusChip';
 import Button from '../components/ui/Button';
 import PaymentModal from '../components/PaymentModal';
-import { Download, CreditCard, UploadCloud, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { Download, CreditCard, UploadCloud } from 'lucide-react';
 import { getMyBills, getMyPaymentSubmissions } from '../api/billingApi';
 import { downloadAuthenticatedFile } from '../api/fileUtils';
 

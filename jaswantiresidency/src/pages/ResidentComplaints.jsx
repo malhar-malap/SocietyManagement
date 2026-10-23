@@ -5,10 +5,11 @@ import StatusChip from '../components/ui/StatusChip';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
-import { Plus, Paperclip, MessageSquare } from 'lucide-react';
+import { Plus, Paperclip } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../context/AuthContext';
 import { submitComplaint } from '../api/adminApi';
+import { viewAuthenticatedFile } from '../api/fileUtils';
 
 const ResidentComplaints = () => {
     const { user } = useAuth();
@@ -79,14 +80,13 @@ const ResidentComplaints = () => {
                         </div>
                     )}
                     {row.hasAttachment && (
-                        <a
-                            href={`/api/complaints/${row.id}/attachment`}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: '#2563eb', marginTop: '0.2rem' }}
+                        <button
+                            type="button"
+                            onClick={() => viewAuthenticatedFile(`/complaints/${row.id}/attachment`)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: '#2563eb', marginTop: '0.2rem' }}
                         >
                             <Paperclip size={12} /> View Attached Document
-                        </a>
+                        </button>
                     )}
                 </div>
             )

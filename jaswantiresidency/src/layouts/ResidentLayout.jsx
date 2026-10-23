@@ -2,7 +2,7 @@ import React from 'react';
 import { Outlet, Navigate, NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './layout.css';
-import { Home, FileText, Bell, LogOut, DollarSign, User, AlertCircle } from 'lucide-react';
+import { Home, Bell, LogOut, DollarSign, User, AlertCircle } from 'lucide-react';
 
 const ResidentLayout = () => {
     const { logout, user } = useAuth();
