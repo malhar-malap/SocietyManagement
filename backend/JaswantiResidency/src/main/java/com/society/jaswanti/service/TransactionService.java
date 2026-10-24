@@ -47,9 +47,6 @@ public class TransactionService {
         this.activityLogService = activityLogService;
     }
 
-    public Transaction recordTransaction(Transaction transaction) {
-        return transactionRepository.save(transaction);
-    }
 
     public List<Transaction> getTransactionsByBill(Long billId) {
         return transactionRepository.findByBillId(billId);

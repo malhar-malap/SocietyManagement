@@ -95,9 +95,7 @@ public class ComplaintService {
 
     public Optional<ComplaintDto> updateComplaintStatus(Long id, String status) {
         return complaintRepository.findById(id).map(complaint -> {
-            try {
-                complaint.setStatus(ComplaintStatus.valueOf(status.toUpperCase()));
-            } catch (IllegalArgumentException ignored) {}
+            complaint.setStatus(parseStatus(status));
             return convertToDto(complaintRepository.save(complaint));
         });
     }
@@ -105,9 +103,7 @@ public class ComplaintService {
     public Optional<ComplaintDto> respondToSubmission(Long id, String status, String adminResponse) {
         return complaintRepository.findById(id).map(complaint -> {
             if (status != null && !status.isBlank()) {
-                try {
-                    complaint.setStatus(ComplaintStatus.valueOf(status.toUpperCase()));
-                } catch (IllegalArgumentException ignored) {}
+                complaint.setStatus(parseStatus(status));
             }
             if (adminResponse != null) {
                 complaint.setAdminResponse(adminResponse);
@@ -121,7 +117,20 @@ public class ComplaintService {
     }
 
     public void deleteComplaint(Long id) {
+        if (!complaintRepository.existsById(id)) {
+            throw new com.society.jaswanti.exception.ResourceNotFoundException("Submission not found with ID: " + id);
+        }
         complaintRepository.deleteById(id);
+    }
+
+    /** Rejects unknown statuses with a 400 instead of silently leaving the status unchanged. */
+    private static ComplaintStatus parseStatus(String status) {
+        try {
+            return ComplaintStatus.valueOf(status == null ? "" : status.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid status '" + status + "'. Allowed: "
+                    + java.util.Arrays.toString(ComplaintStatus.values()));
+        }
     }
 
     public ComplaintDto convertToDto(Complaint complaint) {

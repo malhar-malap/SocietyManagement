@@ -118,14 +118,6 @@ public class TransactionController {
         return roomIds;
     }
 
-    @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
-    @AuditedAction(action = "RECORD_TRANSACTION", module = "LEDGER", summary = "Recorded a transaction", target = AuditTargetResolver.TRANSACTION)
-    public ResponseEntity<Transaction> recordTransaction(@RequestBody Transaction transaction) {
-        Transaction saved = transactionService.recordTransaction(transaction);
-        AuditTrail.target(AuditTargetResolver.TRANSACTION, saved.getId());
-        return ResponseEntity.ok(saved);
-    }
 
     @GetMapping("/bill/{billId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")

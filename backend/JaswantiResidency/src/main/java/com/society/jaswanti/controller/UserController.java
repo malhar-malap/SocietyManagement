@@ -60,8 +60,9 @@ public class UserController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
     @AuditedAction(action = "UPDATE_USER", module = "USERS", summary = "Edited a user's details", target = AuditTargetResolver.USER)
-    public ResponseEntity<UserDto> updateUser(@PathVariable Long id, @RequestBody User user) {
-        return userService.updateUser(id, user)
+    public ResponseEntity<UserDto> updateUser(@PathVariable Long id, @RequestBody User user,
+                                              org.springframework.security.core.Authentication auth) {
+        return userService.updateUser(id, user, auth)
                 .map(updated -> ResponseEntity.ok(convertToDto(updated)))
                 .orElse(ResponseEntity.notFound().build());
     }

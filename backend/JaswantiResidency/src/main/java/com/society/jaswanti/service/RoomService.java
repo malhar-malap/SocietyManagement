@@ -43,8 +43,37 @@ public class RoomService {
         this.fileValidationService = fileValidationService;
     }
 
-    public Room saveRoom(Room room) {
+    /** Creates a room from the allowed fields only; the share certificate is uploaded separately (Master Admin). */
+    public Room createRoom(com.society.jaswanti.dto.RoomRequest request) {
+        String roomNumber = request.getRoomNumber() != null ? request.getRoomNumber().trim() : "";
+        String wing = request.getWing() != null ? request.getWing().trim() : "";
+        if (roomNumber.isEmpty() || wing.isEmpty() || request.getFloor() == null) {
+            throw new IllegalArgumentException("Room number, wing and floor are required");
+        }
+        if (roomRepository.findByRoomNumber(roomNumber).isPresent()) {
+            throw new IllegalArgumentException("Room " + roomNumber + " already exists");
+        }
+        Room room = new Room();
+        room.setRoomNumber(roomNumber);
+        room.setWing(wing);
+        room.setFloor(request.getFloor());
+        if (request.getUnitCategory() != null && !request.getUnitCategory().isBlank()) {
+            room.setUnitCategory(request.getUnitCategory().trim());
+        }
+        applyNoc(room, request);
         return roomRepository.save(room);
+    }
+
+    private static void applyNoc(Room room, com.society.jaswanti.dto.RoomRequest request) {
+        if (request.getNocApplicable() != null) {
+            room.setNocApplicable(request.getNocApplicable());
+        }
+        if (request.getNocAmount() != null) {
+            if (request.getNocAmount().signum() < 0) {
+                throw new IllegalArgumentException("NOC amount cannot be negative");
+            }
+            room.setNocAmount(request.getNocAmount());
+        }
     }
 
     public List<Room> getAllRooms() {
@@ -341,17 +370,28 @@ public class RoomService {
     }
 
     @Transactional
-    public Room updateRoom(Long id, Room updatedRoom, Authentication auth) {
+    public Room updateRoom(Long id, com.society.jaswanti.dto.RoomRequest updatedRoom, Authentication auth) {
         Room room = roomRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Room not found with ID: " + id));
-        if (updatedRoom.getRoomNumber() != null) room.setRoomNumber(updatedRoom.getRoomNumber());
-        if (updatedRoom.getWing() != null) room.setWing(updatedRoom.getWing());
+                .orElseThrow(() -> new com.society.jaswanti.exception.ResourceNotFoundException("Room not found with ID: " + id));
+        if (updatedRoom.getRoomNumber() != null && !updatedRoom.getRoomNumber().isBlank()) {
+            String roomNumber = updatedRoom.getRoomNumber().trim();
+            roomRepository.findByRoomNumber(roomNumber)
+                    .filter(other -> !other.getId().equals(id))
+                    .ifPresent(other -> { throw new IllegalArgumentException("Room " + roomNumber + " already exists"); });
+            room.setRoomNumber(roomNumber);
+        }
+        if (updatedRoom.getWing() != null && !updatedRoom.getWing().isBlank()) room.setWing(updatedRoom.getWing().trim());
         if (updatedRoom.getFloor() != null) room.setFloor(updatedRoom.getFloor());
-        if (updatedRoom.getUnitCategory() != null) room.setUnitCategory(updatedRoom.getUnitCategory());
-        room.setNocApplicable(updatedRoom.isNocApplicable());
-        if (updatedRoom.getNocAmount() != null) room.setNocAmount(updatedRoom.getNocAmount());
-        if (updatedRoom.getShareCertificateNumber() != null) room.setShareCertificateNumber(updatedRoom.getShareCertificateNumber());
-        if (updatedRoom.getShareCertificateIssuedDate() != null) room.setShareCertificateIssuedDate(updatedRoom.getShareCertificateIssuedDate());
+        if (updatedRoom.getUnitCategory() != null && !updatedRoom.getUnitCategory().isBlank()) room.setUnitCategory(updatedRoom.getUnitCategory().trim());
+        applyNoc(room, updatedRoom);
+        // Share-certificate details follow the same rule as the certificate upload: Master Admin only
+        if (updatedRoom.getShareCertificateNumber() != null || updatedRoom.getShareCertificateIssuedDate() != null) {
+            if (resolveAuthenticatedUser(auth).getRole() != Role.MASTER_ADMIN) {
+                throw new org.springframework.security.access.AccessDeniedException("Only a Master Admin can change share certificate details");
+            }
+            if (updatedRoom.getShareCertificateNumber() != null) room.setShareCertificateNumber(updatedRoom.getShareCertificateNumber().trim());
+            if (updatedRoom.getShareCertificateIssuedDate() != null) room.setShareCertificateIssuedDate(updatedRoom.getShareCertificateIssuedDate());
+        }
         return roomRepository.save(room);
     }
 

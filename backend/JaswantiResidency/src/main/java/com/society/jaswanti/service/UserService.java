@@ -60,12 +60,35 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    public Optional<User> updateUser(Long id, User updatedUser) {
+    private static final java.util.regex.Pattern EMAIL_PATTERN = java.util.regex.Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+
+    /**
+     * Edits a user's contact details. Administrator accounts can only be edited by a Master Admin: otherwise an
+     * admin could point a Master Admin's email at their own inbox and take the account over via password reset.
+     */
+    public Optional<User> updateUser(Long id, User updatedUser, Authentication actor) {
         return userRepository.findById(id).map(user -> {
-            if (updatedUser.getName() != null) user.setName(updatedUser.getName());
-            if (updatedUser.getPhone() != null) user.setPhone(updatedUser.getPhone());
-            if (updatedUser.getEmail() != null) user.setEmail(updatedUser.getEmail());
-            // Role or status update normally shouldn't happen directly here, but could if needed.
+            boolean actorIsMaster = actor != null && actor.getAuthorities().stream()
+                    .anyMatch(a -> "ROLE_MASTER_ADMIN".equals(a.getAuthority()));
+            if ((user.getRole() == Role.ADMIN || user.getRole() == Role.MASTER_ADMIN) && !actorIsMaster) {
+                throw new org.springframework.security.access.AccessDeniedException("Only a Master Admin can edit administrator accounts");
+            }
+            if (updatedUser.getName() != null && !updatedUser.getName().isBlank()) user.setName(updatedUser.getName().trim());
+            if (updatedUser.getPhone() != null) user.setPhone(updatedUser.getPhone().trim());
+            if (updatedUser.getEmail() != null && !updatedUser.getEmail().isBlank()) {
+                String email = updatedUser.getEmail().trim().toLowerCase();
+                if (!EMAIL_PATTERN.matcher(email).matches()) {
+                    throw new IllegalArgumentException("Invalid email address: " + email);
+                }
+                if (!email.equalsIgnoreCase(user.getEmail())) {
+                    userRepository.findByEmailIgnoreCase(email)
+                            .filter(other -> !other.getId().equals(id))
+                            .ifPresent(other -> { throw new IllegalArgumentException("Email " + email + " is already in use by another account"); });
+                    user.setEmail(email);
+                    // The email is the sign-in identity: end existing sessions for the old identity
+                    user.setTokenVersion(user.getTokenVersion() + 1);
+                }
+            }
             return userRepository.save(user);
         });
     }

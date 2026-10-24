@@ -59,8 +59,8 @@ public class RoomController {
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
     @AuditedAction(action = "CREATE_ROOM", module = "ROOMS", summary = "Created a room/unit", target = AuditTargetResolver.ROOM)
-    public ResponseEntity<Room> createRoom(@RequestBody Room room) {
-        Room saved = roomService.saveRoom(room);
+    public ResponseEntity<Room> createRoom(@RequestBody com.society.jaswanti.dto.RoomRequest room) {
+        Room saved = roomService.createRoom(room);
         AuditTrail.target(AuditTargetResolver.ROOM, saved.getId());
         return ResponseEntity.ok(saved);
     }
@@ -133,7 +133,7 @@ public class RoomController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
     @AuditedAction(action = "UPDATE_ROOM", module = "ROOMS", summary = "Edited a room/unit", target = AuditTargetResolver.ROOM)
-    public ResponseEntity<Room> updateRoom(@PathVariable Long id, @RequestBody Room room, Authentication auth) {
+    public ResponseEntity<Room> updateRoom(@PathVariable Long id, @RequestBody com.society.jaswanti.dto.RoomRequest room, Authentication auth) {
         return ResponseEntity.ok(roomService.updateRoom(id, room, auth));
     }
 
