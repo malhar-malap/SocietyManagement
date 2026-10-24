@@ -1,5 +1,7 @@
 package com.society.jaswanti.controller;
 
+import com.society.jaswanti.audit.AuditExempt;
+
 import com.society.jaswanti.dto.SystemNotificationDto;
 import com.society.jaswanti.service.SystemNotificationService;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +30,7 @@ public class SystemNotificationController {
 
     @PutMapping("/{id}/read")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    @AuditExempt(reason = "Marking one's own notification as read is a personal UI action with no effect on society records")
     public ResponseEntity<Void> markAsRead(@PathVariable Long id) {
         notificationService.markAsRead(id);
         return ResponseEntity.ok().build();

@@ -1,5 +1,9 @@
 package com.society.jaswanti.controller;
 
+import com.society.jaswanti.audit.AuditTrail;
+import com.society.jaswanti.audit.AuditedAction;
+import com.society.jaswanti.audit.AuditTargetResolver;
+
 import com.society.jaswanti.dto.ComplaintDto;
 import com.society.jaswanti.entity.Complaint;
 import com.society.jaswanti.entity.User;
@@ -54,6 +58,7 @@ public class ComplaintController {
 
     @PostMapping(consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.APPLICATION_OCTET_STREAM_VALUE})
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    @AuditedAction(action = "CREATE_SUBMISSION", module = "HELPDESK", summary = "Submitted a complaint, query or suggestion", target = AuditTargetResolver.SUBMISSION)
     public ResponseEntity<ComplaintDto> createComplaint(
             @RequestParam(value = "residentId", required = false) Long residentId,
             @RequestParam("category") String category,
@@ -73,8 +78,10 @@ public class ComplaintController {
             return ResponseEntity.status(403).build();
         }
 
-        return ResponseEntity.ok(complaintService.createSubmission(
-                effectiveResidentId, category, description, submissionType, permissionCategory, startDate, endDate, file));
+        ComplaintDto created = complaintService.createSubmission(
+                effectiveResidentId, category, description, submissionType, permissionCategory, startDate, endDate, file);
+        AuditTrail.target(AuditTargetResolver.SUBMISSION, created.getId());
+        return ResponseEntity.ok(created);
     }
 
     @GetMapping
@@ -103,6 +110,7 @@ public class ComplaintController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "UPDATE_SUBMISSION", module = "HELPDESK", summary = "Edited a helpdesk submission", target = AuditTargetResolver.SUBMISSION)
     public ResponseEntity<ComplaintDto> updateComplaint(@PathVariable Long id, @RequestBody Complaint complaint) {
         return complaintService.updateComplaint(id, complaint)
                 .map(ResponseEntity::ok)
@@ -111,6 +119,7 @@ public class ComplaintController {
 
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "UPDATE_SUBMISSION_STATUS", module = "HELPDESK", summary = "Changed a helpdesk submission's status", target = AuditTargetResolver.SUBMISSION)
     public ResponseEntity<ComplaintDto> updateComplaintStatus(@PathVariable Long id, @RequestParam String status) {
         return complaintService.updateComplaintStatus(id, status)
                 .map(ResponseEntity::ok)
@@ -119,11 +128,13 @@ public class ComplaintController {
 
     @PostMapping("/{id}/respond")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "RESPOND_TO_SUBMISSION", module = "HELPDESK", summary = "Responded to a helpdesk submission", target = AuditTargetResolver.SUBMISSION)
     public ResponseEntity<ComplaintDto> respondToSubmission(
             @PathVariable Long id,
             @RequestBody Map<String, String> body) {
         String status = body.get("status");
         String adminResponse = body.get("adminResponse");
+        AuditTrail.describe("Responded to a helpdesk submission" + (status != null ? " and set its status to " + status : ""));
         return complaintService.respondToSubmission(id, status, adminResponse)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -162,6 +173,7 @@ public class ComplaintController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "DELETE_SUBMISSION", module = "HELPDESK", summary = "Deleted a helpdesk submission", target = AuditTargetResolver.SUBMISSION)
     public ResponseEntity<Void> deleteComplaint(@PathVariable Long id) {
         complaintService.deleteComplaint(id);
         return ResponseEntity.noContent().build();

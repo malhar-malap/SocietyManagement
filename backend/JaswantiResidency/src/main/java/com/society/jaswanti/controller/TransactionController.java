@@ -1,5 +1,9 @@
 package com.society.jaswanti.controller;
 
+import com.society.jaswanti.audit.AuditTrail;
+import com.society.jaswanti.audit.AuditedAction;
+import com.society.jaswanti.audit.AuditTargetResolver;
+
 import com.society.jaswanti.dto.*;
 import com.society.jaswanti.entity.MaintenanceBill;
 import com.society.jaswanti.entity.Room;
@@ -116,8 +120,11 @@ public class TransactionController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "RECORD_TRANSACTION", module = "LEDGER", summary = "Recorded a transaction", target = AuditTargetResolver.TRANSACTION)
     public ResponseEntity<Transaction> recordTransaction(@RequestBody Transaction transaction) {
-        return ResponseEntity.ok(transactionService.recordTransaction(transaction));
+        Transaction saved = transactionService.recordTransaction(transaction);
+        AuditTrail.target(AuditTargetResolver.TRANSACTION, saved.getId());
+        return ResponseEntity.ok(saved);
     }
 
     @GetMapping("/bill/{billId}")
@@ -215,6 +222,7 @@ public class TransactionController {
 
     @PostMapping("/{id}/email-receipt")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    @AuditedAction(action = "EMAIL_RECEIPT", module = "LEDGER", summary = "Emailed a payment receipt", target = AuditTargetResolver.TRANSACTION)
     public ResponseEntity<java.util.Map<String, Object>> emailReceiptPdf(@PathVariable Long id, Authentication auth) {
         Transaction tx = transactionService.getTransactionById(id)
                 .orElseThrow(() -> new com.society.jaswanti.exception.ResourceNotFoundException("Transaction not found with ID: " + id));
@@ -247,6 +255,7 @@ public class TransactionController {
                 "application/pdf"
         );
 
+        AuditTrail.describe("Emailed receipt " + receiptNum + " to " + targetEmail);
         return ResponseEntity.ok(java.util.Map.of("success", true, "sentTo", targetEmail, "receiptNumber", receiptNum));
     }
 
@@ -271,12 +280,14 @@ public class TransactionController {
 
     @PostMapping("/expense")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "RECORD_EXPENSE", module = "LEDGER", summary = "Recorded an expense", target = AuditTargetResolver.TRANSACTION)
     public ResponseEntity<TransactionDto> recordExpense(@Valid @RequestBody RecordExpenseRequest request, Authentication auth) {
         return ResponseEntity.ok(transactionService.recordExpense(request, auth));
     }
 
     @PostMapping("/{id}/reverse")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "REVERSE_TRANSACTION", module = "LEDGER", summary = "Reversed a transaction", target = AuditTargetResolver.TRANSACTION)
     public ResponseEntity<AmendmentResult> reverseTransaction(@PathVariable Long id,
                                                               @Valid @RequestBody ReverseTransactionRequest request,
                                                               Authentication auth) {
@@ -295,6 +306,7 @@ public class TransactionController {
 
     @PostMapping("/amendment-requests/{id}/resolve")
     @PreAuthorize("hasRole('MASTER_ADMIN')")
+    @AuditedAction(action = "RESOLVE_AMENDMENT_REQUEST", module = "LEDGER", summary = "Resolved a transaction amendment request", target = AuditTargetResolver.AMENDMENT_REQUEST)
     public ResponseEntity<TransactionAmendmentRequestDto> resolveAmendmentRequest(@PathVariable Long id,
                                                                                   @Valid @RequestBody ResolveAmendmentRequest request,
                                                                                   Authentication auth) {

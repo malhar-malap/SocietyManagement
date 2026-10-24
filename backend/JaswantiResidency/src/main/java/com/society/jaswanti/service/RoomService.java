@@ -386,7 +386,7 @@ public class RoomService {
 
         room = roomRepository.save(room);
 
-        activityLogService.logActivity(actor, "UPLOAD_SHARE_CERTIFICATE", "ROOM",
+        activityLogService.logActivity(actor, "UPLOAD_SHARE_CERTIFICATE", "ROOMS",
                 String.format("Master Admin %s uploaded share certificate %s for Room %s",
                         actor.getName(), room.getShareCertificateNumber(), room.getRoomNumber()));
 

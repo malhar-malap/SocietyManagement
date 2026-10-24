@@ -1,5 +1,8 @@
 package com.society.jaswanti.controller;
 
+import com.society.jaswanti.audit.AuditedAction;
+import com.society.jaswanti.audit.AuditTargetResolver;
+
 import com.society.jaswanti.dto.BankReconciliationDto;
 import com.society.jaswanti.dto.CreateBankAccountRequest;
 import com.society.jaswanti.dto.SocietyBankAccountDto;
@@ -49,6 +52,7 @@ public class BankAccountController {
 
     @PostMapping
     @PreAuthorize("hasRole('MASTER_ADMIN')")
+    @AuditedAction(action = "CREATE_BANK_ACCOUNT", module = "LEDGER", summary = "Created a bank account", target = AuditTargetResolver.BANK_ACCOUNT)
     public ResponseEntity<SocietyBankAccountDto> createBankAccount(@Valid @RequestBody CreateBankAccountRequest request,
                                                                    Authentication auth) {
         return ResponseEntity.ok(bankAccountService.createBankAccount(request, auth));
@@ -56,6 +60,7 @@ public class BankAccountController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('MASTER_ADMIN')")
+    @AuditedAction(action = "UPDATE_BANK_ACCOUNT", module = "LEDGER", summary = "Updated a bank account", target = AuditTargetResolver.BANK_ACCOUNT)
     public ResponseEntity<SocietyBankAccountDto> updateBankAccount(@PathVariable Long id,
                                                                    @Valid @RequestBody UpdateBankAccountRequest request,
                                                                    Authentication auth) {

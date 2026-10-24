@@ -1,5 +1,9 @@
 package com.society.jaswanti.controller;
 
+import com.society.jaswanti.audit.AuditTrail;
+import com.society.jaswanti.audit.AuditedAction;
+import com.society.jaswanti.audit.AuditExempt;
+
 import com.society.jaswanti.dto.AuthRequest;
 import com.society.jaswanti.dto.AuthResponse;
 import com.society.jaswanti.dto.ForgotPasswordRequest;
@@ -76,11 +80,14 @@ public class AuthController {
     }
 
     @PostMapping("/login")
+    @AuditedAction(action = "LOGIN", module = "AUTH", summary = "Signed in")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthRequest request, HttpServletRequest httpRequest) {
         String clientIp = extractClientIp(httpRequest);
         String identifier = request.getIdentifier();
 
+        AuditTrail.actorLabel(identifier);
         if (loginRateLimiterService.isBlocked(identifier, clientIp)) {
+            AuditTrail.describe("Sign-in refused for '" + identifier + "': too many failed attempts (locked out)");
             throw new LoginLockoutException("Too many failed login attempts. Please try again after 15 minutes.");
         }
 
@@ -89,6 +96,7 @@ public class AuthController {
                     new UsernamePasswordAuthenticationToken(request.getIdentifier(), request.getPassword())
             );
         } catch (AuthenticationException ex) {
+            AuditTrail.describe("Failed sign-in attempt for '" + identifier + "'");
             boolean justLocked = loginRateLimiterService.recordFailedAttempt(identifier, clientIp);
             if (justLocked) {
                 recordLockoutActivity(identifier, clientIp);
@@ -101,6 +109,7 @@ public class AuthController {
 
         // If authentication passes, load the user details
         User user = (User) userDetailsService.loadUserByUsername(request.getIdentifier());
+        AuditTrail.actor(user);
 
         String accessToken = jwtService.generateToken(user);
         String refreshToken = jwtService.generateRefreshToken(user);
@@ -129,15 +138,13 @@ public class AuthController {
 
     private void recordLockoutActivity(String identifier, String ip) {
         try {
+            String description = String.format("Login lockout triggered for identifier '%s' from IP %s", identifier, ip);
             User user = userRepository.findByEmailIgnoreCase(identifier != null ? identifier.trim() : "").orElse(null);
-            if (user == null) {
-                user = userRepository.findAll().stream()
-                        .filter(u -> (u.getRole() == com.society.jaswanti.entity.Role.ADMIN || u.getRole() == com.society.jaswanti.entity.Role.MASTER_ADMIN) && u.isActive())
-                        .findFirst().orElse(null);
-            }
             if (user != null) {
-                activityLogService.logActivity(user, "LOGIN_LOCKOUT", "AUTH",
-                        String.format("Login lockout triggered for identifier '%s' from IP %s", identifier, ip));
+                activityLogService.logActivity(user, "LOGIN_LOCKOUT", "AUTH", description);
+            } else {
+                // No matching account: record the attempted identifier rather than attributing the event to someone else
+                activityLogService.logAnonymous(identifier, "LOGIN_LOCKOUT", "AUTH", description);
             }
         } catch (Exception e) {
             // Logging failure should not disrupt the security block
@@ -145,6 +152,7 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
+    @AuditExempt(reason = "Access tokens refresh automatically every few minutes; logging each refresh would bury real actions")
     public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
         String refreshToken = request.getRefreshToken();
         try {
@@ -174,21 +182,27 @@ public class AuthController {
     }
 
     @PostMapping("/forgot-password")
+    @AuditedAction(action = "REQUEST_PASSWORD_RESET", module = "AUTH", summary = "Requested a password reset code")
     public ResponseEntity<Map<String, String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest body) {
         if (body == null || body.getEmail() == null || body.getEmail().isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Email is required."));
         }
 
+        AuditTrail.actorLabel(body.getEmail());
+        AuditTrail.describe("Requested a password reset code for '" + body.getEmail() + "'");
         passwordResetService.initiatePasswordReset(body.getEmail());
         return ResponseEntity.ok(Map.of("message", "If your email is registered, you will receive a password reset OTP shortly."));
     }
 
     @PostMapping("/reset-password")
+    @AuditedAction(action = "RESET_PASSWORD", module = "AUTH", summary = "Reset a password using an emailed code")
     public ResponseEntity<Map<String, String>> resetPassword(@Valid @RequestBody ResetPasswordRequest body) {
         if (body == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Request body is required."));
         }
 
+        AuditTrail.actorLabel(body.getEmail());
+        AuditTrail.describe("Reset the password for '" + body.getEmail() + "' using an emailed code");
         passwordResetService.resetPassword(body.getEmail(), body.getOtp(), body.getNewPassword());
         return ResponseEntity.ok(Map.of("message", "Password reset successfully."));
     }

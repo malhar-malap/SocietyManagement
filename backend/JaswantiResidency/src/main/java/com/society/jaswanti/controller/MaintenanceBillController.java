@@ -1,5 +1,9 @@
 package com.society.jaswanti.controller;
 
+import com.society.jaswanti.audit.AuditTrail;
+import com.society.jaswanti.audit.AuditedAction;
+import com.society.jaswanti.audit.AuditTargetResolver;
+
 import com.society.jaswanti.dto.MaintenanceBillDto;
 import com.society.jaswanti.entity.ChargeType;
 import com.society.jaswanti.entity.MaintenanceBill;
@@ -118,22 +122,30 @@ public class MaintenanceBillController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "CREATE_BILL", module = "BILLING", summary = "Created a bill", target = AuditTargetResolver.BILL)
     public ResponseEntity<MaintenanceBillDto> createBill(@RequestBody MaintenanceBill bill) {
-        return ResponseEntity.ok(billService.createBill(bill));
+        MaintenanceBillDto created = billService.createBill(bill);
+        AuditTrail.target(AuditTargetResolver.BILL, created.getId());
+        return ResponseEntity.ok(created);
     }
 
     @PostMapping("/generate-monthly")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "GENERATE_MONTHLY_BILLS", module = "BILLING", summary = "Generated monthly bills")
     public ResponseEntity<List<MaintenanceBillDto>> generateMonthlyBills(
             @RequestParam String billingMonth,
             @RequestParam BigDecimal amount,
             @RequestParam String dueDate,
             @RequestParam(required = false, defaultValue = "MAINTENANCE") ChargeType chargeType) {
-        return ResponseEntity.ok(billService.generateMonthlyBills(billingMonth, amount, LocalDate.parse(dueDate), chargeType));
+        List<MaintenanceBillDto> bills = billService.generateMonthlyBills(billingMonth, amount, LocalDate.parse(dueDate), chargeType);
+        AuditTrail.describe(String.format("Generated %d %s bills for %s (₹%s each, due %s)",
+                bills.size(), chargeType, billingMonth, amount.toPlainString(), dueDate));
+        return ResponseEntity.ok(bills);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "UPDATE_BILL", module = "BILLING", summary = "Edited a bill", target = AuditTargetResolver.BILL)
     public ResponseEntity<MaintenanceBillDto> updateBill(@PathVariable Long id, @RequestBody MaintenanceBill bill) {
         return billService.updateBill(id, bill)
                 .map(ResponseEntity::ok)
@@ -178,6 +190,7 @@ public class MaintenanceBillController {
     @Deprecated
     @PutMapping("/{id}/mark-paid-cash")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "MARK_BILL_PAID_CASH", module = "LEDGER", summary = "Marked a bill as paid in cash", target = AuditTargetResolver.BILL)
     public ResponseEntity<MaintenanceBillDto> markPaidCash(@PathVariable Long id, Authentication auth) {
         return billService.markPaidCash(id, auth)
                 .map(dto -> ResponseEntity.ok()
@@ -189,6 +202,7 @@ public class MaintenanceBillController {
 
     @PostMapping("/{billId}/record-payment")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "RECORD_PAYMENT", module = "LEDGER", summary = "Recorded a payment against a bill", target = AuditTargetResolver.BILL, targetParam = "billId")
     public ResponseEntity<com.society.jaswanti.dto.RecordPaymentResponse> recordPayment(
             @PathVariable Long billId,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKeyHeader,
@@ -244,9 +258,13 @@ public class MaintenanceBillController {
 
     @PostMapping(value = "/import-excel", consumes = {org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE})
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "IMPORT_BILLS_EXCEL", module = "BILLING", summary = "Imported bills from an Excel file")
     public ResponseEntity<com.society.jaswanti.dto.ImportBillsResponse> importBillsExcel(
             @RequestPart("file") org.springframework.web.multipart.MultipartFile file) throws java.io.IOException {
-        return ResponseEntity.ok(excelBillingService.importBillsFromExcel(file));
+        com.society.jaswanti.dto.ImportBillsResponse result = excelBillingService.importBillsFromExcel(file);
+        AuditTrail.describe(String.format("Imported bills from Excel file '%s': %d rows, %d created, %d skipped",
+                file.getOriginalFilename(), result.getTotalRows(), result.getCreatedCount(), result.getSkippedCount()));
+        return ResponseEntity.ok(result);
     }
 
     private boolean matchesPeriodFilter(String billingMonth, String financialYear, String fromMonth, String toMonth) {

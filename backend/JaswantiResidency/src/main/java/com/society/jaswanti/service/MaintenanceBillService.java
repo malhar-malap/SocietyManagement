@@ -1,5 +1,6 @@
 package com.society.jaswanti.service;
 
+import com.society.jaswanti.audit.AuditTrail;
 import com.society.jaswanti.dto.MaintenanceBillDto;
 import com.society.jaswanti.entity.ChargeType;
 import com.society.jaswanti.entity.MaintenanceBill;
@@ -158,6 +159,7 @@ public class MaintenanceBillService {
         }
         MaintenanceBill bill = billOpt.get();
         if (bill.getStatus() == com.society.jaswanti.entity.BillStatus.PAID || bill.getStatus() == com.society.jaswanti.entity.BillStatus.PAID_CASH) {
+            AuditTrail.describe("Bill was already fully paid; no new payment was recorded");
             return java.util.Optional.of(convertToDto(bill)); // Already fully paid, return idempotent state
         }
 

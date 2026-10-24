@@ -26,8 +26,17 @@ public class JaswantiResidencyApplication {
 	@Bean
 	public CommandLineRunner bootstrapMasterAdmin(UserRepository userRepository,
 	                                              PasswordEncoder passwordEncoder,
-	                                              org.springframework.core.env.Environment environment) {
-		return args -> executeBootstrap(userRepository, passwordEncoder, environment::getProperty);
+	                                              org.springframework.core.env.Environment environment,
+	                                              com.society.jaswanti.service.ActivityLogService activityLogService) {
+		return args -> {
+			executeBootstrap(userRepository, passwordEncoder, environment::getProperty);
+			if ("true".equalsIgnoreCase(environment.getProperty("BOOTSTRAP_MASTER_ADMIN_ENABLED"))) {
+				// Reaching here means a new Master Admin was created (executeBootstrap throws otherwise)
+				userRepository.findByEmailIgnoreCase(environment.getProperty("BOOTSTRAP_MASTER_ADMIN_EMAIL"))
+						.ifPresent(created -> activityLogService.logActivity(created, "BOOTSTRAP_MASTER_ADMIN", "SYSTEM",
+								"Master Admin account created by the one-time startup bootstrap"));
+			}
+		};
 	}
 
 	public static void executeBootstrap(UserRepository userRepository,

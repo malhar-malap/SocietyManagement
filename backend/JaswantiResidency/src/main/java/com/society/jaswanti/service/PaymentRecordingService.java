@@ -1,5 +1,6 @@
 package com.society.jaswanti.service;
 
+import com.society.jaswanti.audit.AuditTrail;
 import com.society.jaswanti.dto.RecordPaymentRequest;
 import com.society.jaswanti.dto.RecordPaymentResponse;
 import com.society.jaswanti.entity.*;
@@ -73,6 +74,9 @@ public class PaymentRecordingService {
             if (existingTx.isPresent()) {
                 Transaction tx = existingTx.get();
                 if (tx.getBill().getId().equals(billId) && tx.getAmount().compareTo(normalizedAmount) == 0) {
+                    AuditTrail.action("RECORD_PAYMENT_REPLAY");
+                    AuditTrail.describe("Repeated payment request matched existing receipt " + tx.getReceiptNumber()
+                            + "; no new payment was recorded");
                     return toResponse(tx, bill);
                 } else {
                     throw new DuplicateBillException("Idempotency key '" + effectiveIdempotencyKey + "' has already been used for another payment");
@@ -86,6 +90,9 @@ public class PaymentRecordingService {
             if (existingRefTx.isPresent()) {
                 Transaction tx = existingRefTx.get();
                 if (tx.getBill().getId().equals(billId) && tx.getAmount().compareTo(normalizedAmount) == 0) {
+                    AuditTrail.action("RECORD_PAYMENT_REPLAY");
+                    AuditTrail.describe("Repeated payment request matched existing receipt " + tx.getReceiptNumber()
+                            + "; no new payment was recorded");
                     return toResponse(tx, bill);
                 } else {
                     throw new DuplicateBillException("Payment reference number '" + ref + "' has already been recorded for another payment");

@@ -155,7 +155,7 @@ class MySqlMigrationIntegrationTests {
                 "--BOOTSTRAP_MASTER_ADMIN_NAME=IT Master",
                 "--BOOTSTRAP_MASTER_ADMIN_PASSWORD=ItMasterPass123");
 
-        assertThat(appliedVersions()).startsWith("1", "1.1", "2").endsWith("15", "16");
+        assertThat(appliedVersions()).startsWith("1", "1.1", "2").endsWith("15", "16", "17");
 
         // No account is usable with a committed default credential, and no seeded row was deleted
         assertThat(activeAccountsWithDefaultCredentials()).isZero();
@@ -167,6 +167,14 @@ class MySqlMigrationIntegrationTests {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE email = 'it-master@example.test' AND role = 'MASTER_ADMIN' AND is_active = 1 AND status = 'ACTIVE'", Integer.class))
                 .isEqualTo(1);
         assertThat(login("it-master@example.test", "ItMasterPass123")).isEqualTo(200);
+
+        // System log (V17) works on MySQL: the bootstrap and both sign-in attempts were recorded
+        assertThat(jdbc.queryForList("SELECT action FROM activity_logs ORDER BY id", String.class))
+                .containsSubsequence("BOOTSTRAP_MASTER_ADMIN", "LOGIN", "LOGIN");
+        assertThat(jdbc.queryForMap("SELECT user_id, actor_email, outcome FROM activity_logs WHERE action = 'LOGIN' ORDER BY id LIMIT 1"))
+                .containsEntry("user_id", null).containsEntry("actor_email", "admin@jaswanti.com").containsEntry("outcome", "DENIED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM activity_logs WHERE action = 'LOGIN' AND outcome = 'SUCCESS' AND actor_role = 'MASTER_ADMIN'", Integer.class))
+                .isEqualTo(1);
 
         // V16 shape
         assertThat(columnType("resident_payment_submissions", "screenshot_data")).isEqualTo("longblob");
@@ -188,7 +196,7 @@ class MySqlMigrationIntegrationTests {
 
         startApp();
 
-        assertThat(appliedVersions()).containsExactly("14", "15", "16");
+        assertThat(appliedVersions()).containsExactly("14", "15", "16", "17");
 
         assertThat(user("admin@jaswanti.com")).containsEntry("status", "INACTIVE").containsEntry("token_version", 1);
         assertThat(user("resident602@jaswanti.com")).containsEntry("status", "INACTIVE").containsEntry("token_version", 1);
@@ -202,6 +210,11 @@ class MySqlMigrationIntegrationTests {
         assertThat(columnType("resident_payment_submissions", "screenshot_data")).isEqualTo("longblob");
         assertThat(columnType("complaints", "image_data")).isEqualTo("longblob");
         assertThat(columnType("rooms", "share_certificate_data")).isEqualTo("longblob");
+
+        // V17 on a Hibernate-built activity_logs (Hibernate-named FK): user_id is nullable and new columns exist
+        assertThat(jdbc.queryForObject("SELECT is_nullable FROM information_schema.columns WHERE table_schema = DATABASE() " +
+                "AND table_name = 'activity_logs' AND column_name = 'user_id'", String.class)).isEqualTo("YES");
+        assertThat(columnType("activity_logs", "outcome")).isEqualTo("varchar(16)");
     }
 
     @Test
