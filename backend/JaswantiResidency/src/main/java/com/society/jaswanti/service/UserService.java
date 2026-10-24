@@ -153,6 +153,7 @@ public class UserService {
      * so the caller's own session can continue; empty if the old password does not match.
      */
     public Optional<AuthResponse> changePassword(Long userId, String oldPassword, String newPassword) {
+        com.society.jaswanti.security.PasswordValidator.validate(newPassword);
         Optional<User> userOpt = userRepository.findById(userId);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
@@ -240,6 +241,7 @@ public class UserService {
                 user.setPhone(dto.getPhone().trim());
             }
             if (dto.getNewPassword() != null && !dto.getNewPassword().isBlank()) {
+                com.society.jaswanti.security.PasswordValidator.validate(dto.getNewPassword());
                 user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
             }
 

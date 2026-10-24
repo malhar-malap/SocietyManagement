@@ -460,15 +460,15 @@ public class PasswordRecoveryTests {
     @Test
     @DisplayName("Weak password is rejected before user/OTP lookup to prevent enumeration")
     void weakPassword_rejectedBeforeOtpOrAccountValidation() throws Exception {
-        // Unknown email with short password (< 6 chars)
+        // Unknown email with short password (< 8 chars)
         ResetPasswordRequest req1 = new ResetPasswordRequest("nonexistent@jaswanti.com", "123456", "123");
         mockMvc.perform(post("/api/auth/reset-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req1)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("at least 6 characters")));
+                .andExpect(jsonPath("$.message", containsString("at least 8 characters")));
 
-        // Registered user with short password (< 6 chars)
+        // Registered user with short password (< 8 chars)
         String registeredEmail = "recovery_user7@jaswanti.com";
         createOrUpdateTestUser(registeredEmail, "strongPassword123");
 
@@ -477,7 +477,7 @@ public class PasswordRecoveryTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req2)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("at least 6 characters")));
+                .andExpect(jsonPath("$.message", containsString("at least 8 characters")));
 
         // Verify that attempt count was NOT incremented on the registered user (validation preceded OTP check)
         User user = userRepository.findByEmailIgnoreCase(registeredEmail).orElseThrow();

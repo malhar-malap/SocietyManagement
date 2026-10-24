@@ -8,13 +8,18 @@ import com.society.jaswanti.dto.ResetPasswordRequest;
 import com.society.jaswanti.entity.User;
 import com.society.jaswanti.entity.Room;
 import com.society.jaswanti.repository.RoomRepository;
+import com.society.jaswanti.exception.LoginLockoutException;
 import com.society.jaswanti.security.CustomUserDetailsService;
 import com.society.jaswanti.security.JwtService;
+import com.society.jaswanti.security.LoginRateLimiterService;
+import com.society.jaswanti.service.ActivityLogService;
 import com.society.jaswanti.service.PasswordResetService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -32,6 +37,8 @@ public class AuthController {
     private final com.society.jaswanti.repository.UserRepository userRepository;
     private final com.society.jaswanti.service.EmailService emailService;
     private final PasswordResetService passwordResetService;
+    private final LoginRateLimiterService loginRateLimiterService;
+    private final ActivityLogService activityLogService;
 
     public AuthController(AuthenticationManager authenticationManager,
                           CustomUserDetailsService userDetailsService,
@@ -40,7 +47,9 @@ public class AuthController {
                           com.society.jaswanti.repository.RoomResidentRepository roomResidentRepository,
                           com.society.jaswanti.repository.UserRepository userRepository,
                           com.society.jaswanti.service.EmailService emailService,
-                          PasswordResetService passwordResetService) {
+                          PasswordResetService passwordResetService,
+                          LoginRateLimiterService loginRateLimiterService,
+                          ActivityLogService activityLogService) {
         this.authenticationManager = authenticationManager;
         this.userDetailsService = userDetailsService;
         this.jwtService = jwtService;
@@ -49,6 +58,8 @@ public class AuthController {
         this.userRepository = userRepository;
         this.emailService = emailService;
         this.passwordResetService = passwordResetService;
+        this.loginRateLimiterService = loginRateLimiterService;
+        this.activityLogService = activityLogService;
     }
 
     private Long resolveRoomId(Long userId) {
@@ -65,10 +76,28 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthRequest request) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getIdentifier(), request.getPassword())
-        );
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthRequest request, HttpServletRequest httpRequest) {
+        String clientIp = extractClientIp(httpRequest);
+        String identifier = request.getIdentifier();
+
+        if (loginRateLimiterService.isBlocked(identifier, clientIp)) {
+            throw new LoginLockoutException("Too many failed login attempts. Please try again after 15 minutes.");
+        }
+
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getIdentifier(), request.getPassword())
+            );
+        } catch (AuthenticationException ex) {
+            boolean justLocked = loginRateLimiterService.recordFailedAttempt(identifier, clientIp);
+            if (justLocked) {
+                recordLockoutActivity(identifier, clientIp);
+                throw new LoginLockoutException("Too many failed login attempts. Please try again after 15 minutes.");
+            }
+            throw ex;
+        }
+
+        loginRateLimiterService.recordSuccessfulLogin(identifier, clientIp);
 
         // If authentication passes, load the user details
         User user = (User) userDetailsService.loadUserByUsername(request.getIdentifier());
@@ -87,6 +116,32 @@ public class AuthController {
                 roomId,
                 user.isForcePasswordChange()
         ));
+    }
+
+    private String extractClientIp(HttpServletRequest request) {
+        if (request == null) return "unknown";
+        String xf = request.getHeader("X-Forwarded-For");
+        if (xf != null && !xf.isBlank()) {
+            return xf.split(",")[0].trim();
+        }
+        return request.getRemoteAddr() != null ? request.getRemoteAddr() : "unknown";
+    }
+
+    private void recordLockoutActivity(String identifier, String ip) {
+        try {
+            User user = userRepository.findByEmailIgnoreCase(identifier != null ? identifier.trim() : "").orElse(null);
+            if (user == null) {
+                user = userRepository.findAll().stream()
+                        .filter(u -> (u.getRole() == com.society.jaswanti.entity.Role.ADMIN || u.getRole() == com.society.jaswanti.entity.Role.MASTER_ADMIN) && u.isActive())
+                        .findFirst().orElse(null);
+            }
+            if (user != null) {
+                activityLogService.logActivity(user, "LOGIN_LOCKOUT", "AUTH",
+                        String.format("Login lockout triggered for identifier '%s' from IP %s", identifier, ip));
+            }
+        } catch (Exception e) {
+            // Logging failure should not disrupt the security block
+        }
     }
 
     @PostMapping("/refresh")

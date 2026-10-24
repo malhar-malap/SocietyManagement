@@ -80,6 +80,15 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(LoginLockoutException.class)
+    public ResponseEntity<Map<String, Object>> handleLoginLockoutException(LoginLockoutException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", HttpStatus.TOO_MANY_REQUESTS.value());
+        body.put("error", "Too Many Requests");
+        body.put("message", ex.getMessage());
+        return new ResponseEntity<>(body, HttpStatus.TOO_MANY_REQUESTS);
+    }
+
     @ExceptionHandler(PasswordResetCooldownException.class)
     public ResponseEntity<Map<String, Object>> handlePasswordResetCooldownException(PasswordResetCooldownException ex) {
         Map<String, Object> body = new HashMap<>();
