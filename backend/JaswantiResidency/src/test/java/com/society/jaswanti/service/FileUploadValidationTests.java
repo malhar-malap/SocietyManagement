@@ -198,7 +198,7 @@ class FileUploadValidationTests {
                         .file(file)
                         .param("roomId", testRoom.getId().toString())
                         .param("amount", "2500.00")
-                        .param("paymentMode", "UPI")
+                        .param("paymentMode", "UPI_MANUAL")
                         .header("Authorization", "Bearer " + residentToken))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Bad Request"))

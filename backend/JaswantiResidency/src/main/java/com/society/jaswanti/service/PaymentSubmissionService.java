@@ -73,21 +73,28 @@ public class PaymentSubmissionService {
             throw new AccessDeniedException("You are not an authorized active resident of room " + room.getRoomNumber());
         }
 
+        if (request.getAmount() == null || request.getAmount().signum() <= 0) {
+            throw new IllegalArgumentException("Payment amount must be greater than zero");
+        }
         BigDecimal normalizedAmount = request.getAmount().setScale(2, RoundingMode.HALF_UP);
+        PaymentMode paymentMode = parsePaymentMode(request.getPaymentMode() != null ? request.getPaymentMode() : "UPI_MANUAL");
+        List<Long> selectedBillIds = request.getSelectedBillIds() != null
+                ? request.getSelectedBillIds().stream().distinct().toList() : List.of();
+        validateSelectedBills(selectedBillIds, room, true);
 
         ResidentPaymentSubmission submission = new ResidentPaymentSubmission();
         submission.setRoom(room);
         submission.setSubmittedByUser(resident);
         submission.setAmount(normalizedAmount);
-        submission.setPaymentMode(request.getPaymentMode() != null ? request.getPaymentMode() : "UPI_MANUAL");
+        submission.setPaymentMode(paymentMode.name());
         submission.setReferenceNumber(request.getReferenceNumber() != null ? request.getReferenceNumber().trim() : null);
         submission.setResidentDescription(request.getResidentDescription() != null ? request.getResidentDescription().trim() : null);
         submission.setAdvanceMonthsCount(Math.max(0, request.getAdvanceMonthsCount()));
         submission.setStatus("PENDING");
         submission.setCreatedAt(LocalDateTime.now());
 
-        if (request.getSelectedBillIds() != null && !request.getSelectedBillIds().isEmpty()) {
-            submission.setSelectedBillIdsJson(objectMapper.writeValueAsString(request.getSelectedBillIds()));
+        if (!selectedBillIds.isEmpty()) {
+            submission.setSelectedBillIdsJson(objectMapper.writeValueAsString(selectedBillIds));
         }
 
         if (screenshot != null && !screenshot.isEmpty()) {
@@ -174,24 +181,23 @@ public class PaymentSubmissionService {
             throw new IllegalArgumentException("Selected bank account is inactive");
         }
 
-        PaymentMode mode = PaymentMode.CASH;
-        try {
-            mode = PaymentMode.valueOf(submission.getPaymentMode());
-        } catch (Exception ignored) {
-            if ("BANK_TRANSFER".equalsIgnoreCase(submission.getPaymentMode())) mode = PaymentMode.BANK_TRANSFER;
-            else if ("UPI_MANUAL".equalsIgnoreCase(submission.getPaymentMode())) mode = PaymentMode.UPI_MANUAL;
-        }
+        // An unknown mode used to fall back to CASH silently, recording the money in the cash ledger
+        PaymentMode mode = parsePaymentMode(submission.getPaymentMode());
 
         List<Long> billIds = new ArrayList<>();
         if (submission.getSelectedBillIdsJson() != null && !submission.getSelectedBillIdsJson().isBlank()) {
             try {
                 billIds = objectMapper.readValue(submission.getSelectedBillIdsJson(), new TypeReference<List<Long>>() {});
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                // Falling back to "settle any pending bills" would apply the money somewhere the resident didn't choose
+                throw new IllegalArgumentException("Submission #" + submission.getId() + " has an unreadable bill selection; reject it and ask the resident to resubmit");
+            }
         }
 
         List<MaintenanceBill> billsToSettle = new ArrayList<>();
         if (!billIds.isEmpty()) {
-            billsToSettle = billRepository.findAllById(billIds);
+            // Re-checked at approval: the selection must still belong to this room (bills may have been paid since)
+            billsToSettle = validateSelectedBills(billIds, submission.getRoom(), false);
         } else {
             // Settle existing pending bills for this room
             billsToSettle = billRepository.findByRoomId(submission.getRoom().getId()).stream()
@@ -387,5 +393,38 @@ public class PaymentSubmissionService {
         dto.setCreatedAt(s.getCreatedAt());
         dto.setReviewedAt(s.getReviewedAt());
         return dto;
+    }
+
+    private static PaymentMode parsePaymentMode(String value) {
+        try {
+            return PaymentMode.valueOf(value.trim().toUpperCase());
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("Unknown payment mode '" + value + "'. Allowed: "
+                    + java.util.Arrays.toString(PaymentMode.values()));
+        }
+    }
+
+    /**
+     * Every selected bill must exist and belong to the submission's room. Without this, a resident could select
+     * another flat's bills and an approval would mark those paid with this resident's money.
+     */
+    private List<MaintenanceBill> validateSelectedBills(List<Long> billIds, Room room, boolean requirePayable) {
+        if (billIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<MaintenanceBill> bills = new ArrayList<>(billRepository.findAllById(billIds));
+        if (bills.size() != new java.util.HashSet<>(billIds).size()) {
+            throw new IllegalArgumentException("One or more selected bills do not exist");
+        }
+        for (MaintenanceBill bill : bills) {
+            if (bill.getRoom() == null || !bill.getRoom().getId().equals(room.getId())) {
+                throw new IllegalArgumentException("Bill #" + bill.getId() + " does not belong to room " + room.getRoomNumber());
+            }
+            if (requirePayable && bill.getStatus() != BillStatus.PENDING && bill.getStatus() != BillStatus.PARTIALLY_PAID) {
+                throw new IllegalArgumentException("Bill #" + bill.getId() + " is already settled (" + bill.getStatus() + ")");
+            }
+        }
+        bills.sort(Comparator.comparing(MaintenanceBill::getBillingMonth));
+        return bills;
     }
 }

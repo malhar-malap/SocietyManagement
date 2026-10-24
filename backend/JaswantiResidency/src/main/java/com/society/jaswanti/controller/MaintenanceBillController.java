@@ -146,7 +146,7 @@ public class MaintenanceBillController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
     @AuditedAction(action = "UPDATE_BILL", module = "BILLING", summary = "Edited a bill", target = AuditTargetResolver.BILL)
-    public ResponseEntity<MaintenanceBillDto> updateBill(@PathVariable Long id, @RequestBody MaintenanceBill bill) {
+    public ResponseEntity<MaintenanceBillDto> updateBill(@PathVariable Long id, @RequestBody com.society.jaswanti.dto.BillUpdateRequest bill) {
         return billService.updateBill(id, bill)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());

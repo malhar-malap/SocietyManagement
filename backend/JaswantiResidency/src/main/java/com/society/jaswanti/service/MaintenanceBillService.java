@@ -43,10 +43,24 @@ public class MaintenanceBillService {
     }
 
     @Transactional
-    public MaintenanceBillDto createBill(MaintenanceBill bill) {
-        if (bill.getRoom() == null || bill.getRoom().getId() == null) {
+    public MaintenanceBillDto createBill(MaintenanceBill request) {
+        if (request.getRoom() == null || request.getRoom().getId() == null) {
             throw new IllegalArgumentException("Room must be provided for maintenance bill");
         }
+        // Build a fresh bill from the allowed fields only: binding the request entity directly let a client set the
+        // id (overwriting an existing bill), the status, or the paid amount, bypassing the ledger
+        com.society.jaswanti.entity.Room room = roomRepository.findById(request.getRoom().getId())
+                .orElseThrow(() -> new IllegalArgumentException("Room not found with ID: " + request.getRoom().getId()));
+        requirePositive(request.getAmount(), "Bill amount");
+        requireNonNegative(request.getLateFee(), "Late fee");
+        MaintenanceBill bill = new MaintenanceBill();
+        bill.setRoom(room);
+        bill.setBillingMonth(request.getBillingMonth());
+        bill.setChargeType(request.getChargeType());
+        bill.setAmount(request.getAmount());
+        bill.setDueDate(request.getDueDate());
+        bill.setLateFee(request.getLateFee() != null ? request.getLateFee() : java.math.BigDecimal.ZERO);
+        bill.setStatus(com.society.jaswanti.entity.BillStatus.PENDING);
         YearMonth ym = BillingPeriodHelper.validateCanonical(bill.getBillingMonth());
         String canonicalMonth = ym.toString();
         bill.setBillingMonth(canonicalMonth);
@@ -131,17 +145,53 @@ public class MaintenanceBillService {
         return generateMonthlyBills(billingMonth, amount != null ? BigDecimal.valueOf(amount) : null, dueDate, chargeType);
     }
 
-    public java.util.Optional<MaintenanceBillDto> updateBill(Long id, MaintenanceBill updatedBill) {
+    public java.util.Optional<MaintenanceBillDto> updateBill(Long id, com.society.jaswanti.dto.BillUpdateRequest updatedBill) {
         return billRepository.findById(id).map(bill -> {
+            boolean changesMoneyOrPeriod = updatedBill.getBillingMonth() != null || updatedBill.getAmount() != null
+                    || updatedBill.getLateFee() != null;
+            if (bill.getStatus() == com.society.jaswanti.entity.BillStatus.REVERSED) {
+                throw new IllegalArgumentException("Bill #" + id + " has been reversed and can no longer be edited");
+            }
+            // Once money has been received against a bill, editing its amount or month would silently corrupt the
+            // balance and the receipts already issued; corrections must go through a transaction reversal instead
+            if (changesMoneyOrPeriod && (bill.getPaidAmount().signum() > 0
+                    || bill.getStatus() == com.society.jaswanti.entity.BillStatus.PAID
+                    || bill.getStatus() == com.society.jaswanti.entity.BillStatus.PAID_CASH)) {
+                throw new IllegalArgumentException("Bill #" + id + " already has payments recorded; its amount, late fee and "
+                        + "month cannot be changed. Reverse the payment first if a correction is needed.");
+            }
             if (updatedBill.getBillingMonth() != null) {
                 YearMonth ym = BillingPeriodHelper.validateCanonical(updatedBill.getBillingMonth());
+                if (!ym.toString().equals(bill.getBillingMonth()) && billRepository.existsByRoomIdAndBillingMonthInAndChargeType(
+                        bill.getRoom().getId(), BillingPeriodHelper.getEquivalentRepresentations(ym), bill.getChargeType())) {
+                    throw new DuplicateBillException("A bill of type " + bill.getChargeType() + " already exists for room "
+                            + bill.getRoom().getRoomNumber() + " and month " + ym);
+                }
                 bill.setBillingMonth(ym.toString());
             }
-            if (updatedBill.getAmount() != null) bill.setAmount(updatedBill.getAmount());
+            if (updatedBill.getAmount() != null) {
+                requirePositive(updatedBill.getAmount(), "Bill amount");
+                bill.setAmount(updatedBill.getAmount());
+            }
             if (updatedBill.getDueDate() != null) bill.setDueDate(updatedBill.getDueDate());
-            if (updatedBill.getLateFee() != null) bill.setLateFee(updatedBill.getLateFee());
+            if (updatedBill.getLateFee() != null) {
+                requireNonNegative(updatedBill.getLateFee(), "Late fee");
+                bill.setLateFee(updatedBill.getLateFee());
+            }
             return convertToDto(billRepository.save(bill));
         });
+    }
+
+    private static void requirePositive(java.math.BigDecimal value, String label) {
+        if (value == null || value.signum() <= 0) {
+            throw new IllegalArgumentException(label + " must be greater than zero");
+        }
+    }
+
+    private static void requireNonNegative(java.math.BigDecimal value, String label) {
+        if (value != null && value.signum() < 0) {
+            throw new IllegalArgumentException(label + " cannot be negative");
+        }
     }
 
     @Deprecated
