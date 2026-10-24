@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { notifySuccess, notifyError, errorMessage } from '../utils/notify';
 import PageHeader from '../components/ui/PageHeader';
 import DataTable from '../components/ui/DataTable';
 import StatusChip from '../components/ui/StatusChip';
@@ -57,11 +58,14 @@ const AdminBilling = () => {
         setIsImporting(true);
         try {
             const result = await importBillsExcel(file);
-            alert(`Excel Import Finished:\n- Total Rows Processed: ${result.totalRows}\n- Successfully Created: ${result.createdCount}\n- Skipped (Duplicates): ${result.skippedCount}${result.errors?.length > 0 ? '\n- Errors: ' + result.errors.slice(0, 5).join('; ') : ''}`);
+            notifySuccess(`Excel import finished: ${result.totalRows} rows processed, ${result.createdCount} created, ${result.skippedCount} skipped.`);
+            if (result.errors && result.errors.length > 0) {
+                notifyError(`${result.errors.length} row(s) had problems: ${result.errors.slice(0, 3).join('; ')}${result.errors.length > 3 ? '…' : ''}`);
+            }
             await fetchBills();
         } catch (err) {
             console.error('Excel import failed', err);
-            alert(err?.response?.data?.message || err.message || 'Import failed.');
+            notifyError(errorMessage(err, 'Import failed.'));
         } finally {
             setIsImporting(false);
             if (fileInputRef.current) fileInputRef.current.value = '';

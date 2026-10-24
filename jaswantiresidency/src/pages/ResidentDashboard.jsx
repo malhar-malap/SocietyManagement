@@ -1,64 +1,94 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { IndianRupee, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { IndianRupee, CheckCircle2, AlertCircle, AlertTriangle, Clock } from 'lucide-react';
 import PaymentModal from '../components/PaymentModal';
 import { useAuth } from '../context/AuthContext';
+import { getResidentDashboard } from '../api/residentApi';
+import { getMyTransactions } from '../api/billingApi';
 import './dashboard.css';
+
+const UNPAID = ['PENDING', 'PARTIALLY_PAID'];
+
+const formatMoney = (value) =>
+    `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const formatDate = (value) => (value ? new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
+
+// What is still owed on a bill: its balance (amount + late fee - already paid), never just the face amount
+const remaining = (bill) => Number(bill.balance ?? (Number(bill.amount || 0) + Number(bill.lateFee || 0) - Number(bill.paidAmount || 0)));
 
 const ResidentDashboard = () => {
     const { user } = useAuth();
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-
     const [dashboardData, setDashboardData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
 
-    useEffect(() => {
-        const fetchDashboard = async () => {
-            try {
-                const { getResidentDashboard } = await import('../api/residentApi');
-                const data = await getResidentDashboard();
+    const load = useCallback(async () => {
+        setIsLoading(true);
+        setError('');
+        try {
+            const [dashboard, transactions] = await Promise.allSettled([getResidentDashboard(), getMyTransactions()]);
+            if (dashboard.status !== 'fulfilled') throw dashboard.reason;
+            const data = dashboard.value || {};
 
-                const unpaidBills = (data.bills || []).filter(b => b.status === 'PENDING');
-                const outstandingAmount = unpaidBills.reduce((acc, bill) => acc + bill.amount, 0);
+            const unpaidBills = (data.bills || [])
+                .filter((b) => UNPAID.includes(b.status) && remaining(b) > 0)
+                .sort((a, b) => String(a.dueDate || '').localeCompare(String(b.dueDate || '')));
+            const outstandingAmount = unpaidBills.reduce((sum, b) => sum + remaining(b), 0);
 
-                const paidBills = (data.bills || []).filter(b => b.status !== 'PENDING');
-                const lastPayment = paidBills.length > 0 ? paidBills[paidBills.length - 1] : null;
+            const payments = transactions.status === 'fulfilled'
+                ? (transactions.value || [])
+                    .filter((t) => t.status === 'SUCCESS' && t.entryDirection !== 'DEBIT')
+                    .sort((a, b) => new Date(b.paymentDate || b.timestamp || 0) - new Date(a.paymentDate || a.timestamp || 0))
+                : [];
 
-                const nextDueDate = unpaidBills.length > 0 ? unpaidBills[0].dueDate : 'N/A';
-
-                setDashboardData({
-                    outstandingAmount,
-                    dueDate: nextDueDate,
-                    lastPayment: lastPayment ? { amount: lastPayment.amount, date: 'Recently' } : null,
-                    announcements: (data.announcements || []).map(a => ({
-                        id: a.id,
-                        title: a.title,
-                        date: a.createdDate ? new Date(a.createdDate).toLocaleDateString() : 'N/A',
-                        type: 'info'
-                    })),
-                    unpaidBills
-                });
-            } catch (err) {
-                // Fallback to stub if backend isn't ready
-                setDashboardData({
-                    outstandingAmount: 3500,
-                    dueDate: '2026-08-01',
-                    lastPayment: { amount: 2500, date: '2026-07-05' },
-                    announcements: [
-                        { id: 1, title: 'Scheduled Power Outage', date: 'Tomorrow, 10 AM - 2 PM', type: 'warning' },
-                        { id: 2, title: 'Society Meeting', date: 'Sunday, 11 AM', type: 'info' }
-                    ]
-                });
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchDashboard();
+            setDashboardData({
+                outstandingAmount,
+                nextDueDate: unpaidBills.length > 0 ? unpaidBills[0].dueDate : null,
+                lastPayment: payments[0] || null,
+                announcements: data.announcements || [],
+                unpaidBills,
+            });
+        } catch (err) {
+            // Never show placeholder amounts to a resident: say it failed and offer a retry
+            setError('Could not load your dashboard. Check your connection and try again.');
+        } finally {
+            setIsLoading(false);
+        }
     }, []);
 
-    if (isLoading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading dashboard...</div>;
+    useEffect(() => { load(); }, [load]);
+
+    if (isLoading) {
+        return (
+            <div className="dashboard-wrapper" aria-busy="true">
+                <div className="skeleton" style={{ height: 32, width: 260, marginBottom: '1.5rem' }} />
+                <div className="dashboard-grid">
+                    <div className="skeleton" style={{ height: 180 }} />
+                    <div className="skeleton" style={{ height: 180 }} />
+                </div>
+            </div>
+        );
+    }
+
+    if (error || !dashboardData) {
+        return (
+            <div className="dashboard-wrapper">
+                <Card>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--danger)' }}>
+                        <AlertTriangle size={20} aria-hidden="true" />
+                        <span style={{ flex: 1 }}>{error || 'Dashboard data is unavailable.'}</span>
+                        <Button variant="secondary" onClick={load}>Retry</Button>
+                    </div>
+                </Card>
+            </div>
+        );
+    }
+
+    const hasDues = dashboardData.outstandingAmount > 0;
 
     return (
         <div className="dashboard-wrapper animate-fade-up">
@@ -78,13 +108,21 @@ const ResidentDashboard = () => {
                         <IndianRupee className="widget-icon highlight-icon" />
                     </div>
                     <div className="widget-body">
-                        <h1 className="amount-large">₹{dashboardData.outstandingAmount}</h1>
-                        <p className="due-date text-warning">Due by {dashboardData.dueDate}</p>
+                        <h1 className="amount-large">{formatMoney(dashboardData.outstandingAmount)}</h1>
+                        {hasDues ? (
+                            <p className="due-date text-warning">
+                                {dashboardData.unpaidBills.length} unpaid bill{dashboardData.unpaidBills.length === 1 ? '' : 's'}
+                                {dashboardData.nextDueDate ? ` · next due ${formatDate(dashboardData.nextDueDate)}` : ''}
+                            </p>
+                        ) : (
+                            <p className="due-date text-success">All dues are cleared. Thank you!</p>
+                        )}
                         <Button
                             onClick={() => setIsPaymentModalOpen(true)}
+                            disabled={!hasDues}
                             style={{width: '100%', marginTop: '1.5rem'}}
                         >
-                            Pay Now
+                            {hasDues ? 'Pay Now' : 'Nothing to pay'}
                         </Button>
                     </div>
                 </Card>
@@ -98,8 +136,11 @@ const ResidentDashboard = () => {
                     <div className="widget-body">
                         {dashboardData.lastPayment ? (
                             <>
-                                <h2 className="amount-medium">₹{dashboardData.lastPayment.amount}</h2>
-                                <p className="subtitle">Paid {dashboardData.lastPayment.date}</p>
+                                <h2 className="amount-medium">{formatMoney(dashboardData.lastPayment.amount)}</h2>
+                                <p className="subtitle">
+                                    Paid {formatDate(dashboardData.lastPayment.paymentDate || dashboardData.lastPayment.timestamp)}
+                                    {dashboardData.lastPayment.receiptNumber ? ` · Receipt ${dashboardData.lastPayment.receiptNumber}` : ''}
+                                </p>
                             </>
                         ) : (
                             <p className="subtitle" style={{marginTop: '1rem'}}>No previous payments found.</p>
@@ -115,11 +156,14 @@ const ResidentDashboard = () => {
                         <AlertCircle className="widget-icon text-primary" />
                     </div>
                     <div className="announcement-list">
-                        {dashboardData.announcements.map(ann => (
+                        {dashboardData.announcements.length === 0 ? (
+                            <p className="subtitle">No announcements right now.</p>
+                        ) : dashboardData.announcements.map(ann => (
                             <div key={ann.id} className="announcement-item">
                                 <div className="ann-content">
                                     <h4 className="ann-title">{ann.title}</h4>
-                                    <span className="ann-date"><Clock size={14}/> {ann.date}</span>
+                                    {ann.description && <p className="subtitle" style={{ margin: '0.25rem 0' }}>{ann.description}</p>}
+                                    <span className="ann-date"><Clock size={14}/> {formatDate(ann.createdDate) || 'N/A'}</span>
                                 </div>
                             </div>
                         ))}
@@ -130,9 +174,9 @@ const ResidentDashboard = () => {
             {/* Render Payment Modal */}
             {isPaymentModalOpen && (
                 <PaymentModal
-                    amount={dashboardData.outstandingAmount}
+                    amount={Number(dashboardData.outstandingAmount.toFixed(2))}
                     bills={dashboardData.unpaidBills}
-                    onClose={() => setIsPaymentModalOpen(false)}
+                    onClose={() => { setIsPaymentModalOpen(false); load(); }}
                 />
             )}
         </div>

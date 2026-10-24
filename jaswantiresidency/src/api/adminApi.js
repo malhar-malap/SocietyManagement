@@ -41,8 +41,17 @@ export const getShareCertificate = async (id) => {
     return response.data;
 };
 
-export const addResident = async (residentData) => {
-    const response = await api.post('/users/register', residentData);
+// Creates a resident account. Leave password blank to have a one-time temporary password generated; the
+// response then carries it in `temporaryPassword` (shown to the admin once).
+export const addResident = async ({ name, email, phone, password }) => {
+    const payload = { name, email, phone, role: 'RESIDENT' };
+    if (password && password.trim()) payload.password = password;
+    const response = await api.post('/users', payload);
+    return response.data;
+};
+
+export const resetUserPassword = async (id) => {
+    const response = await api.post(`/users/${id}/reset-password`);
     return response.data;
 };
 
@@ -63,17 +72,6 @@ export const updateResidentStatus = async (id, status) => {
 
 export const updateUserRole = async (id, role) => {
     const response = await api.put(`/users/${id}/role?role=${role}`);
-    return response.data;
-};
-
-export const importResidentsCsv = async (file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    const response = await api.post('/users/import', formData, {
-        headers: {
-            'Content-Type': 'multipart/form-data',
-        },
-    });
     return response.data;
 };
 
@@ -208,12 +206,9 @@ export const getAllAnnouncements = async () => {
     return response.data;
 };
 
-export const createAnnouncement = async (data, adminId) => {
-    let url = '/announcements';
-    if (adminId) {
-        url += `?adminId=${adminId}`;
-    }
-    const response = await api.post(url, data);
+// The author is always the signed-in Master Admin (the server ignores any client-supplied author)
+export const createAnnouncement = async (data) => {
+    const response = await api.post('/announcements', data);
     return response.data;
 };
 

@@ -1,7 +1,10 @@
 import axios from 'axios';
 
+// Set REACT_APP_API_BASE_URL at build time to point a deployed frontend at its backend
+export const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080/api';
+
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -26,7 +29,7 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       try {
         const refreshToken = localStorage.getItem('refreshToken');
-        const res = await axios.post('http://localhost:8080/api/auth/refresh', { refreshToken });
+        const res = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
         
         if (res.data.accessToken) {
           localStorage.setItem('accessToken', res.data.accessToken);

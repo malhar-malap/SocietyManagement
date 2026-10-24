@@ -40,12 +40,11 @@ public class AnnouncementController {
     @AuditedAction(action = "CREATE_ANNOUNCEMENT", module = "ANNOUNCEMENTS", summary = "Posted an announcement", target = AuditTargetResolver.ANNOUNCEMENT)
     public ResponseEntity<AnnouncementDto> createAnnouncement(
             @RequestBody com.society.jaswanti.entity.Announcement announcement,
-            @RequestParam(required = false) Long adminId,
             org.springframework.security.core.Authentication auth) {
-        Long effectiveAdminId = adminId;
-        if (effectiveAdminId == null && auth != null) {
-            effectiveAdminId = userRepository.findByEmail(auth.getName()).map(com.society.jaswanti.entity.User::getId).orElse(null);
-        }
+        // The author is always the signed-in user; a client-supplied adminId used to let anyone be named as author
+        Long effectiveAdminId = auth != null && auth.getPrincipal() instanceof com.society.jaswanti.entity.User principal
+                ? principal.getId() : null;
+        announcement.setId(null);
         AnnouncementDto created = announcementService.createAnnouncement(announcement, effectiveAdminId);
         AuditTrail.target(AuditTargetResolver.ANNOUNCEMENT, created.getId());
         return ResponseEntity.ok(created);

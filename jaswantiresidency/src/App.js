@@ -11,7 +11,6 @@ import AdminLayout from './layouts/AdminLayout';
 
 // Public Pages
 import Login from './pages/Login';
-import VerifyEmail from './pages/VerifyEmail';
 import ForgotPassword from './pages/ForgotPassword';
 import SetupProfile from './pages/SetupProfile';
 
@@ -67,7 +66,8 @@ function App() {
                     {/* Public Routes */}
                     <Route path="/" element={<RootRedirect />} />
                     <Route path="/login" element={<Login />} />
-                    <Route path="/verify-email" element={<VerifyEmail />} />
+                    {/* Email verification happens inside the first-login setup flow */}
+                    <Route path="/verify-email" element={<Navigate to="/setup" replace />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
                     <Route path="/setup" element={<ProtectedRoute><SetupProfile /></ProtectedRoute>} />
 

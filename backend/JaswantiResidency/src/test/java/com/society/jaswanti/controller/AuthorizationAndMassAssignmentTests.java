@@ -39,6 +39,8 @@ class AuthorizationAndMassAssignmentTests {
     @Autowired private UserRepository userRepository;
     @Autowired private RoomRepository roomRepository;
     @Autowired private ComplaintRepository complaintRepository;
+    @Autowired private com.society.jaswanti.repository.SystemNotificationRepository notificationRepository;
+    @Autowired private com.society.jaswanti.repository.AnnouncementRepository announcementRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtService jwtService;
 
@@ -50,11 +52,15 @@ class AuthorizationAndMassAssignmentTests {
     private User resident;
     private final java.util.List<Long> createdRooms = new java.util.ArrayList<>();
     private final java.util.List<Long> createdComplaints = new java.util.ArrayList<>();
+    private final java.util.List<Long> createdNotifications = new java.util.ArrayList<>();
+    private final java.util.List<Long> createdAnnouncements = new java.util.ArrayList<>();
 
     /** Other test classes count rooms and delete users, so leave nothing behind. */
     @AfterEach
     void cleanUp() {
         createdComplaints.forEach(complaintRepository::deleteById);
+        createdNotifications.forEach(notificationRepository::deleteById);
+        createdAnnouncements.forEach(announcementRepository::deleteById);
         roomRepository.findAll().stream()
                 .filter(r -> r.getRoomNumber() != null && r.getRoomNumber().endsWith("-" + run))
                 .forEach(roomRepository::delete);
@@ -194,6 +200,42 @@ class AuthorizationAndMassAssignmentTests {
                 .andExpect(status().isBadRequest());
         mockMvc.perform(delete("/api/system-logs").header("Authorization", bearer(master)))
                 .andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
+    @DisplayName("An announcement's author is always the signed-in user, whatever adminId the client sends")
+    void announcementAuthorCannotBeSpoofed() throws Exception {
+        String body = mockMvc.perform(post("/api/announcements").param("adminId", String.valueOf(otherAdmin.getId()))
+                        .header("Authorization", bearer(master)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Spoof check " + run + "\",\"description\":\"x\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        com.fasterxml.jackson.databind.JsonNode json = objectMapper.readTree(body);
+        createdAnnouncements.add(json.get("id").asLong());
+        assertThat(json.get("createdById").asLong()).isEqualTo(master.getId());
+    }
+
+    @Test
+    @DisplayName("Users can only mark their own notifications read; a broadcast is not marked read for everyone")
+    void notificationReadOwnership() throws Exception {
+        com.society.jaswanti.entity.SystemNotification mine = notificationRepository.save(
+                new com.society.jaswanti.entity.SystemNotification(resident, "Mine", "m", null));
+        com.society.jaswanti.entity.SystemNotification theirs = notificationRepository.save(
+                new com.society.jaswanti.entity.SystemNotification(admin, "Theirs", "t", null));
+        com.society.jaswanti.entity.SystemNotification broadcast = notificationRepository.save(
+                new com.society.jaswanti.entity.SystemNotification(null, "Everyone", "b", null));
+        createdNotifications.addAll(java.util.List.of(mine.getId(), theirs.getId(), broadcast.getId()));
+
+        mockMvc.perform(put("/api/notifications/" + theirs.getId() + "/read").header("Authorization", bearer(resident)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put("/api/notifications/" + mine.getId() + "/read").header("Authorization", bearer(resident)))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/api/notifications/" + broadcast.getId() + "/read").header("Authorization", bearer(resident)))
+                .andExpect(status().isOk());
+
+        assertThat(notificationRepository.findById(theirs.getId()).orElseThrow().isRead()).isFalse();
+        assertThat(notificationRepository.findById(mine.getId()).orElseThrow().isRead()).isTrue();
+        assertThat(notificationRepository.findById(broadcast.getId()).orElseThrow().isRead()).isFalse();
     }
 
     @Test

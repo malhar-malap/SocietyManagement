@@ -41,13 +41,28 @@ public class SystemNotificationService {
         all.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
 
         return all.stream()
-                .map(n -> new SystemNotificationDto(
-                        n.getId(), n.getTitle(), n.getMessage(), n.getLink(), n.getCreatedAt(), n.isRead()))
+                .map(n -> {
+                    SystemNotificationDto dto = new SystemNotificationDto(
+                            n.getId(), n.getTitle(), n.getMessage(), n.getLink(), n.getCreatedAt(), n.getUser() != null && n.isRead());
+                    dto.setBroadcast(n.getUser() == null);
+                    return dto;
+                })
                 .collect(Collectors.toList());
     }
     
-    public void markAsRead(Long id) {
+    /**
+     * Marks one of the user's own notifications as read. Anyone else's notification is refused. A broadcast has a
+     * single shared row, so flagging it would mark it read for every user; it is left unchanged and the client
+     * remembers per-user read state for broadcasts.
+     */
+    public void markAsRead(Long id, Long userId) {
         notificationRepository.findById(id).ifPresent(n -> {
+            if (n.getUser() == null) {
+                return;
+            }
+            if (!n.getUser().getId().equals(userId)) {
+                throw new org.springframework.security.access.AccessDeniedException("You can only mark your own notifications as read");
+            }
             n.setRead(true);
             notificationRepository.save(n);
         });

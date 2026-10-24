@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { notifyError, errorMessage } from '../utils/notify';
 import { MessageSquare, Trash2, Paperclip } from 'lucide-react';
 import UpdateComplaintModal from '../components/UpdateComplaintModal';
 import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
@@ -42,7 +43,7 @@ const AdminComplaints = () => {
             setIsUpdateModalOpen(false);
         } catch (err) {
             console.error("Failed to update status", err);
-            alert(err?.response?.data?.message || 'Failed to update response.');
+            notifyError(errorMessage(err, 'Failed to update response.'));
         }
     };
 

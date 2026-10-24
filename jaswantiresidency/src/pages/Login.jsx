@@ -155,11 +155,7 @@ const Login = () => {
                             </div>
                         </div>
 
-                        <div className="form-actions-row">
-                            <label className="remember-me">
-                                <input type="checkbox" className="custom-checkbox" />
-                                <span>Remember me</span>
-                            </label>
+                        <div className="form-actions-row" style={{ justifyContent: 'flex-end' }}>
                             <Link to="/forgot-password" className="forgot-link">Forgot Password?</Link>
                         </div>
 
@@ -177,9 +173,6 @@ const Login = () => {
                             {isLoading ? <span className="spinner"></span> : 'Sign In'}
                         </button>
 
-                        <div className="version-info">
-                            v2.0.1 (Premium SaaS Release)
-                        </div>
                     </form>
                 </div>
             </div>

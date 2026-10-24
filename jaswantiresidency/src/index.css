@@ -55,14 +55,13 @@ body {
   background-color: var(--background-light);
   /* Layered Subtle Premium Background */
   background-image: 
-    url('./assets/floral-bg.png'),
     radial-gradient(at 0% 0%, rgba(225, 29, 72, 0.04) 0px, transparent 50%),
     radial-gradient(at 100% 100%, rgba(251, 113, 133, 0.04) 0px, transparent 50%),
     url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E");
   background-attachment: fixed;
-  background-size: 500px auto, cover, cover, 100px 100px;
-  background-position: top right, left top, right bottom, left top;
-  background-repeat: no-repeat, no-repeat, no-repeat, repeat;
+  background-size: cover, cover, 100px 100px;
+  background-position: left top, right bottom, left top;
+  background-repeat: no-repeat, no-repeat, repeat;
   color: var(--text-primary-light);
   transition: var(--transition);
   min-height: 100vh;
