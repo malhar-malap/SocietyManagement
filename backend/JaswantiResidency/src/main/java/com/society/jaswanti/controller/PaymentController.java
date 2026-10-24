@@ -1,10 +1,7 @@
 package com.society.jaswanti.controller;
 
-import com.razorpay.Order;
-import com.razorpay.RazorpayException;
 import com.society.jaswanti.dto.*;
 import com.society.jaswanti.entity.ResidentPaymentSubmission;
-import com.society.jaswanti.service.PaymentService;
 import com.society.jaswanti.service.PaymentSubmissionService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,16 +15,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/payments")
 @CrossOrigin(origins = "*")
 public class PaymentController {
-
-    @Autowired
-    private PaymentService paymentService;
 
     @Autowired
     private PaymentSubmissionService paymentSubmissionService;
@@ -158,51 +151,5 @@ public class PaymentController {
             @Valid @RequestBody RejectPaymentSubmissionRequest request,
             Authentication auth) {
         return ResponseEntity.ok(paymentSubmissionService.rejectSubmission(id, request, auth));
-    }
-
-    // ==========================================
-    // Deprecated Legacy Razorpay Endpoints
-    // ==========================================
-
-    @Deprecated
-    @PostMapping("/create-order")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
-    public ResponseEntity<?> createOrder(@RequestBody PaymentRequestDto requestDto, Authentication auth) {
-        if (requestDto == null || requestDto.getBillId() == null || !isAuthorizedForBill(auth, requestDto.getBillId())) {
-            return ResponseEntity.status(403).build();
-        }
-        try {
-            Order order = paymentService.createOrder(requestDto);
-            BigDecimal orderAmount = new BigDecimal(order.get("amount").toString())
-                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-            OrderResponseDto response = new OrderResponseDto(
-                    order.get("id"),
-                    orderAmount,
-                    order.get("currency")
-            );
-            return ResponseEntity.ok(response);
-        } catch (IllegalStateException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        } catch (RazorpayException e) {
-            return ResponseEntity.status(500).body("Error creating order");
-        }
-    }
-
-    @Deprecated
-    @PostMapping("/verify")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
-    public ResponseEntity<?> verifyPayment(@RequestBody PaymentVerifyDto verifyDto, Authentication auth) {
-        if (verifyDto == null || verifyDto.getBillId() == null) {
-            return ResponseEntity.badRequest().body("Bill ID is required for payment verification");
-        }
-        if (!isAuthorizedForBill(auth, verifyDto.getBillId())) {
-            return ResponseEntity.status(403).build();
-        }
-        boolean isValid = paymentService.verifyPayment(verifyDto);
-        if (isValid) {
-            return ResponseEntity.ok("Payment verified and bill updated");
-        } else {
-            return ResponseEntity.status(400).body("Payment signature verification failed");
-        }
     }
 }

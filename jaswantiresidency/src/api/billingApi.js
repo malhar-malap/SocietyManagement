@@ -44,14 +44,3 @@ export const rejectPaymentSubmission = async (id, data) => {
   const response = await api.post(`/payments/submissions/${id}/reject`, data);
   return response.data;
 };
-
-// Deprecated legacy Razorpay stubs
-export const createRazorpayOrder = async (paymentData) => {
-  const response = await api.post('/payments/create-order', paymentData);
-  return response.data;
-};
-
-export const verifyPayment = async (verificationData) => {
-  const response = await api.post('/payments/verify', verificationData);
-  return response.data;
-};
