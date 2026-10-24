@@ -78,7 +78,8 @@ Copy the output into your `.env` as the `JWT_SECRET` value.
 The application uses [Flyway](https://flywaydb.org/) to manage database schema versioning. Migrations are located in `backend/JaswantiResidency/src/main/resources/db/migration/`.
 
 - **Fresh database**: Flyway runs all migrations (V1 → latest) automatically on first startup.
-- **Existing database** (previously managed by Hibernate `ddl-auto=update`): Flyway baselines at V15 and only runs V16+ onwards. The existing schema created by Hibernate is assumed to match V1–V15.
+- **Existing database** (previously managed by Hibernate `ddl-auto=update`): Flyway baselines at V14 and runs V15+ onwards, so the seeded-account retirement (V15) and schema alignment (V16) also reach existing installs. V15 and V16 are written to be safe on a Hibernate-built schema.
+- **Testing migrations against MySQL**: H2 cannot run the MySQL-specific migrations, so `MySqlMigrationIntegrationTests` boots the app with the real configuration against a disposable MySQL server. It is skipped unless you pass one: `./mvnw test -Dtest=MySqlMigrationIntegrationTests -Dmysql.it.url=jdbc:mysql://127.0.0.1:3399/ -Dmysql.it.user=root`. Never point it at a real or shared database.
 - **Never edit** an already-applied migration. Schema changes always go in a new migration file with the next version number.
 
 ## Development Credentials

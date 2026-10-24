@@ -15,7 +15,7 @@ This is not a generic property-management suite. It is tailored to the registere
 - Database: MySQL with Flyway migration versioning (`V1` through `V15`). Hibernate set to `ddl-auto=validate`.
 - Email: SMTP (Gmail App Password) for one-time verification/recovery codes and payment receipt delivery.
 - Payments: 100% screenshot-based offline payment submissions with admin approval and allocation to society bank accounts. **Razorpay has been completely removed** from backend and frontend.
-- Test Suite: **191 automated backend tests** (`./mvnw test`), 0 failures, 0 errors.
+- Test Suite: **194 automated backend tests** (`./mvnw test`): 191 pass and 3 MySQL integration tests are skipped unless `-Dmysql.it.url` points at a disposable MySQL server (all 3 pass when it does).
 
 ## Product decisions
 
@@ -78,10 +78,12 @@ All authorization is enforced on the backend at the service/API level; hiding UI
    - `PasswordValidator` enforces a minimum length of 8 characters and requires at least one letter and at least one digit.
    - Applied consistently across password reset, password change, and initial profile setup.
 6. **Seeded Account Retirement & Fresh Schema Compatibility:**
-   - Flyway migration `V15__deactivate_seeded_accounts.sql` deactivates `admin@jaswanti.com` and all unverified seeded `resident%@jaswanti.com` accounts still on default passwords, bumping `token_version` without deleting rows or breaking foreign key references.
+   - Flyway migration `V15__deactivate_seeded_accounts.sql` deactivates the 81 accounts seeded by V2 (`admin@jaswanti.com`, `resident101`–`resident1008@jaswanti.com`) whose email and password hash are still exactly the seeded values, bumping `token_version` without deleting rows or breaking foreign key references.
    - Migration `V1_1__add_force_password_change_column.sql` repairs the V1/V2 schema gap on fresh databases.
    - `spring-boot-starter-flyway` added to pom.xml for Spring Boot 4.1 auto-configuration.
-   - Existing databases baseline at V15 (`spring.flyway.baseline-version=15`), allowing safe deployment without collision against pre-existing tables.
+   - Existing databases baseline at V14 (`spring.flyway.baseline-version=14`), so V15 and later run on them too; V15/V16 are written to be safe on a Hibernate-built schema.
+   - `V16__align_schema_with_entities.sql` creates the tables and columns that only Hibernate ever created (`activity_logs`, `system_notifications`, three `users` columns), adds `APPROVED`/`REJECTED` to `complaints.status`, and widens upload columns from 255-byte `TINYBLOB` to `LONGBLOB`.
+   - `MySqlMigrationIntegrationTests` (opt-in via `-Dmysql.it.url`) boots the app against throwaway MySQL databases to prove fresh and existing databases migrate and pass `validate`.
 7. **Hibernate Validation & Centralized CORS:**
    - `spring.jpa.hibernate.ddl-auto=validate` replaces `update`. Flyway is the sole schema authority.
    - Removed wildcard `@CrossOrigin(origins = "*")` from all 12 controllers.

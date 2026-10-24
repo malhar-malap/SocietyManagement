@@ -1,0 +1,236 @@
+-- Schema of an existing deployment, as built by Hibernate ddl-auto=update from the entities at commit b252990
+-- (before Flyway was wired up). Note the TINYBLOB upload columns. Captured with mysqldump --no-data; used only by MySQL integration tests.
+SET FOREIGN_KEY_CHECKS = 0;
+CREATE TABLE `activity_logs` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `action` varchar(255) NOT NULL,
+  `description` varchar(2000) DEFAULT NULL,
+  `ip_address` varchar(255) DEFAULT NULL,
+  `module` varchar(255) NOT NULL,
+  `timestamp` datetime(6) NOT NULL,
+  `user_id` bigint NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `FK5bm1lt4f4eevt8lv2517soakd` (`user_id`),
+  CONSTRAINT `FK5bm1lt4f4eevt8lv2517soakd` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE TABLE `announcements` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `created_date` datetime(6) DEFAULT NULL,
+  `description` varchar(2000) NOT NULL,
+  `expiry_date` datetime(6) DEFAULT NULL,
+  `title` varchar(255) NOT NULL,
+  `created_by_id` bigint NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `FK2xq7ufsyexvej4l6ld869ddxy` (`created_by_id`),
+  CONSTRAINT `FK2xq7ufsyexvej4l6ld869ddxy` FOREIGN KEY (`created_by_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE TABLE `complaints` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `admin_response` varchar(2000) DEFAULT NULL,
+  `category` varchar(255) NOT NULL,
+  `created_date` datetime(6) DEFAULT NULL,
+  `description` varchar(1000) NOT NULL,
+  `end_date` date DEFAULT NULL,
+  `image_content_type` varchar(255) DEFAULT NULL,
+  `image_data` tinyblob,
+  `image_filename` varchar(255) DEFAULT NULL,
+  `image_url` varchar(255) DEFAULT NULL,
+  `permission_category` varchar(50) DEFAULT NULL,
+  `start_date` date DEFAULT NULL,
+  `status` enum('APPROVED','IN_PROGRESS','OPEN','REJECTED','RESOLVED') NOT NULL,
+  `submission_type` varchar(30) NOT NULL,
+  `resident_id` bigint NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `FKcpsq2ncd9smckstcuybinq8da` (`resident_id`),
+  CONSTRAINT `FKcpsq2ncd9smckstcuybinq8da` FOREIGN KEY (`resident_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE TABLE `maintenance_bills` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `amount` decimal(12,2) NOT NULL,
+  `billing_month` varchar(255) NOT NULL,
+  `charge_type` enum('MAINTENANCE','NOC','PENALTY','SINKING_FUND','SPECIAL_ASSESSMENT') NOT NULL,
+  `due_date` date NOT NULL,
+  `late_fee` decimal(12,2) DEFAULT NULL,
+  `paid_amount` decimal(12,2) NOT NULL,
+  `status` enum('PAID','PAID_CASH','PARTIALLY_PAID','PENDING','REVERSED') NOT NULL,
+  `room_id` bigint NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_room_month_charge` (`room_id`,`billing_month`,`charge_type`),
+  CONSTRAINT `FK3yfpfws5a5k9ontv2iyod7h9q` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE TABLE `payment_attempts` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `amount` decimal(12,2) NOT NULL,
+  `created_at` datetime(6) DEFAULT NULL,
+  `razorpay_order_id` varchar(255) NOT NULL,
+  `bill_id` bigint NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `FKmxrky41ufs58cm86hkn0ke5n9` (`bill_id`),
+  CONSTRAINT `FKmxrky41ufs58cm86hkn0ke5n9` FOREIGN KEY (`bill_id`) REFERENCES `maintenance_bills` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE TABLE `receipt_sequences` (
+  `period` varchar(6) NOT NULL,
+  `next_val` bigint NOT NULL,
+  PRIMARY KEY (`period`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE TABLE `resident_payment_submissions` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `admin_remarks` varchar(500) DEFAULT NULL,
+  `advance_months_count` int NOT NULL,
+  `amount` decimal(12,2) NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  `payment_mode` varchar(30) NOT NULL,
+  `reference_number` varchar(100) DEFAULT NULL,
+  `resident_description` text,
+  `resulting_transaction_ids` varchar(255) DEFAULT NULL,
+  `reviewed_at` datetime(6) DEFAULT NULL,
+  `screenshot_content_type` varchar(100) DEFAULT NULL,
+  `screenshot_data` tinyblob,
+  `screenshot_filename` varchar(255) DEFAULT NULL,
+  `selected_bill_ids_json` text,
+  `status` varchar(20) NOT NULL,
+  `received_bank_account_id` bigint DEFAULT NULL,
+  `reviewed_by_admin_id` bigint DEFAULT NULL,
+  `room_id` bigint NOT NULL,
+  `submitted_by_user_id` bigint NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `FKo0m7n52sxehw2rm12jtb98q0j` (`received_bank_account_id`),
+  KEY `FKjfpwnw2lum63n2jcvn80uivmt` (`reviewed_by_admin_id`),
+  KEY `FKbk62kjm3xy698eptcmsjx6g99` (`room_id`),
+  KEY `FKc0syqwfd647vrwab7dtvxr19u` (`submitted_by_user_id`),
+  CONSTRAINT `FKbk62kjm3xy698eptcmsjx6g99` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`id`),
+  CONSTRAINT `FKc0syqwfd647vrwab7dtvxr19u` FOREIGN KEY (`submitted_by_user_id`) REFERENCES `users` (`id`),
+  CONSTRAINT `FKjfpwnw2lum63n2jcvn80uivmt` FOREIGN KEY (`reviewed_by_admin_id`) REFERENCES `users` (`id`),
+  CONSTRAINT `FKo0m7n52sxehw2rm12jtb98q0j` FOREIGN KEY (`received_bank_account_id`) REFERENCES `society_bank_accounts` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE TABLE `room_residents` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(6) DEFAULT NULL,
+  `end_date` date DEFAULT NULL,
+  `is_active` bit(1) NOT NULL,
+  `is_primary_contact` bit(1) NOT NULL,
+  `relationship_type` enum('OWNER','TENANT') NOT NULL,
+  `start_date` date DEFAULT NULL,
+  `resident_id` bigint NOT NULL,
+  `room_id` bigint NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `FKsq8pyq9u4jrrec6ndesvdao0` (`resident_id`),
+  KEY `FK91c1ut678svpm4dkoyivcy3` (`room_id`),
+  CONSTRAINT `FK91c1ut678svpm4dkoyivcy3` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`id`),
+  CONSTRAINT `FKsq8pyq9u4jrrec6ndesvdao0` FOREIGN KEY (`resident_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE TABLE `rooms` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `floor` int NOT NULL,
+  `noc_amount` decimal(12,2) NOT NULL,
+  `noc_applicable` bit(1) NOT NULL,
+  `room_number` varchar(255) NOT NULL,
+  `share_certificate_content_type` varchar(255) DEFAULT NULL,
+  `share_certificate_data` tinyblob,
+  `share_certificate_filename` varchar(255) DEFAULT NULL,
+  `share_certificate_issued_date` date DEFAULT NULL,
+  `share_certificate_number` varchar(255) DEFAULT NULL,
+  `unit_category` varchar(255) NOT NULL,
+  `wing` varchar(255) NOT NULL,
+  `resident_id` bigint DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `FKl1r4fbkdpbprrnxddkdiqwahr` (`resident_id`),
+  CONSTRAINT `FKl1r4fbkdpbprrnxddkdiqwahr` FOREIGN KEY (`resident_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE TABLE `society_bank_accounts` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `account_name` varchar(100) NOT NULL,
+  `account_number` varchar(50) DEFAULT NULL,
+  `account_type` enum('BANK','CASH_LEDGER') NOT NULL,
+  `bank_name` varchar(100) DEFAULT NULL,
+  `created_at` datetime(6) NOT NULL,
+  `current_balance` decimal(12,2) NOT NULL,
+  `ifsc_code` varchar(20) DEFAULT NULL,
+  `is_active` bit(1) NOT NULL,
+  `opening_balance` decimal(12,2) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE TABLE `system_notifications` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(6) NOT NULL,
+  `is_read` bit(1) NOT NULL,
+  `link` varchar(255) DEFAULT NULL,
+  `message` varchar(1000) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `user_id` bigint DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `FK9w13qh3534naiqtfi7xxsj11d` (`user_id`),
+  CONSTRAINT `FK9w13qh3534naiqtfi7xxsj11d` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE TABLE `transaction_amendment_requests` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `action_type` varchar(20) NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  `proposed_payload_json` text,
+  `reason` varchar(1000) NOT NULL,
+  `resolved_at` datetime(6) DEFAULT NULL,
+  `status` varchar(20) NOT NULL,
+  `requested_by_admin_id` bigint NOT NULL,
+  `reviewed_by_master_admin_id` bigint DEFAULT NULL,
+  `transaction_id` bigint NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `FK7rsdwg7dmbpr0qxim9uk0didd` (`requested_by_admin_id`),
+  KEY `FK30alrh8lasl939hhsavlq20xl` (`reviewed_by_master_admin_id`),
+  KEY `FK7t3gn09sijco6wiqbijdqysyr` (`transaction_id`),
+  CONSTRAINT `FK30alrh8lasl939hhsavlq20xl` FOREIGN KEY (`reviewed_by_master_admin_id`) REFERENCES `users` (`id`),
+  CONSTRAINT `FK7rsdwg7dmbpr0qxim9uk0didd` FOREIGN KEY (`requested_by_admin_id`) REFERENCES `users` (`id`),
+  CONSTRAINT `FK7t3gn09sijco6wiqbijdqysyr` FOREIGN KEY (`transaction_id`) REFERENCES `transactions` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE TABLE `transactions` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `amount` decimal(12,2) NOT NULL,
+  `approved_at` datetime(6) DEFAULT NULL,
+  `category` varchar(50) NOT NULL,
+  `entry_direction` varchar(20) NOT NULL,
+  `gateway_payment_id` varchar(255) DEFAULT NULL,
+  `idempotency_key` varchar(255) DEFAULT NULL,
+  `notes` varchar(1000) DEFAULT NULL,
+  `payment_date` date DEFAULT NULL,
+  `payment_mode` varchar(255) DEFAULT NULL,
+  `receipt_number` varchar(64) DEFAULT NULL,
+  `reference_number` varchar(255) DEFAULT NULL,
+  `status` varchar(255) NOT NULL,
+  `timestamp` datetime(6) NOT NULL,
+  `bank_account_id` bigint DEFAULT NULL,
+  `bill_id` bigint DEFAULT NULL,
+  `recorded_by_id` bigint DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `UKe58eyb3fj0t2cl16q1ll436b7` (`idempotency_key`),
+  UNIQUE KEY `UKxidwnbx7m3ccgplaol2ynjly` (`receipt_number`),
+  KEY `FKjc551wiw0rvuc5snhhwgbpyar` (`bank_account_id`),
+  KEY `FKsqx0e1p2m2o38emnm8n1q7sqo` (`bill_id`),
+  KEY `FKs4ewv4qoy45d3p91l53favuyq` (`recorded_by_id`),
+  CONSTRAINT `FKjc551wiw0rvuc5snhhwgbpyar` FOREIGN KEY (`bank_account_id`) REFERENCES `society_bank_accounts` (`id`),
+  CONSTRAINT `FKs4ewv4qoy45d3p91l53favuyq` FOREIGN KEY (`recorded_by_id`) REFERENCES `users` (`id`),
+  CONSTRAINT `FKsqx0e1p2m2o38emnm8n1q7sqo` FOREIGN KEY (`bill_id`) REFERENCES `maintenance_bills` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE TABLE `users` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(6) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `email_verification_expiry` datetime(6) DEFAULT NULL,
+  `email_verification_token` varchar(255) DEFAULT NULL,
+  `email_verified` bit(1) DEFAULT NULL,
+  `force_password_change` bit(1) NOT NULL,
+  `is_active` bit(1) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `password` varchar(255) NOT NULL,
+  `password_reset_otp_attempts` int NOT NULL,
+  `password_reset_otp_expiry` datetime(6) DEFAULT NULL,
+  `password_reset_otp_hash` varchar(255) DEFAULT NULL,
+  `password_reset_otp_last_sent_at` datetime(6) DEFAULT NULL,
+  `pending_email` varchar(255) DEFAULT NULL,
+  `phone` varchar(255) DEFAULT NULL,
+  `role` enum('ADMIN','MASTER_ADMIN','RESIDENT') NOT NULL,
+  `status` enum('ACTIVE','BLOCKED','INACTIVE') NOT NULL,
+  `token_version` int NOT NULL,
+  `verified_at` datetime(6) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `UK6dotkott2kjsp8vw4d0m25fb7` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+SET FOREIGN_KEY_CHECKS = 1;
