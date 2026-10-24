@@ -11,7 +11,6 @@ A full-stack housing society management web application for **Jaswanti Residency
 | Frontend | React, TailwindCSS, Lucide React, Axios |
 | Backend | Spring Boot 4, Spring Security, JWT |
 | Database | MySQL + Flyway migrations |
-| Payments | Razorpay |
 | Email | Gmail SMTP (JavaMailSender) |
 
 ## Project Structure
@@ -25,17 +24,7 @@ HousingSocietyManagement/
 ## Getting Started
 
 ### Backend
-1. Create a `.env` file in `backend/JaswantiResidency/` with:
-```env
-DB_URL=jdbc:mysql://localhost:3306/jaswanti_residency?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-DB_USER=root
-DB_PASSWORD=your_db_password
-JWT_SECRET=your_jwt_secret
-RAZORPAY_API_KEY=your_razorpay_key
-RAZORPAY_API_SECRET=your_razorpay_secret
-MAIL_USERNAME=your_gmail@gmail.com
-MAIL_PASSWORD=your_gmail_app_password
-```
+1. Copy `.env.example` to `.env` in `backend/JaswantiResidency/` and fill in real values (see [Configuration](#configuration) below).
 2. Run: `cd backend/JaswantiResidency && ./mvnw spring-boot:run`
 
 ### Frontend
@@ -57,10 +46,47 @@ BOOTSTRAP_MASTER_ADMIN_PASSWORD=your_temporary_strong_password
 
 Start the backend once with these variables present to create the account. Once initialized, remove the variables or set `BOOTSTRAP_MASTER_ADMIN_ENABLED=false`. Bootstrap fails closed if any variable is missing, if the email is already in use, or if an active Master Admin already exists.
 
+## Configuration
+
+All secrets and environment-specific values are loaded from `backend/JaswantiResidency/.env`. A template with placeholder values is provided at `.env.example`.
+
+> **⚠️ Never commit `.env` to version control.** It is already in `.gitignore`.
+
+| Variable | Description | Example / Notes |
+|---|---|---|
+| `DB_URL` | JDBC URL for the MySQL database | `jdbc:mysql://localhost:3306/jaswanti_residency?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Kolkata` |
+| `DB_USER` | MySQL username | `root` or a dedicated service account |
+| `DB_PASSWORD` | MySQL password | |
+| `JWT_SECRET` | Base64-encoded signing key for JWT tokens. **Must be at least 64 bytes (512 bits)** before encoding. | Generate with: `openssl rand -base64 64` |
+| `MAIL_USERNAME` | Gmail address used for sending verification and reset emails | `yourapp@gmail.com` |
+| `MAIL_PASSWORD` | Gmail App Password (not your Gmail login password). [Create one here](https://myaccount.google.com/apppasswords). | 16-character app-specific password |
+
+### Generating a JWT Secret
+
+```bash
+# Generate a cryptographically secure 64-byte key, base64-encoded:
+openssl rand -base64 64
+
+# Or with Python:
+python3 -c "import secrets, base64; print(base64.b64encode(secrets.token_bytes(64)).decode())"
+```
+
+Copy the output into your `.env` as the `JWT_SECRET` value.
+
+### Flyway Database Migrations
+
+The application uses [Flyway](https://flywaydb.org/) to manage database schema versioning. Migrations are located in `backend/JaswantiResidency/src/main/resources/db/migration/`.
+
+- **Fresh database**: Flyway runs all migrations (V1 → latest) automatically on first startup.
+- **Existing database** (previously managed by Hibernate `ddl-auto=update`): Flyway baselines at V15 and only runs V16+ onwards. The existing schema created by Hibernate is assumed to match V1–V15.
+- **Never edit** an already-applied migration. Schema changes always go in a new migration file with the next version number.
+
 ## Development Credentials
 
-| Role | Login | Password | Notes |
-|---|---|---|---|
-| Admin | `admin@jaswanti.com` | `admin123` | Pre-seeded routine operational administrator |
-| Resident | `resident602@jaswanti.com` (or room `C-602`) | `Temp_C-602` | Seed residents use pattern `Temp_<roomNumber>` and require profile/password setup on first login |
-| Master Admin | Configured via bootstrap | Configured via bootstrap | No default seeded password; created via one-time bootstrap variables above |
+> **Note:** The seeded admin and default resident accounts are deactivated by migration V15. On fresh databases, use the Master Admin bootstrap above to create the first administrative account. Residents must be onboarded by an admin.
+
+| Role | Login | Notes |
+|---|---|---|
+| Master Admin | Configured via bootstrap | No default seeded password; created via one-time bootstrap variables above |
+| Admin | Created by Master Admin | Master Admin promotes users to Admin role via the dashboard |
+| Resident | Onboarded by Admin | Admin creates room assignments; residents complete profile setup on first login |
