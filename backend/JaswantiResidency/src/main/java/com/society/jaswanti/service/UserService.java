@@ -30,6 +30,10 @@ public class UserService {
 
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
 
+    private static final SecureRandom RANDOM = new SecureRandom();
+    static final int SETUP_CODE_VALID_MINUTES = 15;
+    static final int MAX_SETUP_CODE_ATTEMPTS = 5;
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
@@ -247,10 +251,11 @@ public class UserService {
 
             user.setPendingEmail(newEmail);
 
-            // Generate secure 4-digit numeric OTP (1000 - 9999)
-            String token = String.format("%04d", new SecureRandom().nextInt(9000) + 1000);
-            user.setEmailVerificationToken(token);
-            user.setEmailVerificationExpiry(LocalDateTime.now().plusHours(24));
+            // 6-digit code, stored only as a BCrypt hash, valid for a short window with a limited number of tries
+            String token = String.format("%06d", RANDOM.nextInt(1_000_000));
+            user.setEmailVerificationToken(passwordEncoder.encode(token));
+            user.setEmailVerificationExpiry(LocalDateTime.now().plusMinutes(SETUP_CODE_VALID_MINUTES));
+            user.setEmailVerificationAttempts(0);
 
             userRepository.save(user);
 
@@ -259,11 +264,11 @@ public class UserService {
             try {
                 String subject = "Jaswanti Residency - Email Verification Code";
                 String body = "Hello <b>" + user.getName() + "</b>,\n\n" +
-                              "Please use the following 4-digit OTP code to verify your email address:\n\n" +
+                              "Please use the following 6-digit code to verify your email address:\n\n" +
                               "<div style='text-align: center; margin: 25px 0;'>" +
                               "  <span style='font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #d32f2f; background-color: #fce4e4; padding: 12px 24px; border-radius: 8px; display: inline-block;'>" + token + "</span>" +
                               "</div>\n\n" +
-                              "This code is valid for 24 hours. Enter this code on the setup screen to complete your profile.\n\n" +
+                              "This code is valid for " + SETUP_CODE_VALID_MINUTES + " minutes. Enter it on the setup screen to complete your profile.\n\n" +
                               "If you did not request this verification, please ignore this email.\n\n" +
                               "Regards,\n<b>Jaswanti Residency Admin</b>";
                 emailService.sendEmail(newEmail, subject, body);
@@ -283,11 +288,14 @@ public class UserService {
             User user = userOpt.get();
 
             String cleanToken = token != null ? token.trim().replaceAll("\\s+", "") : "";
-            String savedToken = user.getEmailVerificationToken() != null ? user.getEmailVerificationToken().trim() : "";
+            String savedHash = user.getEmailVerificationToken();
 
             logger.info("Attempting setup verification for user ID {} (expiry='{}')", userId, user.getEmailVerificationExpiry());
 
-            boolean tokenMatches = !cleanToken.isEmpty() && cleanToken.equalsIgnoreCase(savedToken);
+            if (user.getEmailVerificationAttempts() >= MAX_SETUP_CODE_ATTEMPTS) {
+                throw new IllegalArgumentException("Too many incorrect codes. Request a new verification code.");
+            }
+            boolean tokenMatches = !cleanToken.isEmpty() && savedHash != null && passwordEncoder.matches(cleanToken, savedHash);
             boolean notExpired = user.getEmailVerificationExpiry() != null && user.getEmailVerificationExpiry().isAfter(LocalDateTime.now());
 
             if (tokenMatches && notExpired) {
@@ -311,6 +319,10 @@ public class UserService {
                 return Optional.of(buildAuthResponse(user));
             } else {
                 logger.warn("Setup verification failed for user ID {}: match={}, notExpired={}", userId, tokenMatches, notExpired);
+                if (!tokenMatches && savedHash != null) {
+                    user.setEmailVerificationAttempts(user.getEmailVerificationAttempts() + 1);
+                    userRepository.save(user);
+                }
             }
         }
         return Optional.empty();

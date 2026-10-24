@@ -240,17 +240,26 @@ class TokenRevocationTests {
                         .content(setupPayload))
                 .andExpect(status().isOk());
 
-        String otp = userRepository.findById(user.getId()).orElseThrow().getEmailVerificationToken();
-        assertThat(otp).isNotBlank();
+        // The code is only stored hashed; read it from the verification email instead
+        org.mockito.ArgumentCaptor<String> body = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(emailService, org.mockito.Mockito.atLeastOnce())
+                .sendEmail(org.mockito.ArgumentMatchers.eq("revoke_setup_new@example.com"), any(), body.capture());
+        java.util.regex.Matcher code = java.util.regex.Pattern.compile(">(\\d{6})<").matcher(body.getValue());
+        assertThat(code.find()).isTrue();
+        String otp = code.group(1);
 
         mockMvc.perform(post("/api/users/" + user.getId() + "/verify-setup")
-                        .param("token", "0000".equals(otp) ? "1111" : "0000")
+                        .param("token", "000000".equals(otp) ? "111111" : "000000")
                         .header("Authorization", "Bearer " + access))
                 .andExpect(status().isBadRequest());
 
         assertThat(output.getAll())
                 .contains("Generated setup verification OTP for user ID " + user.getId())
-                .doesNotContain("revoke_setup_new@example.com): " + otp)
-                .doesNotContain("stored='" + otp + "'");
+                .doesNotContain("): " + otp);
+        // No verification-related log line may carry the code (timestamps can contain 6-digit runs, so be specific)
+        assertThat(output.getAll().lines()
+                .filter(line -> line.toLowerCase().contains("verification") || line.toLowerCase().contains("otp"))
+                .filter(line -> line.contains(otp)))
+                .isEmpty();
     }
 }

@@ -244,7 +244,7 @@ class QueriesSuggestionsPermissionsAndRoleTests {
         mockMvc.perform(get("/api/complaints/" + complaint.getId() + "/attachment")
                         .header("Authorization", "Bearer " + resident1Token))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Content-Disposition", "inline; filename=\"permit.pdf\""))
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.startsWith("inline; filename=\"permit.pdf\"")))
                 .andExpect(content().bytes(new byte[]{1, 2, 3, 4, 5}));
 
         // Admin gets 200

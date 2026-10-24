@@ -1,5 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -98,6 +100,7 @@ function App() {
                     <Route path="*" element={<ErrorPage code="404" message="Page Not Found" />} />
                 </Routes>
             </BrowserRouter>
+            <ToastContainer position="top-right" autoClose={4000} newestOnTop pauseOnFocusLoss={false} />
         </AuthProvider>
     );
 }

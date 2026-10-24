@@ -67,7 +67,7 @@ const SetupProfile = () => {
                 newPassword: formData.newPassword
             });
 
-            setSuccessMessage(`A 4-digit verification code has been sent to ${formData.personalEmail}. Please enter it below.`);
+            setSuccessMessage(`A 6-digit verification code has been sent to ${formData.personalEmail}. Please enter it below.`);
             setVerificationStep(true);
         } catch (err) {
             const msg = err?.response?.data || err?.message || "Failed to initiate profile setup";
@@ -88,7 +88,7 @@ const SetupProfile = () => {
                 personalEmail: formData.personalEmail.trim().toLowerCase(),
                 newPassword: formData.newPassword
             });
-            setSuccessMessage(`A fresh 4-digit verification code has been sent to ${formData.personalEmail}.`);
+            setSuccessMessage(`A fresh 6-digit verification code has been sent to ${formData.personalEmail}.`);
         } catch (err) {
             const msg = err?.response?.data || err?.message || "Failed to resend code";
             setError(typeof msg === 'string' ? msg : JSON.stringify(msg));
@@ -243,7 +243,7 @@ const SetupProfile = () => {
                         {error && <div className="alert alert-error">{error}</div>}
 
                         <p style={{ color: 'var(--text-light)', fontSize: '0.9rem' }}>
-                            A 4-digit verification code was sent to <strong>{formData.personalEmail}</strong>. Enter it below to complete your setup.
+                            A 6-digit verification code was sent to <strong>{formData.personalEmail}</strong>. Enter it below to complete your setup.
                         </p>
 
                         <div>

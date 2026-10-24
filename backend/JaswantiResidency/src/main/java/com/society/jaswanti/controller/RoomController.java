@@ -178,7 +178,9 @@ public class RoomController {
 
         return ResponseEntity.ok()
                 .contentType(mediaType)
-                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        // Uploaded names are user input: the builder quotes/encodes them so they cannot break the header
+                        org.springframework.http.ContentDisposition.attachment().filename(filename, java.nio.charset.StandardCharsets.UTF_8).build().toString())
                 .body(room.getShareCertificateData());
     }
 }

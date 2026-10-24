@@ -167,7 +167,9 @@ public class ComplaintController {
         String filename = complaint.getImageFilename() != null ? complaint.getImageFilename() : "attachment_" + id;
         return ResponseEntity.ok()
                 .contentType(mediaType)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        // Uploaded names are user input: the builder quotes/encodes them so they cannot break the header
+                        org.springframework.http.ContentDisposition.inline().filename(filename, java.nio.charset.StandardCharsets.UTF_8).build().toString())
                 .body(complaint.getImageData());
     }
 

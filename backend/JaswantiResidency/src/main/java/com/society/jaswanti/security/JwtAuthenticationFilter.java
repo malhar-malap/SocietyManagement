@@ -37,10 +37,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final String jwt;
         final String userIdentifier;
 
+        // Tokens are only accepted in the Authorization header: in a URL (?token=) they leak into server logs,
+        // browser history and Referer headers
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             jwt = authHeader.substring(7);
-        } else if (request.getParameter("token") != null && !request.getParameter("token").isBlank()) {
-            jwt = request.getParameter("token").trim();
         } else {
             filterChain.doFilter(request, response);
             return;

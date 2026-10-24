@@ -27,6 +27,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ProfileSetupEmailVerificationTests {
 
     @Autowired
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -112,7 +115,7 @@ class ProfileSetupEmailVerificationTests {
     }
 
     @Test
-    @DisplayName("Initiating profile setup stores pending email, creates 4-digit token, and sends verification")
+    @DisplayName("Initiating profile setup stores pending email, a hashed 6-digit code valid for 15 minutes, and sends verification")
     void testSetupProfileSuccess() throws Exception {
         String setupPayload = """
                 {
@@ -133,8 +136,11 @@ class ProfileSetupEmailVerificationTests {
         User updated = userRepository.findById(residentUser.getId()).orElseThrow();
         assertThat(updated.getName()).isEqualTo("Malhar Resident");
         assertThat(updated.getPendingEmail()).isEqualTo("newresident602@example.com");
-        assertThat(updated.getEmailVerificationToken()).isNotNull().hasSize(4);
-        assertThat(updated.getEmailVerificationExpiry()).isAfter(LocalDateTime.now());
+        // Only a BCrypt hash of the code is stored, never the code itself
+        assertThat(updated.getEmailVerificationToken()).isNotNull().startsWith("$2");
+        assertThat(updated.getEmailVerificationExpiry()).isAfter(LocalDateTime.now())
+                .isBefore(LocalDateTime.now().plusMinutes(16));
+        assertThat(updated.getEmailVerificationAttempts()).isZero();
     }
 
     @Test
@@ -162,13 +168,13 @@ class ProfileSetupEmailVerificationTests {
     void testVerifySetupEmailWithWhitespace() throws Exception {
         // Prepare pending setup state
         residentUser.setPendingEmail("verified.resident@example.com");
-        residentUser.setEmailVerificationToken("7336");
-        residentUser.setEmailVerificationExpiry(LocalDateTime.now().plusHours(24));
+        residentUser.setEmailVerificationToken(passwordEncoder.encode("733612"));
+        residentUser.setEmailVerificationExpiry(LocalDateTime.now().plusMinutes(15));
         userRepository.save(residentUser);
 
-        // Send OTP with trailing/leading spaces: "  7336 "
+        // Send OTP with trailing/leading spaces: "  733612 "
         mockMvc.perform(post("/api/users/" + residentUser.getId() + "/verify-setup")
-                        .param("token", "  7336 ")
+                        .param("token", "  733612 ")
                         .header("Authorization", "Bearer " + residentToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken", notNullValue()))
@@ -188,13 +194,13 @@ class ProfileSetupEmailVerificationTests {
     @DisplayName("Verifying setup email with incorrect or expired OTP returns 400 Bad Request")
     void testVerifySetupEmailIncorrectOrExpiredToken() throws Exception {
         residentUser.setPendingEmail("verified.resident@example.com");
-        residentUser.setEmailVerificationToken("7336");
-        residentUser.setEmailVerificationExpiry(LocalDateTime.now().plusHours(24));
+        residentUser.setEmailVerificationToken(passwordEncoder.encode("733612"));
+        residentUser.setEmailVerificationExpiry(LocalDateTime.now().plusMinutes(15));
         userRepository.save(residentUser);
 
         // Incorrect token
         mockMvc.perform(post("/api/users/" + residentUser.getId() + "/verify-setup")
-                        .param("token", "9999")
+                        .param("token", "999999")
                         .header("Authorization", "Bearer " + residentToken))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().string("Invalid or expired verification token."));
@@ -204,7 +210,7 @@ class ProfileSetupEmailVerificationTests {
         userRepository.save(residentUser);
 
         mockMvc.perform(post("/api/users/" + residentUser.getId() + "/verify-setup")
-                        .param("token", "7336")
+                        .param("token", "733612")
                         .header("Authorization", "Bearer " + residentToken))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().string("Invalid or expired verification token."));
@@ -261,11 +267,35 @@ class ProfileSetupEmailVerificationTests {
     }
 
     @Test
-    @DisplayName("Direct GET with token query parameter authenticates successfully without 403")
-    void testJwtTokenQueryParamFallback() throws Exception {
+    @DisplayName("An access token in the URL (?token=) is rejected: tokens are only accepted in the Authorization header")
+    void testJwtTokenInQueryParamIsRejected() throws Exception {
         mockMvc.perform(get("/api/users/profile/" + residentUser.getId())
                         .param("token", residentToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is(residentUser.getId().intValue())));
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("After 5 wrong setup codes the code is locked, even if the right code is then entered")
+    void testSetupCodeLocksAfterFiveWrongAttempts() throws Exception {
+        residentUser.setPendingEmail("locked.resident@example.com");
+        residentUser.setEmailVerificationToken(passwordEncoder.encode("246810"));
+        residentUser.setEmailVerificationExpiry(LocalDateTime.now().plusMinutes(15));
+        residentUser.setEmailVerificationAttempts(0);
+        userRepository.save(residentUser);
+
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(post("/api/users/" + residentUser.getId() + "/verify-setup")
+                            .param("token", "11111" + i)
+                            .header("Authorization", "Bearer " + residentToken))
+                    .andExpect(status().isBadRequest());
+        }
+        assertThat(userRepository.findById(residentUser.getId()).orElseThrow().getEmailVerificationAttempts()).isEqualTo(5);
+
+        mockMvc.perform(post("/api/users/" + residentUser.getId() + "/verify-setup")
+                        .param("token", "246810")
+                        .header("Authorization", "Bearer " + residentToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Too many incorrect codes")));
+        assertThat(userRepository.findById(residentUser.getId()).orElseThrow().isEmailVerified()).isFalse();
     }
 }

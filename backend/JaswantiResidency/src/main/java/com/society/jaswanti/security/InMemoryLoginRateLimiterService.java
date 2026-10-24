@@ -2,22 +2,37 @@ package com.society.jaswanti.security;
 
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Single-instance brute-force protection for sign-in.
+ *
+ * Accounts lock after {@link #MAX_ATTEMPTS} failures within the window. Client IPs have a much higher limit
+ * ({@link #MAX_IP_ATTEMPTS}) because many residents share one address (building Wi-Fi, mobile carrier NAT): a
+ * single person's typos must not lock everyone else out, while password-spraying from one address is still stopped.
+ */
 @Service
 public class InMemoryLoginRateLimiterService implements LoginRateLimiterService {
 
     public static final int MAX_ATTEMPTS = 5;
+    public static final int MAX_IP_ATTEMPTS = 20;
     public static final long WINDOW_MS = 15 * 60 * 1000L; // 15 minutes
     public static final long LOCKOUT_DURATION_MS = 15 * 60 * 1000L; // 15 minutes
 
+    /** Above this many tracked keys, stale entries are pruned on each write so memory stays bounded. */
+    static final int PRUNE_THRESHOLD = 1_000;
+
     private static class AttemptTracker {
+        private final int maxAttempts;
         private final List<Long> failureTimestamps = new ArrayList<>();
         private long lockedUntil = 0;
+
+        AttemptTracker(int maxAttempts) {
+            this.maxAttempts = maxAttempts;
+        }
 
         synchronized boolean isLocked(long now) {
             if (lockedUntil > now) {
@@ -35,10 +50,9 @@ public class InMemoryLoginRateLimiterService implements LoginRateLimiterService 
             // Clean failures outside rolling window
             long windowStart = now - WINDOW_MS;
             failureTimestamps.removeIf(ts -> ts < windowStart);
-
             failureTimestamps.add(now);
 
-            if (failureTimestamps.size() >= MAX_ATTEMPTS && lockedUntil <= now) {
+            if (failureTimestamps.size() >= maxAttempts && lockedUntil <= now) {
                 lockedUntil = now + LOCKOUT_DURATION_MS;
                 return true; // Just locked
             }
@@ -51,12 +65,16 @@ public class InMemoryLoginRateLimiterService implements LoginRateLimiterService 
             }
             long windowStart = now - WINDOW_MS;
             failureTimestamps.removeIf(ts -> ts < windowStart);
-            return Math.max(0, MAX_ATTEMPTS - failureTimestamps.size());
+            return Math.max(0, maxAttempts - failureTimestamps.size());
         }
 
-        synchronized void clear() {
-            failureTimestamps.clear();
-            lockedUntil = 0;
+        /** True when the entry holds no lock and no failure inside the window, so it can be forgotten. */
+        synchronized boolean isStale(long now) {
+            if (lockedUntil > now) {
+                return false;
+            }
+            long windowStart = now - WINDOW_MS;
+            return failureTimestamps.stream().noneMatch(ts -> ts >= windowStart);
         }
     }
 
@@ -86,33 +104,32 @@ public class InMemoryLoginRateLimiterService implements LoginRateLimiterService 
     @Override
     public boolean recordFailedAttempt(String identifier, String ipAddress) {
         long now = System.currentTimeMillis();
-        String idKey = normalizeIdentifier(identifier);
-        String ipKey = normalizeIp(ipAddress);
+        pruneIfLarge(now);
 
-        AttemptTracker idTracker = trackers.computeIfAbsent(idKey, k -> new AttemptTracker());
-        AttemptTracker ipTracker = trackers.computeIfAbsent(ipKey, k -> new AttemptTracker());
+        AttemptTracker idTracker = trackers.computeIfAbsent(normalizeIdentifier(identifier), k -> new AttemptTracker(MAX_ATTEMPTS));
+        AttemptTracker ipTracker = trackers.computeIfAbsent(normalizeIp(ipAddress), k -> new AttemptTracker(MAX_IP_ATTEMPTS));
 
         boolean idJustLocked = idTracker.recordFailure(now);
         boolean ipJustLocked = ipTracker.recordFailure(now);
-
         return idJustLocked || ipJustLocked;
     }
 
     @Override
     public void recordSuccessfulLogin(String identifier, String ipAddress) {
+        // Only the account's counter is cleared: otherwise anyone holding one valid account could reset their IP's
+        // counter between guesses at other accounts
         if (identifier != null) {
             trackers.remove(normalizeIdentifier(identifier));
-        }
-        if (ipAddress != null) {
-            trackers.remove(normalizeIp(ipAddress));
         }
     }
 
     @Override
     public int getRemainingAttempts(String identifier, String ipAddress) {
         long now = System.currentTimeMillis();
-        int idRemaining = trackers.computeIfAbsent(normalizeIdentifier(identifier), k -> new AttemptTracker()).getRemainingAttempts(now);
-        int ipRemaining = trackers.computeIfAbsent(normalizeIp(ipAddress), k -> new AttemptTracker()).getRemainingAttempts(now);
+        AttemptTracker id = trackers.get(normalizeIdentifier(identifier));
+        AttemptTracker ip = trackers.get(normalizeIp(ipAddress));
+        int idRemaining = id != null ? id.getRemainingAttempts(now) : MAX_ATTEMPTS;
+        int ipRemaining = ip != null ? ip.getRemainingAttempts(now) : MAX_IP_ATTEMPTS;
         return Math.min(idRemaining, ipRemaining);
     }
 
@@ -129,5 +146,15 @@ public class InMemoryLoginRateLimiterService implements LoginRateLimiterService 
     @Override
     public void resetAll() {
         trackers.clear();
+    }
+
+    int trackedKeyCount() {
+        return trackers.size();
+    }
+
+    private void pruneIfLarge(long now) {
+        if (trackers.size() > PRUNE_THRESHOLD) {
+            trackers.entrySet().removeIf(e -> e.getValue().isStale(now));
+        }
     }
 }

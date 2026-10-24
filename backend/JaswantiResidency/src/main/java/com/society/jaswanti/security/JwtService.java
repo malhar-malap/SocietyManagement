@@ -9,8 +9,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Date;
+import java.util.HexFormat;
+import java.util.Set;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -26,6 +32,46 @@ public class JwtService {
 
     @Value("${jwt.refresh-token.expiration:604800000}") // 7 days default
     private long refreshExpiration;
+
+    // Tests use a secret committed to the (public) repository; only the test configuration may allow it
+    @Value("${app.security.allow-public-test-jwt-secret:false}")
+    private boolean allowPublicTestSecret;
+
+    /** SHA-256 of JWT secrets known to be public (committed to the repository). Never valid outside tests. */
+    static final Set<String> PUBLIC_SECRET_SHA256 = Set.of(
+            "594c081d23de22b178ba34a9c8551fe23d3a7034d92717a5cb4a054337a4c714");
+
+    static final int MIN_SECRET_BYTES = 32;
+
+    /** Refuses to start with a missing, weak, or publicly known signing secret: anyone could forge tokens with it. */
+    @PostConstruct
+    void validateSecret() {
+        if (secretKey == null || secretKey.isBlank()) {
+            throw new IllegalStateException("JWT_SECRET (jwt.secret) must be set. Generate one with: openssl rand -base64 64");
+        }
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(secretKey.trim());
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("JWT_SECRET must be base64-encoded. Generate one with: openssl rand -base64 64");
+        }
+        if (keyBytes.length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException("JWT_SECRET must decode to at least " + MIN_SECRET_BYTES
+                    + " bytes. Generate one with: openssl rand -base64 64");
+        }
+        if (!allowPublicTestSecret && PUBLIC_SECRET_SHA256.contains(sha256(secretKey.trim()))) {
+            throw new IllegalStateException("JWT_SECRET is a publicly known value committed to the repository, so anyone "
+                    + "could forge login tokens. Generate a new one with: openssl rand -base64 64");
+        }
+    }
+
+    static String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);

@@ -11,6 +11,13 @@ import java.util.List;
 
 @Entity
 @Table(name = "users")
+// Internal security state must never reach API clients when a User is serialised (e.g. nested in a Room or Transaction)
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties(value = {
+        "pendingEmail", "emailVerificationExpiry", "emailVerificationAttempts",
+        "passwordResetOtpExpiry", "passwordResetOtpAttempts", "passwordResetOtpLastSentAt",
+        "tokenVersion", "authorities", "username", "accountNonExpired", "accountNonLocked",
+        "credentialsNonExpired", "enabled", "hibernateLazyInitializer", "handler"
+}, ignoreUnknown = true)
 public class User implements UserDetails {
 
     @Id
@@ -58,6 +65,9 @@ public class User implements UserDetails {
 
     @Column(name = "email_verification_expiry")
     private LocalDateTime emailVerificationExpiry;
+
+    @Column(name = "email_verification_attempts", nullable = false)
+    private int emailVerificationAttempts = 0;
 
     @Column(name = "password_reset_otp_hash")
     @com.fasterxml.jackson.annotation.JsonIgnore
@@ -177,6 +187,9 @@ public class User implements UserDetails {
 
     public LocalDateTime getPasswordResetOtpLastSentAt() { return passwordResetOtpLastSentAt; }
     public void setPasswordResetOtpLastSentAt(LocalDateTime passwordResetOtpLastSentAt) { this.passwordResetOtpLastSentAt = passwordResetOtpLastSentAt; }
+
+    public int getEmailVerificationAttempts() { return emailVerificationAttempts; }
+    public void setEmailVerificationAttempts(int emailVerificationAttempts) { this.emailVerificationAttempts = emailVerificationAttempts; }
 
     public int getTokenVersion() { return tokenVersion; }
     public void setTokenVersion(int tokenVersion) { this.tokenVersion = tokenVersion; }

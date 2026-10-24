@@ -127,12 +127,13 @@ public class AuthController {
         ));
     }
 
+    /**
+     * The socket address only. X-Forwarded-For is set by the client, so trusting it would let an attacker dodge the
+     * per-IP limit or lock out someone else's address. Behind a reverse proxy, set
+     * server.forward-headers-strategy=framework so getRemoteAddr() reflects the real client IP.
+     */
     private String extractClientIp(HttpServletRequest request) {
         if (request == null) return "unknown";
-        String xf = request.getHeader("X-Forwarded-For");
-        if (xf != null && !xf.isBlank()) {
-            return xf.split(",")[0].trim();
-        }
         return request.getRemoteAddr() != null ? request.getRemoteAddr() : "unknown";
     }
 
@@ -177,7 +178,10 @@ public class AuthController {
                     ));
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (io.jsonwebtoken.JwtException | IllegalArgumentException
+                 | org.springframework.security.core.userdetails.UsernameNotFoundException e) {
+            // Expired, malformed or tampered token, or the account no longer exists: the client must sign in again
+        }
         return ResponseEntity.status(401).build();
     }
 
