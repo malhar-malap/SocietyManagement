@@ -72,6 +72,9 @@ public class User implements UserDetails {
     @Column(name = "password_reset_otp_last_sent_at")
     private LocalDateTime passwordResetOtpLastSentAt;
 
+    @Column(name = "token_version", nullable = false)
+    private int tokenVersion = 0;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -174,4 +177,7 @@ public class User implements UserDetails {
 
     public LocalDateTime getPasswordResetOtpLastSentAt() { return passwordResetOtpLastSentAt; }
     public void setPasswordResetOtpLastSentAt(LocalDateTime passwordResetOtpLastSentAt) { this.passwordResetOtpLastSentAt = passwordResetOtpLastSentAt; }
+
+    public int getTokenVersion() { return tokenVersion; }
+    public void setTokenVersion(int tokenVersion) { this.tokenVersion = tokenVersion; }
 }

@@ -81,7 +81,10 @@ public class UserService {
             user.setStatus(requestedStatus);
             if (requestedStatus == UserStatus.ACTIVE) {
                 user.setActive(true);
+            } else {
+                user.setActive(false);
             }
+            user.setTokenVersion(user.getTokenVersion() + 1);
             return userRepository.save(user);
         });
     }
@@ -99,6 +102,7 @@ public class UserService {
                 throw new LastMasterAdminProtectionException();
             }
             user.setRole(requestedRole);
+            user.setTokenVersion(user.getTokenVersion() + 1);
             return userRepository.save(user);
         });
     }
@@ -127,6 +131,8 @@ public class UserService {
                 throw new LastMasterAdminProtectionException();
             }
             user.setActive(false);
+            user.setStatus(UserStatus.BLOCKED);
+            user.setTokenVersion(user.getTokenVersion() + 1);
             userRepository.save(user);
         });
     }
@@ -142,17 +148,48 @@ public class UserService {
         return userRepository.countByRoleAndIsActiveTrueAndStatus(Role.MASTER_ADMIN, UserStatus.ACTIVE);
     }
 
-    public boolean changePassword(Long userId, String oldPassword, String newPassword) {
+    /**
+     * Changes the password and revokes all existing tokens. Returns a fresh token pair
+     * so the caller's own session can continue; empty if the old password does not match.
+     */
+    public Optional<AuthResponse> changePassword(Long userId, String oldPassword, String newPassword) {
         Optional<User> userOpt = userRepository.findById(userId);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
             if (passwordEncoder.matches(oldPassword, user.getPassword())) {
                 user.setPassword(passwordEncoder.encode(newPassword));
-                userRepository.save(user);
-                return true;
+                user.setTokenVersion(user.getTokenVersion() + 1);
+                user = userRepository.save(user);
+                return Optional.of(buildAuthResponse(user));
             }
         }
-        return false;
+        return Optional.empty();
+    }
+
+    private AuthResponse buildAuthResponse(User user) {
+        String accessToken = jwtService.generateToken(user);
+        String refreshToken = jwtService.generateRefreshToken(user);
+
+        List<Room> rooms = roomRepository.findByResidentId(user.getId());
+        Long roomId = null;
+        if (!rooms.isEmpty()) {
+            roomId = rooms.get(0).getId();
+        } else {
+            List<RoomResident> rrs = roomResidentRepository.findByResidentIdAndIsActiveTrue(user.getId());
+            if (!rrs.isEmpty() && rrs.get(0).getRoom() != null) {
+                roomId = rrs.get(0).getRoom().getId();
+            }
+        }
+
+        return new AuthResponse(
+                accessToken,
+                refreshToken,
+                user.getRole().name(),
+                user.getName(),
+                user.getId(),
+                roomId,
+                user.isForcePasswordChange()
+        );
     }
 
     @Transactional
@@ -215,7 +252,7 @@ public class UserService {
 
             userRepository.save(user);
 
-            logger.info("Generated setup verification OTP for user ID {} ({}): {}", userId, newEmail, token);
+            logger.info("Generated setup verification OTP for user ID {} ({})", userId, newEmail);
 
             try {
                 String subject = "Jaswanti Residency - Email Verification Code";
@@ -246,8 +283,7 @@ public class UserService {
             String cleanToken = token != null ? token.trim().replaceAll("\\s+", "") : "";
             String savedToken = user.getEmailVerificationToken() != null ? user.getEmailVerificationToken().trim() : "";
 
-            logger.info("Attempting setup verification for user ID {}: provided='{}', stored='{}', expiry='{}', now='{}'",
-                    userId, cleanToken, savedToken, user.getEmailVerificationExpiry(), LocalDateTime.now());
+            logger.info("Attempting setup verification for user ID {} (expiry='{}')", userId, user.getEmailVerificationExpiry());
 
             boolean tokenMatches = !cleanToken.isEmpty() && cleanToken.equalsIgnoreCase(savedToken);
             boolean notExpired = user.getEmailVerificationExpiry() != null && user.getEmailVerificationExpiry().isAfter(LocalDateTime.now());
@@ -259,6 +295,7 @@ public class UserService {
                 user.setEmailVerified(true);
                 user.setVerifiedAt(LocalDateTime.now());
                 user.setForcePasswordChange(false);
+                user.setTokenVersion(user.getTokenVersion() + 1);
 
                 user.setPendingEmail(null);
                 user.setEmailVerificationToken(null);
@@ -266,32 +303,10 @@ public class UserService {
 
                 user = userRepository.save(user);
 
-                // Issue fresh JWT tokens with the new email as principal subject
-                String accessToken = jwtService.generateToken(user);
-                String refreshToken = jwtService.generateRefreshToken(user);
-
-                List<Room> rooms = roomRepository.findByResidentId(user.getId());
-                Long roomId = null;
-                if (!rooms.isEmpty()) {
-                    roomId = rooms.get(0).getId();
-                } else {
-                    List<RoomResident> rrs = roomResidentRepository.findByResidentIdAndIsActiveTrue(user.getId());
-                    if (!rrs.isEmpty() && rrs.get(0).getRoom() != null) {
-                        roomId = rrs.get(0).getRoom().getId();
-                    }
-                }
-
                 logger.info("Setup verification successful for user ID {} (verified email: {})", user.getId(), user.getEmail());
 
-                return Optional.of(new AuthResponse(
-                        accessToken,
-                        refreshToken,
-                        user.getRole().name(),
-                        user.getName(),
-                        user.getId(),
-                        roomId,
-                        false
-                ));
+                // Issue fresh JWT tokens with the new email as principal subject
+                return Optional.of(buildAuthResponse(user));
             } else {
                 logger.warn("Setup verification failed for user ID {}: match={}, notExpired={}", userId, tokenMatches, notExpired);
             }

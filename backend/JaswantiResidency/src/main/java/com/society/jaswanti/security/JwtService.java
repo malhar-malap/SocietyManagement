@@ -41,11 +41,16 @@ public class JwtService {
     }
 
     public String generateToken(Map<String, Object> extraClaims, User user) {
+        extraClaims.put("typ", "access");
+        extraClaims.put("token_version", user.getTokenVersion());
         return buildToken(extraClaims, user, jwtExpiration);
     }
 
     public String generateRefreshToken(User user) {
-        return buildToken(new HashMap<>(), user, refreshExpiration);
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("typ", "refresh");
+        claims.put("token_version", user.getTokenVersion());
+        return buildToken(claims, user, refreshExpiration);
     }
 
     private String buildToken(Map<String, Object> extraClaims, User user, long expiration) {
@@ -61,9 +66,56 @@ public class JwtService {
                 .compact();
     }
 
-    public boolean isTokenValid(String token, UserDetails userDetails) {
+    public String extractTokenType(String token) {
+        return extractClaim(token, claims -> claims.get("typ", String.class));
+    }
+
+    public Integer extractTokenVersion(String token) {
+        return extractClaim(token, claims -> claims.get("token_version", Integer.class));
+    }
+
+    public boolean isAccessTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+        if (!username.equals(userDetails.getUsername()) || isTokenExpired(token)) {
+            return false;
+        }
+        String typ = extractTokenType(token);
+        if (!"access".equals(typ)) {
+            return false;
+        }
+        if (!userDetails.isEnabled()) {
+            return false;
+        }
+        if (userDetails instanceof User user) {
+            Integer version = extractTokenVersion(token);
+            if (version == null || version != user.getTokenVersion()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean isRefreshTokenValid(String token, User user) {
+        final String username = extractUsername(token);
+        if (!username.equals(user.getUsername()) || isTokenExpired(token)) {
+            return false;
+        }
+        String typ = extractTokenType(token);
+        if (!"refresh".equals(typ)) {
+            return false;
+        }
+        if (!user.isEnabled()) {
+            return false;
+        }
+        Integer version = extractTokenVersion(token);
+        if (version == null || version != user.getTokenVersion()) {
+            return false;
+        }
+        return true;
+    }
+
+    public boolean isTokenValid(String token, UserDetails userDetails) {
+        return isAccessTokenValid(token, userDetails);
     }
 
     private boolean isTokenExpired(String token) {

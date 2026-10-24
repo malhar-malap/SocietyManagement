@@ -108,7 +108,11 @@ const ResidentProfile = () => {
         try {
             setIsChangingPassword(true);
             const { changePassword } = await import('../api/residentApi');
-            await changePassword(user.userId, { oldPassword, newPassword });
+            const res = await changePassword(user.userId, { oldPassword, newPassword });
+            // Changing the password revokes old tokens; keep this session alive with the fresh pair
+            if (res && res.accessToken) {
+                login(res);
+            }
             alert('Password successfully updated');
             setOldPassword('');
             setNewPassword('');

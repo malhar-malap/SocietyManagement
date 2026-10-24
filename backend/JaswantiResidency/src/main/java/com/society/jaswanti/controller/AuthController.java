@@ -93,26 +93,29 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
         String refreshToken = request.getRefreshToken();
-        String username = jwtService.extractUsername(refreshToken);
+        try {
+            String username = jwtService.extractUsername(refreshToken);
 
-        if (username != null) {
-            User user = (User) userDetailsService.loadUserByUsername(username);
-            if (jwtService.isTokenValid(refreshToken, user)) {
-                String accessToken = jwtService.generateToken(user);
+            if (username != null) {
+                User user = (User) userDetailsService.loadUserByUsername(username);
+                if (jwtService.isRefreshTokenValid(refreshToken, user)) {
+                    String newAccessToken = jwtService.generateToken(user);
+                    String newRefreshToken = jwtService.generateRefreshToken(user);
 
-                Long roomId = resolveRoomId(user.getId());
+                    Long roomId = resolveRoomId(user.getId());
 
-                return ResponseEntity.ok(new AuthResponse(
-                        accessToken,
-                        refreshToken,
-                        user.getRole().name(),
-                        user.getName(),
-                        user.getId(),
-                        roomId,
-                        user.isForcePasswordChange()
-                ));
+                    return ResponseEntity.ok(new AuthResponse(
+                            newAccessToken,
+                            newRefreshToken,
+                            user.getRole().name(),
+                            user.getName(),
+                            user.getId(),
+                            roomId,
+                            user.isForcePasswordChange()
+                    ));
+                }
             }
-        }
+        } catch (Exception ignored) {}
         return ResponseEntity.status(401).build();
     }
 

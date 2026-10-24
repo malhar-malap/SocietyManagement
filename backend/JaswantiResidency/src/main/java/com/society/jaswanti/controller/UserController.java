@@ -97,13 +97,15 @@ public class UserController {
 
     @PostMapping("/{id}/change-password")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN') or #id == authentication.principal.id")
-    public ResponseEntity<String> changePassword(@PathVariable Long id, @RequestBody ChangePasswordDto dto) {
-        boolean success = userService.changePassword(id, dto.getOldPassword(), dto.getNewPassword());
-        if (success) {
-            return ResponseEntity.ok("Password changed successfully");
-        } else {
-            return ResponseEntity.badRequest().body("Failed to change password");
-        }
+    public ResponseEntity<?> changePassword(@PathVariable Long id, @RequestBody ChangePasswordDto dto,
+                                            org.springframework.security.core.Authentication auth) {
+        return userService.changePassword(id, dto.getOldPassword(), dto.getNewPassword())
+                .<ResponseEntity<?>>map(tokens -> {
+                    // Changing the password revokes all sessions; hand fresh tokens back only to the account owner
+                    boolean self = auth != null && auth.getPrincipal() instanceof User principal && principal.getId().equals(id);
+                    return self ? ResponseEntity.ok(tokens) : ResponseEntity.ok("Password changed successfully");
+                })
+                .orElseGet(() -> ResponseEntity.badRequest().body("Failed to change password"));
     }
     
     @PostMapping("/{id}/setup")
