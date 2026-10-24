@@ -155,7 +155,7 @@ class MySqlMigrationIntegrationTests {
                 "--BOOTSTRAP_MASTER_ADMIN_NAME=IT Master",
                 "--BOOTSTRAP_MASTER_ADMIN_PASSWORD=ItMasterPass123");
 
-        assertThat(appliedVersions()).startsWith("1", "1.1", "2").endsWith("15", "16", "17");
+        assertThat(appliedVersions()).startsWith("1", "1.1", "2").endsWith("15", "16", "17", "18");
 
         // No account is usable with a committed default credential, and no seeded row was deleted
         assertThat(activeAccountsWithDefaultCredentials()).isZero();
@@ -196,7 +196,7 @@ class MySqlMigrationIntegrationTests {
 
         startApp();
 
-        assertThat(appliedVersions()).containsExactly("14", "15", "16", "17");
+        assertThat(appliedVersions()).containsExactly("14", "15", "16", "17", "18");
 
         assertThat(user("admin@jaswanti.com")).containsEntry("status", "INACTIVE").containsEntry("token_version", 1);
         assertThat(user("resident602@jaswanti.com")).containsEntry("status", "INACTIVE").containsEntry("token_version", 1);
@@ -215,6 +215,8 @@ class MySqlMigrationIntegrationTests {
         assertThat(jdbc.queryForObject("SELECT is_nullable FROM information_schema.columns WHERE table_schema = DATABASE() " +
                 "AND table_name = 'activity_logs' AND column_name = 'user_id'", String.class)).isEqualTo("YES");
         assertThat(columnType("activity_logs", "outcome")).isEqualTo("varchar(16)");
+        // V18: setup-code attempt counter exists on a Hibernate-built schema too
+        assertThat(columnType("users", "email_verification_attempts")).isEqualTo("int");
     }
 
     @Test
