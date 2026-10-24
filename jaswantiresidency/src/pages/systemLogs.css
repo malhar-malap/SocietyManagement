@@ -1,0 +1,314 @@
+.system-logs-intro {
+    color: var(--text-secondary-light);
+    font-size: 0.9rem;
+    margin: -1.25rem 0 1.25rem;
+}
+
+.system-logs .page-header {
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+/* Filters wrap onto as many rows as the width needs */
+.system-logs-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem 1rem;
+    background: var(--surface-light);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 140px;
+    flex: 1 1 140px;
+}
+
+.filter-field.filter-search {
+    flex: 2 1 240px;
+}
+
+.filter-field label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary-light);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.filter-field select,
+.filter-field input,
+.filter-search-box {
+    height: 38px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    background: var(--surface-light);
+    color: var(--text-primary-light);
+    font: inherit;
+    font-size: 0.9rem;
+    padding: 0 0.6rem;
+}
+
+.filter-search-box {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--text-secondary-light);
+}
+
+.filter-search-box input {
+    border: none;
+    outline: none;
+    height: 100%;
+    padding: 0;
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+}
+
+.filter-field select:focus,
+.filter-field input:focus,
+.filter-search-box:focus-within {
+    outline: 2px solid rgba(225, 29, 72, 0.25);
+    border-color: var(--primary-color);
+}
+
+.filter-reset {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    height: 38px;
+    padding: 0 0.85rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--primary-color);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.filter-reset:hover {
+    background: rgba(225, 29, 72, 0.08);
+}
+
+.system-logs-error {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: var(--radius-sm);
+    background: var(--danger-bg);
+    color: var(--danger);
+    font-size: 0.9rem;
+}
+
+.system-logs-error button {
+    margin-left: auto;
+    border: 1px solid currentColor;
+    background: transparent;
+    color: inherit;
+    border-radius: var(--radius-sm);
+    padding: 0.25rem 0.75rem;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.system-logs-table .table-responsive {
+    overflow-x: auto;
+}
+
+.system-logs-table .custom-table td {
+    vertical-align: top;
+}
+
+.log-row {
+    cursor: pointer;
+}
+
+.log-row:hover td {
+    background: rgba(225, 29, 72, 0.03);
+}
+
+.log-row.outcome-denied td:first-child {
+    box-shadow: inset 3px 0 0 var(--danger);
+}
+
+.log-row.outcome-failed td:first-child {
+    box-shadow: inset 3px 0 0 var(--warning);
+}
+
+.log-when {
+    white-space: nowrap;
+    color: var(--text-secondary-light);
+    font-size: 0.85rem;
+}
+
+.log-actor,
+.log-action {
+    font-weight: 600;
+    color: var(--text-primary-light);
+}
+
+/* Failed sign-ins show the attempted email here; let it wrap instead of widening the table */
+.log-actor {
+    overflow-wrap: anywhere;
+}
+
+.log-action {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.log-module {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary-light);
+    background: var(--background-light);
+    border: 1px solid var(--border-light);
+    border-radius: 999px;
+    padding: 0.05rem 0.5rem;
+}
+
+.log-sub {
+    font-size: 0.8rem;
+    color: var(--text-secondary-light);
+    margin-top: 0.15rem;
+}
+
+.log-description {
+    max-width: 48ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.log-target {
+    font-size: 0.8rem;
+    color: var(--text-primary-light);
+    margin-top: 0.3rem;
+    padding-left: 0.5rem;
+    border-left: 2px solid var(--border-light);
+    overflow-wrap: break-word;
+}
+
+.system-logs-table .custom-table td:nth-child(4) {
+    min-width: 115px;
+}
+
+.system-logs-table .custom-table td:nth-child(5) {
+    min-width: 220px;
+}
+
+.log-expand-cell {
+    width: 36px;
+    padding-right: 0 !important;
+}
+
+.log-expand {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary-light);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: var(--radius-sm);
+}
+
+.log-expand:hover,
+.log-expand:focus-visible {
+    color: var(--primary-color);
+    background: rgba(225, 29, 72, 0.08);
+}
+
+.log-details-row td {
+    background: var(--background-light);
+}
+
+.log-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem 1.5rem;
+    margin: 0;
+}
+
+.log-details dt {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary-light);
+}
+
+.log-details dd {
+    margin: 0.15rem 0 0;
+    font-size: 0.88rem;
+    overflow-wrap: anywhere;
+}
+
+.log-details-wide {
+    grid-column: 1 / -1;
+}
+
+.log-details code {
+    font-size: 0.82rem;
+}
+
+.system-logs-skeleton {
+    height: 18px;
+    width: 100%;
+}
+
+.system-logs-empty {
+    text-align: center;
+    padding: 2.5rem 1rem !important;
+    color: var(--text-secondary-light);
+}
+
+.system-logs-pagination {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.system-logs-pagination .page-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.page-size {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary-light);
+    margin-right: 0.5rem;
+}
+
+.page-size select {
+    height: 30px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    background: var(--surface-light);
+    font: inherit;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}

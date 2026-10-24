@@ -27,7 +27,7 @@ import AdminBilling from './pages/AdminBilling';
 import AdminTransactions from './pages/AdminTransactions';
 import AdminComplaints from './pages/AdminComplaints';
 import AdminAnnouncements from './pages/AdminAnnouncements';
-import AdminActivityLogs from './pages/AdminActivityLogs';
+import SystemLogs from './pages/SystemLogs';
 
 const RootRedirect = () => {
     const { user, loading } = useAuth();
@@ -89,7 +89,8 @@ function App() {
                         <Route path="transactions" element={<AdminTransactions />} />
                         <Route path="complaints" element={<AdminComplaints />} />
                         <Route path="announcements" element={<AdminAnnouncements />} />
-                        <Route path="activity-logs" element={<AdminActivityLogs />} />
+                        <Route path="system-logs" element={<ProtectedRoute allowedRoles={['MASTER_ADMIN']}><SystemLogs /></ProtectedRoute>} />
+                        <Route path="activity-logs" element={<Navigate to="/admin/system-logs" replace />} />
                     </Route>
 
                     {/* Error Pages */}

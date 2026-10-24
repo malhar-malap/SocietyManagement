@@ -77,9 +77,31 @@ export const importResidentsCsv = async (file) => {
     return response.data;
 };
 
-export const getActivityLogs = async () => {
-    const response = await api.get('/activity-logs');
+// System Logs (Master Admin only)
+
+export const getSystemLogs = async (params) => {
+    const response = await api.get('/system-logs', { params });
     return response.data;
+};
+
+export const getSystemLogFilters = async () => {
+    const response = await api.get('/system-logs/filters');
+    return response.data;
+};
+
+// Downloads through the authenticated client so the access token stays in the header, not the URL
+export const exportSystemLogs = async (params) => {
+    const response = await api.get('/system-logs/export', { params, responseType: 'blob' });
+    const disposition = response.headers['content-disposition'] || '';
+    const match = disposition.match(/filename=["']?([^"';]+)["']?/);
+    const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = match ? match[1] : 'system-logs.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
 };
 
 // Billing Endpoints

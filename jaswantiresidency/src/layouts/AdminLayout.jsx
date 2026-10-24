@@ -2,7 +2,7 @@ import React from 'react';
 import { Outlet, Navigate, NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './layout.css';
-import { Home, Users, DollarSign, Activity, FileText, LogOut, Bell, Search } from 'lucide-react';
+import { Home, Users, DollarSign, Activity, FileText, LogOut, Bell, Search, ScrollText } from 'lucide-react';
 import logo from '../assets/logo.png';
 
 const AdminLayout = () => {
@@ -28,7 +28,9 @@ const AdminLayout = () => {
                     <NavLink to="/admin/transactions" className="nav-link"><Activity size={18}/> Transactions</NavLink>
                     <NavLink to="/admin/complaints" className="nav-link"><FileText size={18}/> Complaints</NavLink>
                     <NavLink to="/admin/announcements" className="nav-link"><Bell size={18}/> Announcements</NavLink>
-                    <NavLink to="/admin/activity-logs" className="nav-link"><Activity size={18}/> Logs</NavLink>
+                    {user?.role === 'MASTER_ADMIN' && (
+                        <NavLink to="/admin/system-logs" className="nav-link"><ScrollText size={18}/> System Logs</NavLink>
+                    )}
                 </nav>
                 <div className="sidebar-footer">
                     <div className="sidebar-profile">
