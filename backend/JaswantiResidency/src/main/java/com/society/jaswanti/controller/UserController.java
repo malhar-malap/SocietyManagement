@@ -57,6 +57,33 @@ public class UserController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "CREATE_USER", module = "USERS", summary = "Created a user account", target = AuditTargetResolver.USER)
+    public ResponseEntity<UserDto> createUser(@RequestBody com.society.jaswanti.dto.CreateUserRequest request,
+                                              org.springframework.security.core.Authentication auth) {
+        User created = userService.createUser(request, auth);
+        AuditTrail.target(AuditTargetResolver.USER, created.getId());
+        AuditTrail.describe("Created " + created.getRole() + " account for " + created.getName()
+                + (created.getIssuedTemporaryPassword() != null ? " with a generated temporary password" : " with an admin-set initial password"));
+        UserDto dto = convertToDto(created);
+        dto.setTemporaryPassword(created.getIssuedTemporaryPassword());
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(dto);
+    }
+
+    @PostMapping("/{id}/reset-password")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "RESET_USER_PASSWORD", module = "USERS", summary = "Issued a temporary password (admin reset)", target = AuditTargetResolver.USER)
+    public ResponseEntity<UserDto> resetPassword(@PathVariable Long id, org.springframework.security.core.Authentication auth) {
+        return userService.resetPasswordByAdmin(id, auth)
+                .map(user -> {
+                    UserDto dto = convertToDto(user);
+                    dto.setTemporaryPassword(user.getIssuedTemporaryPassword());
+                    return ResponseEntity.ok(dto);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
     @AuditedAction(action = "UPDATE_USER", module = "USERS", summary = "Edited a user's details", target = AuditTargetResolver.USER)
@@ -74,8 +101,11 @@ public class UserController {
         String previous = userService.findById(id).map(u -> String.valueOf(u.getStatus())).orElse(null);
         return userService.updateUserStatus(id, status, authentication)
                 .map(updated -> {
-                    AuditTrail.describe("Changed status of " + updated.getName() + " from " + previous + " to " + updated.getStatus());
-                    return ResponseEntity.ok(convertToDto(updated));
+                    AuditTrail.describe("Changed status of " + updated.getName() + " from " + previous + " to " + updated.getStatus()
+                            + (updated.getIssuedTemporaryPassword() != null ? "; issued a new temporary password" : ""));
+                    UserDto dto = convertToDto(updated);
+                    dto.setTemporaryPassword(updated.getIssuedTemporaryPassword());
+                    return ResponseEntity.ok(dto);
                 })
                 .orElse(ResponseEntity.notFound().build());
     }

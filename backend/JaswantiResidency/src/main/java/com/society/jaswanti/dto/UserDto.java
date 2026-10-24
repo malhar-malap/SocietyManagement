@@ -10,6 +10,12 @@ public class UserDto {
     private String role;
     private String roomNumber; // derived
     private boolean active = true;
+    // Only present in the response that created it (new account, password reset, reactivation); shown to the admin once
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private String temporaryPassword;
+
+    public String getTemporaryPassword() { return temporaryPassword; }
+    public void setTemporaryPassword(String temporaryPassword) { this.temporaryPassword = temporaryPassword; }
 
     public UserDto() {}
 

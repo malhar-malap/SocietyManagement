@@ -55,9 +55,103 @@ public class UserService {
         this.roomResidentRepository = roomResidentRepository;
     }
 
-    public User registerUser(User user) {
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
-        return userRepository.save(user);
+    private static final String TEMP_PASSWORD_LETTERS = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ";
+    private static final String TEMP_PASSWORD_DIGITS = "23456789";
+
+    /** 12 characters, at least one letter and one digit, without look-alike characters (0/O, 1/l/I). */
+    static String generateTemporaryPassword() {
+        String all = TEMP_PASSWORD_LETTERS + TEMP_PASSWORD_DIGITS;
+        char[] chars = new char[12];
+        chars[0] = TEMP_PASSWORD_LETTERS.charAt(RANDOM.nextInt(TEMP_PASSWORD_LETTERS.length()));
+        chars[1] = TEMP_PASSWORD_DIGITS.charAt(RANDOM.nextInt(TEMP_PASSWORD_DIGITS.length()));
+        for (int i = 2; i < chars.length; i++) {
+            chars[i] = all.charAt(RANDOM.nextInt(all.length()));
+        }
+        for (int i = chars.length - 1; i > 0; i--) {
+            int j = RANDOM.nextInt(i + 1);
+            char t = chars[i]; chars[i] = chars[j]; chars[j] = t;
+        }
+        return new String(chars);
+    }
+
+    private static boolean isMasterAdmin(Authentication actor) {
+        return actor != null && actor.getAuthorities().stream().anyMatch(a -> "ROLE_MASTER_ADMIN".equals(a.getAuthority()));
+    }
+
+    /**
+     * Creates an account that must change its password at first sign-in. Admins create residents; a Master Admin
+     * may also create admins. Master Admins are only ever created by the startup bootstrap.
+     */
+    public User createUser(com.society.jaswanti.dto.CreateUserRequest request, Authentication actor) {
+        Role role = Role.RESIDENT;
+        if (request.getRole() != null && !request.getRole().isBlank()) {
+            try {
+                role = Role.valueOf(request.getRole().trim().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Unknown role: " + request.getRole());
+            }
+        }
+        if (role == Role.MASTER_ADMIN) {
+            throw new org.springframework.security.access.AccessDeniedException("Master Admin accounts cannot be created through the API");
+        }
+        if (role == Role.ADMIN && !isMasterAdmin(actor)) {
+            throw new org.springframework.security.access.AccessDeniedException("Only a Master Admin can create administrator accounts");
+        }
+        String name = request.getName() != null ? request.getName().trim() : "";
+        if (name.isEmpty()) {
+            throw new IllegalArgumentException("Name is required");
+        }
+        String email = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
+        if (!EMAIL_PATTERN.matcher(email).matches()) {
+            throw new IllegalArgumentException("A valid email address is required");
+        }
+        if (userRepository.findByEmailIgnoreCase(email).isPresent()) {
+            throw new IllegalArgumentException("Email " + email + " is already in use by another account");
+        }
+        String password = request.getPassword();
+        String issued = null;
+        if (password == null || password.isBlank()) {
+            password = issued = generateTemporaryPassword();
+        } else {
+            com.society.jaswanti.security.PasswordValidator.validate(password);
+        }
+        User user = new User();
+        user.setName(name);
+        user.setEmail(email);
+        user.setPhone(request.getPhone() != null ? request.getPhone().trim() : null);
+        user.setRole(role);
+        user.setStatus(UserStatus.ACTIVE);
+        user.setActive(true);
+        user.setEmailVerified(false);
+        user.setForcePasswordChange(true);
+        user.setPassword(passwordEncoder.encode(password));
+        User saved = userRepository.save(user);
+        saved.setIssuedTemporaryPassword(issued);
+        return saved;
+    }
+
+    /**
+     * Replaces a user's password with a one-time temporary one and ends their sessions. Admins may reset residents;
+     * a Master Admin may reset anyone.
+     */
+    public Optional<User> resetPasswordByAdmin(Long id, Authentication actor) {
+        return userRepository.findById(id).map(user -> {
+            if (user.getRole() != Role.RESIDENT && !isMasterAdmin(actor)) {
+                throw new org.springframework.security.access.AccessDeniedException("Only a Master Admin can reset an administrator's password");
+            }
+            issueTemporaryPassword(user);
+            User saved = userRepository.save(user);
+            saved.setIssuedTemporaryPassword(user.getIssuedTemporaryPassword());
+            return saved;
+        });
+    }
+
+    private void issueTemporaryPassword(User user) {
+        String temporary = generateTemporaryPassword();
+        user.setPassword(passwordEncoder.encode(temporary));
+        user.setForcePasswordChange(true);
+        user.setTokenVersion(user.getTokenVersion() + 1);
+        user.setIssuedTemporaryPassword(temporary);
     }
 
     private static final java.util.regex.Pattern EMAIL_PATTERN = java.util.regex.Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
@@ -112,7 +206,15 @@ public class UserService {
                 user.setActive(false);
             }
             user.setTokenVersion(user.getTokenVersion() + 1);
-            return userRepository.save(user);
+            // Reactivating an account that never completed first sign-in would bring its initial (possibly
+            // well-known, e.g. seeded Temp_<room>) password back to life; issue a fresh temporary password instead
+            if (requestedStatus == UserStatus.ACTIVE && user.isForcePasswordChange()) {
+                issueTemporaryPassword(user);
+            }
+            String issued = user.getIssuedTemporaryPassword();
+            User saved = userRepository.save(user);
+            saved.setIssuedTemporaryPassword(issued);
+            return saved;
         });
     }
 

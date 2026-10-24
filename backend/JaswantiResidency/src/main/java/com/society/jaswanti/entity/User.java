@@ -85,6 +85,12 @@ public class User implements UserDetails {
     @Column(name = "token_version", nullable = false)
     private int tokenVersion = 0;
 
+    // A temporary password generated during the current request, so the controller can show it to the admin once.
+    // Never persisted and never serialised.
+    @Transient
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private String issuedTemporaryPassword;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -190,6 +196,9 @@ public class User implements UserDetails {
 
     public int getEmailVerificationAttempts() { return emailVerificationAttempts; }
     public void setEmailVerificationAttempts(int emailVerificationAttempts) { this.emailVerificationAttempts = emailVerificationAttempts; }
+
+    public String getIssuedTemporaryPassword() { return issuedTemporaryPassword; }
+    public void setIssuedTemporaryPassword(String issuedTemporaryPassword) { this.issuedTemporaryPassword = issuedTemporaryPassword; }
 
     public int getTokenVersion() { return tokenVersion; }
     public void setTokenVersion(int tokenVersion) { this.tokenVersion = tokenVersion; }
