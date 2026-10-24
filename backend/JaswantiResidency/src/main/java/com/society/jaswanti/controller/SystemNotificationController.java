@@ -11,7 +11,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/notifications")
-@CrossOrigin(origins = "*")
 public class SystemNotificationController {
 
     private final SystemNotificationService notificationService;

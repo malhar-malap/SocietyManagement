@@ -4,7 +4,6 @@ import com.society.jaswanti.entity.ActivityLog;
 import com.society.jaswanti.repository.ActivityLogRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -14,7 +13,6 @@ import org.springframework.data.domain.Sort;
 
 @RestController
 @RequestMapping("/api/activity-logs")
-@CrossOrigin(origins = "*")
 public class ActivityLogController {
 
     private final ActivityLogRepository activityLogRepository;

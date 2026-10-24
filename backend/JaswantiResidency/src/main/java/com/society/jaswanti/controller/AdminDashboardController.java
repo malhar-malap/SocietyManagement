@@ -22,7 +22,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/dashboard/admin")
-@CrossOrigin(origins = "*")
 public class AdminDashboardController {
 
     private final UserRepository userRepository;
