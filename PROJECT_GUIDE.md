@@ -15,7 +15,7 @@ This is not a generic property-management suite. It is tailored to the registere
 - Database: MySQL with Flyway migration versioning (`V1` through `V15`). Hibernate set to `ddl-auto=validate`.
 - Email: SMTP (Gmail App Password) for one-time verification/recovery codes and payment receipt delivery.
 - Payments: 100% screenshot-based offline payment submissions with admin approval and allocation to society bank accounts. **Razorpay has been completely removed** from backend and frontend.
-- Test Suite: **194 automated backend tests** (`./mvnw test`): 191 pass and 3 MySQL integration tests are skipped unless `-Dmysql.it.url` points at a disposable MySQL server (all 3 pass when it does).
+- Test Suite: **206 automated backend tests** (`./mvnw test`): 203 run on H2, and 3 MySQL integration tests are skipped unless `-Dmysql.it.url` points at a disposable MySQL server (all 206 pass when it does). CI (`.github/workflows/ci.yml`) runs them against a MySQL service and fails if they are skipped.
 
 ## Product decisions
 
@@ -88,6 +88,12 @@ All authorization is enforced on the backend at the service/API level; hiding UI
    - `spring.jpa.hibernate.ddl-auto=validate` replaces `update`. Flyway is the sole schema authority.
    - Removed wildcard `@CrossOrigin(origins = "*")` from all 12 controllers.
    - Centralized CORS via `SecurityConfig` and `app.cors.allowed-origins` property (default `http://localhost:3000,http://localhost:5173`), supporting `PATCH`, `Idempotency-Key`, `Authorization`, and `Content-Type`.
+8. **System Logs (Master Admin audit trail):**
+   - Every state-changing endpoint carries `@AuditedAction(action, module, summary, target)` or `@AuditExempt(reason)`; `AuditCoverageTests` fails the build if a new POST/PUT/PATCH/DELETE endpoint has neither.
+   - `AuditInterceptor` records each audited call after it completes, including FAILED and DENIED attempts: actor (with a name/email/role snapshot), action, module, outcome, target (resolved to a readable label before the action, so deletes keep it), description, method, path and socket IP. Only an allowlist of query parameters is ever logged; passwords, tokens and OTPs never are.
+   - Ledger services keep writing their own entries inside the business transaction (audit and money stay atomic); the interceptor skips a request whose entry was committed and writes a FAILED entry when the operation rolled back. Idempotent payment replays are logged as `RECORD_PAYMENT_REPLAY`, never as a second payment.
+   - `V17` extends `activity_logs` (nullable `user_id`, actor snapshot, outcome, target, request columns, indexes). Entries are append-only: no API edits or deletes them.
+   - `GET /api/system-logs` (Master Admin only) supports search, module/outcome/role/date filters and server-side paging; `/export` downloads the filtered set as CSV (formula-injection safe, itself audited). The old `/api/activity-logs` endpoint, which returned raw entities to admins, was removed; the admin sidebar's "Logs" page is replaced by **System Logs**, shown to Master Admins only.
 
 ## Roadmap Status
 
@@ -102,6 +108,7 @@ All authorization is enforced on the backend at the service/API level; hiding UI
 - **Phase 4A (Queries, Suggestions & Permissions Module):** COMPLETE.
 - **Phase 4B (Bank Reconciliation & System Polish):** COMPLETE.
 - **Phase 4C (Security Hardening — Steps 1 through 8):** COMPLETE.
+- **Phase 4D (System Logs for Master Admins):** COMPLETE.
 
 ## Deferred / Future Scope (Post-MVP)
 
