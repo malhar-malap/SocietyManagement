@@ -20,13 +20,16 @@ public class ComplaintService {
     private final ComplaintRepository complaintRepository;
     private final UserRepository userRepository;
     private final com.society.jaswanti.repository.RoomRepository roomRepository;
+    private final FileValidationService fileValidationService;
 
     public ComplaintService(ComplaintRepository complaintRepository,
                             UserRepository userRepository,
-                            com.society.jaswanti.repository.RoomRepository roomRepository) {
+                            com.society.jaswanti.repository.RoomRepository roomRepository,
+                            FileValidationService fileValidationService) {
         this.complaintRepository = complaintRepository;
         this.userRepository = userRepository;
         this.roomRepository = roomRepository;
+        this.fileValidationService = fileValidationService;
     }
 
     public ComplaintDto createComplaint(Long residentId, String category, String description, MultipartFile file) throws IOException {
@@ -51,12 +54,10 @@ public class ComplaintService {
         complaint.setStatus(ComplaintStatus.OPEN);
 
         if (file != null && !file.isEmpty()) {
-            if (file.getSize() > 10 * 1024 * 1024) {
-                throw new RuntimeException("File size exceeds 10MB limit");
-            }
+            String detectedType = fileValidationService.validateImageOrPdf(file);
             complaint.setImageData(file.getBytes());
             complaint.setImageFilename(file.getOriginalFilename());
-            complaint.setImageContentType(file.getContentType());
+            complaint.setImageContentType(detectedType);
         }
 
         Complaint saved = complaintRepository.save(complaint);

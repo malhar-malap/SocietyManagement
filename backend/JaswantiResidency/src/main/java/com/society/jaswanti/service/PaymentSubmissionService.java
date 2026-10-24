@@ -32,6 +32,7 @@ public class PaymentSubmissionService {
     private final UserRepository userRepository;
     private final PaymentRecordingService paymentRecordingService;
     private final ActivityLogService activityLogService;
+    private final FileValidationService fileValidationService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public PaymentSubmissionService(ResidentPaymentSubmissionRepository submissionRepository,
@@ -41,7 +42,8 @@ public class PaymentSubmissionService {
                                     SocietyBankAccountRepository bankAccountRepository,
                                     UserRepository userRepository,
                                     PaymentRecordingService paymentRecordingService,
-                                    ActivityLogService activityLogService) {
+                                    ActivityLogService activityLogService,
+                                    FileValidationService fileValidationService) {
         this.submissionRepository = submissionRepository;
         this.roomRepository = roomRepository;
         this.roomResidentRepository = roomResidentRepository;
@@ -50,6 +52,7 @@ public class PaymentSubmissionService {
         this.userRepository = userRepository;
         this.paymentRecordingService = paymentRecordingService;
         this.activityLogService = activityLogService;
+        this.fileValidationService = fileValidationService;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -88,9 +91,10 @@ public class PaymentSubmissionService {
         }
 
         if (screenshot != null && !screenshot.isEmpty()) {
+            String detectedType = fileValidationService.validateImageOrPdf(screenshot);
             submission.setScreenshotData(screenshot.getBytes());
             submission.setScreenshotFilename(screenshot.getOriginalFilename());
-            submission.setScreenshotContentType(screenshot.getContentType());
+            submission.setScreenshotContentType(detectedType);
         }
 
         submission = submissionRepository.save(submission);

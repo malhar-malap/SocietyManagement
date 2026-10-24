@@ -170,11 +170,12 @@ class ResidentPaymentSubmissionTests {
     @Test
     @DisplayName("Resident can submit payment proof with screenshot for their own room")
     void residentSubmitPaymentProofSuccess() throws Exception {
+        byte[] pngBytes = new byte[] { (byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4 };
         MockMultipartFile file = new MockMultipartFile(
                 "screenshot",
                 "payment_proof.png",
                 "image/png",
-                "fake image content bytes".getBytes()
+                pngBytes
         );
 
         mockMvc.perform(multipart("/api/payments/submissions")

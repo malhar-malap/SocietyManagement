@@ -29,15 +29,18 @@ public class RoomService {
     private final RoomResidentRepository roomResidentRepository;
     private final UserRepository userRepository;
     private final ActivityLogService activityLogService;
+    private final FileValidationService fileValidationService;
 
     public RoomService(RoomRepository roomRepository,
                        RoomResidentRepository roomResidentRepository,
                        UserRepository userRepository,
-                       ActivityLogService activityLogService) {
+                       ActivityLogService activityLogService,
+                       FileValidationService fileValidationService) {
         this.roomRepository = roomRepository;
         this.roomResidentRepository = roomResidentRepository;
         this.userRepository = userRepository;
         this.activityLogService = activityLogService;
+        this.fileValidationService = fileValidationService;
     }
 
     public Room saveRoom(Room room) {
@@ -375,9 +378,10 @@ public class RoomService {
         }
 
         if (file != null && !file.isEmpty()) {
+            String detectedType = fileValidationService.validateImageOrPdf(file);
             room.setShareCertificateData(file.getBytes());
             room.setShareCertificateFilename(file.getOriginalFilename());
-            room.setShareCertificateContentType(file.getContentType());
+            room.setShareCertificateContentType(detectedType);
         }
 
         room = roomRepository.save(room);
