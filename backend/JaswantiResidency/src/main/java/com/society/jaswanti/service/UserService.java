@@ -358,7 +358,7 @@ public class UserService {
                 throw new IllegalArgumentException("Personal email is required");
             }
 
-            Optional<User> existing = userRepository.findByEmail(newEmail);
+            Optional<User> existing = userRepository.findByEmailIgnoreCase(newEmail);
             if (existing.isPresent() && !existing.get().getId().equals(userId)) {
                 throw new IllegalArgumentException("Email " + newEmail + " is already in use by another account");
             }

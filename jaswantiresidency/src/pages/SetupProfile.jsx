@@ -6,6 +6,7 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { Eye, EyeOff, LogOut } from 'lucide-react';
 import logo from '../assets/logo.png';
+import { PASSWORD_HINT, passwordPolicyError } from '../utils/passwordPolicy';
 import api from '../api/axiosConfig';
 
 const SetupProfile = () => {
@@ -53,8 +54,9 @@ const SetupProfile = () => {
             return;
         }
 
-        if (formData.newPassword.length < 6) {
-            setError("New password must be at least 6 characters long.");
+        const policyError = passwordPolicyError(formData.newPassword);
+        if (policyError) {
+            setError(policyError);
             return;
         }
 
@@ -197,7 +199,7 @@ const SetupProfile = () => {
                                 name="newPassword"
                                 value={formData.newPassword}
                                 onChange={handleChange}
-                                placeholder="Minimum 6 characters"
+                                placeholder={PASSWORD_HINT}
                                 required
                             />
                             <button

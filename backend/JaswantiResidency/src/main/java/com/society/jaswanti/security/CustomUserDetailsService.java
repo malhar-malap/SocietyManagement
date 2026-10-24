@@ -30,7 +30,8 @@ public class CustomUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String identifier) throws UsernameNotFoundException {
         // If identifier has '@', it's an email login attempt
         if (identifier.contains("@")) {
-            return userRepository.findByEmail(identifier)
+            // Emails are case-insensitive: "Priya@Example.com" and "priya@example.com" are the same account
+            return userRepository.findByEmailIgnoreCase(identifier.trim())
                     .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + identifier));
         } else {
             // Otherwise, treat identifier as Room Number
