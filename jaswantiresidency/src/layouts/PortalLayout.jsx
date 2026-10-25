@@ -24,7 +24,8 @@ const PortalLayout = ({ portalName, navItems, titles, fallbackTitle }) => {
 
     if (!user) return <Navigate to="/login" replace />;
 
-    const title = Object.entries(titles).find(([path]) => location.pathname.startsWith(path))?.[1] || fallbackTitle;
+    const titleEntry = Object.entries(titles).find(([path]) => location.pathname.startsWith(path))?.[1];
+    const title = (typeof titleEntry === 'function' ? titleEntry(user) : titleEntry) || fallbackTitle;
     const visibleItems = navItems.filter((item) => !item.roles || item.roles.includes(user.role));
 
     return (

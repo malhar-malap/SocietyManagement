@@ -17,8 +17,8 @@ const NAV_ITEMS = [
 const TITLES = {
     '/admin/dashboard': 'Dashboard',
     '/admin/rooms': 'Rooms & Occupancy',
-    '/admin/residents': 'Residents',
-    '/admin/users': 'Residents',
+    '/admin/residents': (u) => (u?.role === 'MASTER_ADMIN' ? 'Users & Roles' : 'Residents'),
+    '/admin/users': (u) => (u?.role === 'MASTER_ADMIN' ? 'Users & Roles' : 'Residents'),
     '/admin/billing': 'Billing',
     '/admin/transactions': 'Transactions',
     '/admin/complaints': 'Helpdesk',
