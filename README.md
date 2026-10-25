@@ -60,8 +60,19 @@ All secrets and environment-specific values are loaded from `backend/JaswantiRes
 | `JWT_SECRET` | Base64-encoded signing key for JWT tokens. **Must be at least 64 bytes (512 bits)** before encoding. | Generate with: `openssl rand -base64 64` |
 | `MAIL_USERNAME` | Gmail address used for sending verification and reset emails | `yourapp@gmail.com` |
 | `MAIL_PASSWORD` | Gmail App Password (not your Gmail login password). [Create one here](https://myaccount.google.com/apppasswords). | 16-character app-specific password |
+| `APP_CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed frontend origins for CORS | `https://portal.example.com,http://localhost:3000` (default: `http://localhost:3000,http://localhost:5173`) |
+| `SERVER_FORWARD_HEADERS_STRATEGY` | Set to `framework` when deployed behind a reverse proxy so login rate limiting and audit logging resolve the real client IP. The app deliberately ignores unparsed/raw `X-Forwarded-For` headers. | `framework` |
+
+### Frontend Build-Time Configuration
+
+- `REACT_APP_API_BASE_URL`: Base URL for backend API requests, configured at **build** time (default: `http://localhost:8080/api`).
+  ```bash
+  REACT_APP_API_BASE_URL=https://api.example.com/api npm run build
+  ```
 
 ### Generating a JWT Secret
+
+The backend validates JWT secrets at startup and refuses to start if `JWT_SECRET` is missing, not valid base64, decodes to fewer than 32 bytes, or equals the known public test value. Generate a production key with:
 
 ```bash
 # Generate a cryptographically secure 64-byte key, base64-encoded:

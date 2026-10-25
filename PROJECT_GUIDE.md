@@ -10,12 +10,12 @@ This is not a generic property-management suite. It is tailored to the registere
 
 ## Current repository
 
-- Frontend: React 19 with React Router, Axios, TailwindCSS, and Lucide React (`jaswantiresidency/`).
+- Frontend: React 19 with React Router, Axios, TailwindCSS, and Lucide React (`jaswantiresidency/`). Unit tests run via `npm test -- --watchAll=false` (2 suites, 5 tests).
 - Backend: Java 17 / 21, Spring Boot 4.1, Spring Security, JWT, JPA, Flyway (`backend/JaswantiResidency/`).
-- Database: MySQL with Flyway migration versioning (`V1` through `V15`). Hibernate set to `ddl-auto=validate`.
+- Database: MySQL with Flyway migration versioning (`V1` through `V18`). Hibernate set to `ddl-auto=validate`.
 - Email: SMTP (Gmail App Password) for one-time verification/recovery codes and payment receipt delivery.
 - Payments: 100% screenshot-based offline payment submissions with admin approval and allocation to society bank accounts. **Razorpay has been completely removed** from backend and frontend.
-- Test Suite: **206 automated backend tests** (`./mvnw test`): 203 run on H2, and 3 MySQL integration tests are skipped unless `-Dmysql.it.url` points at a disposable MySQL server (all 206 pass when it does). CI (`.github/workflows/ci.yml`) runs them against a MySQL service and fails if they are skipped.
+- Test Suite: **248 automated backend tests** (`./mvnw test`): 245 run on H2 with 0 failures and 0 errors, and 3 MySQL integration tests are skipped unless `-Dmysql.it.url` points at a disposable MySQL server (all 248 pass when it does). CI (`.github/workflows/ci.yml`) runs both frontend unit tests and backend tests against a MySQL service and fails if any are skipped.
 
 ## Product decisions
 
@@ -83,6 +83,8 @@ All authorization is enforced on the backend at the service/API level; hiding UI
    - `spring-boot-starter-flyway` added to pom.xml for Spring Boot 4.1 auto-configuration.
    - Existing databases baseline at V14 (`spring.flyway.baseline-version=14`), so V15 and later run on them too; V15/V16 are written to be safe on a Hibernate-built schema.
    - `V16__align_schema_with_entities.sql` creates the tables and columns that only Hibernate ever created (`activity_logs`, `system_notifications`, three `users` columns), adds `APPROVED`/`REJECTED` to `complaints.status`, and widens upload columns from 255-byte `TINYBLOB` to `LONGBLOB`.
+   - `V17__extend_activity_logs.sql`: extends `activity_logs` (nullable `user_id`, actor snapshot, outcome, target, request columns, indexes). Entries are append-only: no API edits or deletes them.
+   - `V18__setup_code_attempts.sql`: adds `users.email_verification_attempts` and clears pending setup codes. Email verification codes are 6-digit, BCrypt-hashed, with a 15-minute expiry and 5 maximum attempts before lockout.
    - `MySqlMigrationIntegrationTests` (opt-in via `-Dmysql.it.url`) boots the app against throwaway MySQL databases to prove fresh and existing databases migrate and pass `validate`.
 7. **Hibernate Validation & Centralized CORS:**
    - `spring.jpa.hibernate.ddl-auto=validate` replaces `update`. Flyway is the sole schema authority.
@@ -92,8 +94,24 @@ All authorization is enforced on the backend at the service/API level; hiding UI
    - Every state-changing endpoint carries `@AuditedAction(action, module, summary, target)` or `@AuditExempt(reason)`; `AuditCoverageTests` fails the build if a new POST/PUT/PATCH/DELETE endpoint has neither.
    - `AuditInterceptor` records each audited call after it completes, including FAILED and DENIED attempts: actor (with a name/email/role snapshot), action, module, outcome, target (resolved to a readable label before the action, so deletes keep it), description, method, path and socket IP. Only an allowlist of query parameters is ever logged; passwords, tokens and OTPs never are.
    - Ledger services keep writing their own entries inside the business transaction (audit and money stay atomic); the interceptor skips a request whose entry was committed and writes a FAILED entry when the operation rolled back. Idempotent payment replays are logged as `RECORD_PAYMENT_REPLAY`, never as a second payment.
-   - `V17` extends `activity_logs` (nullable `user_id`, actor snapshot, outcome, target, request columns, indexes). Entries are append-only: no API edits or deletes them.
    - `GET /api/system-logs` (Master Admin only) supports search, module/outcome/role/date filters and server-side paging; `/export` downloads the filtered set as CSV (formula-injection safe, itself audited). The old `/api/activity-logs` endpoint, which returned raw entities to admins, was removed; the admin sidebar's "Logs" page is replaced by **System Logs**, shown to Master Admins only.
+9. **User Management & Password Lifecycle:**
+   - `POST /api/users`: Admin creates residents; Master Admin may create admins. If password is left blank, a secure one-time temporary password is generated and returned for immediate copy.
+   - `POST /api/users/{id}/reset-password`: Admins/Master Admins issue a new temporary password for a user, invalidating prior credentials and tokens.
+   - Reactivating a never-onboarded user automatically issues a new temporary password.
+   - Tokens accepted strictly in the `Authorization` header (`Bearer <token>`); tokens passed via query parameters or URLs are rejected.
+10. **In-App Notification Architecture:**
+    - Real-time event notifications wired to `SystemNotificationService` for key lifecycle events:
+      - Resident submits payment proof -> all active admins notified.
+      - Admin approves payment submission -> resident notified with receipt details.
+      - Admin rejects payment submission -> resident notified with rejection reason.
+      - Admin responds to or updates helpdesk status -> resident notified.
+      - Master Admin posts an announcement -> broadcast notification to all users.
+11. **API Cleanups & Removed Endpoints:**
+    - Removed `POST /api/transactions` (preventing raw non-atomic ledger writes; all ledger entries require standard payment recording or approval).
+    - Removed `GET /api/activity-logs` (replaced by audited `GET /api/system-logs`).
+    - Removed dead frontend references to `POST /api/users/register`.
+
 
 ## Roadmap Status
 
