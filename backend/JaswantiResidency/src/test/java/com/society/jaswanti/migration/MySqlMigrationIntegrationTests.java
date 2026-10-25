@@ -155,7 +155,7 @@ class MySqlMigrationIntegrationTests {
                 "--BOOTSTRAP_MASTER_ADMIN_NAME=IT Master",
                 "--BOOTSTRAP_MASTER_ADMIN_PASSWORD=ItMasterPass123");
 
-        assertThat(appliedVersions()).startsWith("1", "1.1", "2").endsWith("15", "16", "17", "18");
+        assertThat(appliedVersions()).startsWith("1", "1.1", "2").endsWith("15", "16", "17", "18", "19");
 
         // No account is usable with a committed default credential, and no seeded row was deleted
         assertThat(activeAccountsWithDefaultCredentials()).isZero();
@@ -180,12 +180,17 @@ class MySqlMigrationIntegrationTests {
         assertThat(columnType("resident_payment_submissions", "screenshot_data")).isEqualTo("longblob");
         assertThat(columnType("complaints", "status")).contains("'APPROVED'").contains("'REJECTED'");
         assertThat(columnType("users", "pending_email")).isEqualTo("varchar(255)");
+        // V19 leaves fresh databases' VARCHAR columns alone
+        assertThat(columnType("maintenance_bills", "charge_type")).isEqualTo("varchar(32)");
     }
 
     @Test
     @DisplayName("Existing Hibernate-built database: baselined at 14, V15 and V16 run, seeded defaults are retired")
     void existingHibernateDatabase() throws Exception {
         loadLegacyHibernateSchema();
+        // Reproduce enum columns frozen by an early Hibernate run (as found on the real dev database)
+        jdbc.execute("ALTER TABLE maintenance_bills MODIFY COLUMN charge_type ENUM('MAINTENANCE','PENALTY','SINKING_FUND','SPECIAL_ASSESSMENT') NOT NULL");
+        jdbc.execute("ALTER TABLE users MODIFY COLUMN role ENUM('ADMIN','RESIDENT') NOT NULL");
         insertUserWithTokenVersion("admin@jaswanti.com", ADMIN_HASH, false);
         jdbc.update("UPDATE users SET role = 'ADMIN', email_verified = 1 WHERE email = 'admin@jaswanti.com'");
         insertUserWithTokenVersion("resident602@jaswanti.com", RESIDENT_602_HASH, true);
@@ -196,7 +201,7 @@ class MySqlMigrationIntegrationTests {
 
         startApp();
 
-        assertThat(appliedVersions()).containsExactly("14", "15", "16", "17", "18");
+        assertThat(appliedVersions()).containsExactly("14", "15", "16", "17", "18", "19");
 
         assertThat(user("admin@jaswanti.com")).containsEntry("status", "INACTIVE").containsEntry("token_version", 1);
         assertThat(user("resident602@jaswanti.com")).containsEntry("status", "INACTIVE").containsEntry("token_version", 1);
@@ -215,6 +220,11 @@ class MySqlMigrationIntegrationTests {
         assertThat(jdbc.queryForObject("SELECT is_nullable FROM information_schema.columns WHERE table_schema = DATABASE() " +
                 "AND table_name = 'activity_logs' AND column_name = 'user_id'", String.class)).isEqualTo("YES");
         assertThat(columnType("activity_logs", "outcome")).isEqualTo("varchar(16)");
+        // V19: frozen enum columns are widened to the current Java enums (NOC bills, Master Admin role)
+        assertThat(columnType("maintenance_bills", "charge_type")).contains("'NOC'");
+        assertThat(columnType("users", "role")).contains("'MASTER_ADMIN'");
+        assertThat(jdbc.queryForObject("SELECT is_nullable FROM information_schema.columns WHERE table_schema = DATABASE() "
+                + "AND table_name = 'users' AND column_name = 'role'", String.class)).isEqualTo("NO");
         // V18: setup-code attempt counter exists on a Hibernate-built schema too
         assertThat(columnType("users", "email_verification_attempts")).isEqualTo("int");
     }

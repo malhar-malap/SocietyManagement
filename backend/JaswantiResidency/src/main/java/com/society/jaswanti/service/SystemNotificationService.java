@@ -4,7 +4,14 @@ import com.society.jaswanti.dto.SystemNotificationDto;
 import com.society.jaswanti.entity.SystemNotification;
 import com.society.jaswanti.entity.User;
 import com.society.jaswanti.repository.SystemNotificationRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,20 +20,53 @@ import java.util.stream.Collectors;
 @Service
 public class SystemNotificationService {
 
-    private final SystemNotificationRepository notificationRepository;
+    private static final Logger logger = LoggerFactory.getLogger(SystemNotificationService.class);
 
-    public SystemNotificationService(SystemNotificationRepository notificationRepository) {
+    private final SystemNotificationRepository notificationRepository;
+    private final TransactionTemplate separateTransaction;
+
+    public SystemNotificationService(SystemNotificationRepository notificationRepository,
+                                     PlatformTransactionManager transactionManager) {
         this.notificationRepository = notificationRepository;
+        this.separateTransaction = new TransactionTemplate(transactionManager);
+        this.separateTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     public void createNotification(User user, String title, String message, String link) {
-        SystemNotification notification = new SystemNotification(user, title, message, link);
-        notificationRepository.save(notification);
+        afterCommit(() -> notificationRepository.save(new SystemNotification(user, title, message, link)));
     }
 
     public void createBroadcast(String title, String message, String link) {
-        SystemNotification notification = new SystemNotification(null, title, message, link);
-        notificationRepository.save(notification);
+        afterCommit(() -> notificationRepository.save(new SystemNotification(null, title, message, link)));
+    }
+
+    /**
+     * Notifications are a side effect of a business action (approving a payment, answering a complaint), so they
+     * are written only after that action's transaction has committed, in a transaction of their own:
+     * - a notification is never sent for an action that rolled back, and
+     * - a failing notification can never roll back the action. Saving inside the caller's transaction would mark it
+     *   rollback-only on failure even if the caller caught the exception, undoing e.g. an approved payment.
+     * Failures are logged and swallowed. Outside a transaction the notification is written immediately.
+     */
+    private void afterCommit(Runnable write) {
+        Runnable safeWrite = () -> {
+            try {
+                separateTransaction.executeWithoutResult(status -> write.run());
+            } catch (RuntimeException e) {
+                logger.warn("Could not create notification: {}", e.getMessage());
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()
+                && TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    safeWrite.run();
+                }
+            });
+        } else {
+            safeWrite.run();
+        }
     }
 
     public List<SystemNotificationDto> getNotificationsForUser(Long userId) {
