@@ -191,22 +191,6 @@
     margin-bottom: 2rem;
 }
 
-.remember-me {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.85rem;
-    color: var(--text-secondary-light);
-    cursor: pointer;
-}
-
-.custom-checkbox {
-    width: 16px;
-    height: 16px;
-    border-radius: 4px;
-    accent-color: var(--primary-color);
-}
-
 .forgot-link {
     font-size: 0.85rem;
     color: var(--primary-color);
@@ -226,12 +210,6 @@
 
 .full-width {
     width: 100%;
-}
-
-.version-info {
-    text-align: center;
-    font-size: 0.75rem;
-    color: #94A3B8;
 }
 
 .error-banner {

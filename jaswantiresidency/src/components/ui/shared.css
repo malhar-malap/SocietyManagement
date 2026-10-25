@@ -21,7 +21,15 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 1rem;
     margin-bottom: 2rem;
+}
+
+.header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
 }
 
 .breadcrumbs {
@@ -416,4 +424,20 @@
     margin-top: 2.5rem;
     padding-top: 1.5rem;
     border-top: 1px solid var(--border-light);
+}
+
+@media (max-width: 600px) {
+    .premium-modal-content {
+        width: calc(100vw - 2rem);
+        max-width: calc(100vw - 2rem) !important;
+        max-height: calc(100vh - 2rem);
+        overflow-y: auto;
+    }
+    .page-header {
+        align-items: flex-start;
+        margin-bottom: 1.25rem;
+    }
+    .header-actions > * {
+        flex: 1 1 auto;
+    }
 }
