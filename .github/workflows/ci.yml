@@ -61,6 +61,10 @@ jobs:
           cache: npm
           cache-dependency-path: jaswantiresidency/package-lock.json
       - run: npm ci
+      - name: Unit tests
+        run: npm test -- --watchAll=false
+        env:
+          CI: 'true'
       - name: Build (warnings fail the build)
         run: npm run build
         env:
