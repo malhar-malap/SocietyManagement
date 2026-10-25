@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.society.jaswanti.dto.*;
 import com.society.jaswanti.entity.*;
 import com.society.jaswanti.repository.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,8 @@ import java.util.stream.Collectors;
 @Service
 public class PaymentSubmissionService {
 
+    private static final Logger logger = LoggerFactory.getLogger(PaymentSubmissionService.class);
+
     private final ResidentPaymentSubmissionRepository submissionRepository;
     private final RoomRepository roomRepository;
     private final RoomResidentRepository roomResidentRepository;
@@ -33,6 +37,7 @@ public class PaymentSubmissionService {
     private final PaymentRecordingService paymentRecordingService;
     private final ActivityLogService activityLogService;
     private final FileValidationService fileValidationService;
+    private final SystemNotificationService notificationService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public PaymentSubmissionService(ResidentPaymentSubmissionRepository submissionRepository,
@@ -43,7 +48,8 @@ public class PaymentSubmissionService {
                                     UserRepository userRepository,
                                     PaymentRecordingService paymentRecordingService,
                                     ActivityLogService activityLogService,
-                                    FileValidationService fileValidationService) {
+                                    FileValidationService fileValidationService,
+                                    SystemNotificationService notificationService) {
         this.submissionRepository = submissionRepository;
         this.roomRepository = roomRepository;
         this.roomResidentRepository = roomResidentRepository;
@@ -53,6 +59,7 @@ public class PaymentSubmissionService {
         this.paymentRecordingService = paymentRecordingService;
         this.activityLogService = activityLogService;
         this.fileValidationService = fileValidationService;
+        this.notificationService = notificationService;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -110,6 +117,22 @@ public class PaymentSubmissionService {
                 String.format("Resident %s submitted payment of ₹%s for Room %s (Mode: %s, Ref: %s)",
                         resident.getName(), normalizedAmount.toPlainString(), room.getRoomNumber(),
                         submission.getPaymentMode(), submission.getReferenceNumber()));
+
+        try {
+            List<User> activeAdmins = userRepository.findAll().stream()
+                    .filter(u -> (u.getRole() == Role.ADMIN || u.getRole() == Role.MASTER_ADMIN)
+                            && u.isActive()
+                            && u.getStatus() == UserStatus.ACTIVE)
+                    .toList();
+            String title = "New payment proof";
+            String message = String.format("%s submitted ₹%s (%s) for review.",
+                    room.getRoomNumber(), normalizedAmount.toPlainString(), submission.getPaymentMode());
+            for (User adminUser : activeAdmins) {
+                notificationService.createNotification(adminUser, title, message, "/admin/billing");
+            }
+        } catch (RuntimeException e) {
+            logger.warn("Could not create notification for payment submission: {}", e.getMessage());
+        }
 
         return toDto(submission);
     }
@@ -314,6 +337,30 @@ public class PaymentSubmissionService {
         } else if (lastReceiptNumber != null) {
             resDto.setReceiptNumber(lastReceiptNumber);
         }
+
+        if (submission.getSubmittedByUser() != null) {
+            try {
+                String amountStr = submission.getAmount() != null
+                        ? submission.getAmount().setScale(2, RoundingMode.HALF_UP).toPlainString()
+                        : "0.00";
+                String roomNum = submission.getRoom() != null ? submission.getRoom().getRoomNumber() : "";
+                StringBuilder msg = new StringBuilder();
+                msg.append(String.format("Your payment of ₹%s for room %s was approved.", amountStr, roomNum));
+                String receiptNo = resDto.getReceiptNumber();
+                if (receiptNo != null && !receiptNo.isBlank()) {
+                    msg.append(" Receipt ").append(receiptNo.trim()).append(".");
+                }
+                notificationService.createNotification(
+                        submission.getSubmittedByUser(),
+                        "Payment approved",
+                        msg.toString(),
+                        "/resident/invoices"
+                );
+            } catch (RuntimeException e) {
+                logger.warn("Could not create approval notification: {}", e.getMessage());
+            }
+        }
+
         return resDto;
     }
 
@@ -341,6 +388,26 @@ public class PaymentSubmissionService {
         activityLogService.logActivity(admin, "REJECT_PAYMENT_SUBMISSION", "LEDGER",
                 String.format("Rejected payment submission #%d for Room %s. Remarks: %s",
                         submission.getId(), submission.getRoom().getRoomNumber(), request.getAdminRemarks().trim()));
+
+        if (submission.getSubmittedByUser() != null) {
+            try {
+                String amountStr = submission.getAmount() != null
+                        ? submission.getAmount().setScale(2, RoundingMode.HALF_UP).toPlainString()
+                        : "0.00";
+                String roomNum = submission.getRoom() != null ? submission.getRoom().getRoomNumber() : "";
+                String reason = request.getReason() != null ? request.getReason().trim() : "";
+                String msg = String.format("Your payment proof of ₹%s for room %s was rejected: %s",
+                        amountStr, roomNum, reason);
+                notificationService.createNotification(
+                        submission.getSubmittedByUser(),
+                        "Payment proof rejected",
+                        msg,
+                        "/resident/invoices"
+                );
+            } catch (RuntimeException e) {
+                logger.warn("Could not create rejection notification: {}", e.getMessage());
+            }
+        }
 
         return toDto(submission);
     }

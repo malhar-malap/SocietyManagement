@@ -59,6 +59,9 @@ class QueriesSuggestionsPermissionsAndRoleTests {
     private ActivityLogRepository activityLogRepository;
 
     @Autowired
+    private com.society.jaswanti.repository.SystemNotificationRepository notificationRepository;
+
+    @Autowired
     private JwtService jwtService;
 
     private User masterAdmin;
@@ -73,6 +76,7 @@ class QueriesSuggestionsPermissionsAndRoleTests {
 
     @BeforeEach
     void setUp() {
+        notificationRepository.deleteAll();
         announcementRepository.deleteAll();
         complaintRepository.deleteAll();
         submissionRepository.deleteAll();

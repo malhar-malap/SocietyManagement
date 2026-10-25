@@ -57,6 +57,9 @@ class ResidentPaymentSubmissionTests {
     private ActivityLogRepository activityLogRepository;
 
     @Autowired
+    private SystemNotificationRepository notificationRepository;
+
+    @Autowired
     private JwtService jwtService;
 
     private User residentUser;
@@ -73,6 +76,7 @@ class ResidentPaymentSubmissionTests {
 
     @BeforeEach
     void setUp() {
+        notificationRepository.deleteAll();
         submissionRepository.deleteAll();
         transactionRepository.deleteAll();
         paymentAttemptRepository.deleteAll();

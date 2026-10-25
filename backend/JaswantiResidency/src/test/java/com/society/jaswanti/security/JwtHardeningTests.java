@@ -36,6 +36,9 @@ class JwtHardeningTests {
     private UserRepository userRepository;
 
     @Autowired
+    private com.society.jaswanti.repository.SystemNotificationRepository notificationRepository;
+
+    @Autowired
     private JwtService jwtService;
 
     @Autowired
@@ -52,6 +55,7 @@ class JwtHardeningTests {
 
     @BeforeEach
     void setUp() {
+        notificationRepository.deleteAll();
         userRepository.deleteAll();
 
         residentUser = new User();
@@ -77,6 +81,7 @@ class JwtHardeningTests {
 
     @AfterEach
     void tearDown() {
+        notificationRepository.deleteAll();
         userRepository.deleteAll();
     }
 

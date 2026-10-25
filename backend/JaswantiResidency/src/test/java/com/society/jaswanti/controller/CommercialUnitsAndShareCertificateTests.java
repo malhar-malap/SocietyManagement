@@ -53,6 +53,9 @@ class CommercialUnitsAndShareCertificateTests {
     private ActivityLogRepository activityLogRepository;
 
     @Autowired
+    private com.society.jaswanti.repository.SystemNotificationRepository notificationRepository;
+
+    @Autowired
     private JwtService jwtService;
 
     private User masterAdmin;
@@ -69,6 +72,7 @@ class CommercialUnitsAndShareCertificateTests {
 
     @BeforeEach
     void setUp() {
+        notificationRepository.deleteAll();
         submissionRepository.deleteAll();
         transactionRepository.deleteAll();
         paymentAttemptRepository.deleteAll();

@@ -61,6 +61,9 @@ class ExcelImportExportAndReceiptTests {
     private ActivityLogRepository activityLogRepository;
 
     @Autowired
+    private com.society.jaswanti.repository.SystemNotificationRepository notificationRepository;
+
+    @Autowired
     private JwtService jwtService;
 
     private User admin;
@@ -74,6 +77,7 @@ class ExcelImportExportAndReceiptTests {
 
     @BeforeEach
     void setUp() {
+        notificationRepository.deleteAll();
         submissionRepository.deleteAll();
         transactionRepository.deleteAll();
         paymentAttemptRepository.deleteAll();
