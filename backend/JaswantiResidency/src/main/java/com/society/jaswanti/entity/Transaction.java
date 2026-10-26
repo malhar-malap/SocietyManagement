@@ -30,7 +30,7 @@ public class Transaction {
     private String category = "MAINTENANCE";
 
     @Column(name = "approved_at")
-    private LocalDateTime approvedAt = LocalDateTime.now();
+    private LocalDateTime approvedAt = toDbPrecision(LocalDateTime.now());
 
     @Column(name = "gateway_payment_id")
     private String gatewayPaymentId;
@@ -64,7 +64,7 @@ public class Transaction {
     private String status; // SUCCESS, FAILED, PENDING
 
     @Column(nullable = false)
-    private LocalDateTime timestamp = LocalDateTime.now();
+    private LocalDateTime timestamp = toDbPrecision(LocalDateTime.now());
 
     // Constructors
     public Transaction() {}
@@ -109,7 +109,15 @@ public class Transaction {
     public void setStatus(String status) { this.status = status; }
 
     public LocalDateTime getTimestamp() { return timestamp; }
-    public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
+    public void setTimestamp(LocalDateTime timestamp) { this.timestamp = toDbPrecision(timestamp); }
+
+    /**
+     * The database stores datetime(6), i.e. microseconds, but Linux clocks give nanoseconds. Without truncating, the
+     * response to a payment (in-memory value) differed from an idempotent replay of it (value read back from the DB).
+     */
+    static LocalDateTime toDbPrecision(LocalDateTime value) {
+        return value != null ? value.truncatedTo(java.time.temporal.ChronoUnit.MICROS) : null;
+    }
 
     public User getRecordedBy() { return recordedBy; }
     public void setRecordedBy(User recordedBy) { this.recordedBy = recordedBy; }
@@ -139,5 +147,5 @@ public class Transaction {
     public void setCategory(String category) { this.category = category; }
 
     public LocalDateTime getApprovedAt() { return approvedAt; }
-    public void setApprovedAt(LocalDateTime approvedAt) { this.approvedAt = approvedAt; }
+    public void setApprovedAt(LocalDateTime approvedAt) { this.approvedAt = toDbPrecision(approvedAt); }
 }
