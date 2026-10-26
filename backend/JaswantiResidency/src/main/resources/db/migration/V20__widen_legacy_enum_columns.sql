@@ -1,4 +1,4 @@
--- V19: Widen enum columns on databases that Hibernate built before Flyway was wired up.
+-- V20: Widen enum columns on databases that Hibernate built before Flyway was wired up.
 --
 -- Hibernate ddl-auto=update created ENUM columns with the Java enum values that existed at the time and never widens
 -- them afterwards. On such databases newer values are rejected, e.g. maintenance_bills.charge_type lacks 'NOC'

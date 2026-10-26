@@ -12,7 +12,7 @@ This is not a generic property-management suite. It is tailored to the registere
 
 - Frontend: React 19 with React Router, Axios, TailwindCSS, and Lucide React (`jaswantiresidency/`). Unit tests run via `npm test -- --watchAll=false` (2 suites, 5 tests).
 - Backend: Java 17 / 21, Spring Boot 4.1, Spring Security, JWT, JPA, Flyway (`backend/JaswantiResidency/`).
-- Database: MySQL with Flyway migration versioning (`V1` through `V19`). Hibernate set to `ddl-auto=validate`.
+- Database: MySQL with Flyway migration versioning (`V1` through `V20`). Hibernate set to `ddl-auto=validate`.
 - Email: SMTP (Gmail App Password) for one-time verification/recovery codes and payment receipt delivery.
 - Payments: 100% screenshot-based offline payment submissions with admin approval and allocation to society bank accounts. **Razorpay has been completely removed** from backend and frontend.
 - Test Suite: **248 automated backend tests** (`./mvnw test`): 245 run on H2 with 0 failures and 0 errors, and 3 MySQL integration tests are skipped unless `-Dmysql.it.url` points at a disposable MySQL server (all 248 pass when it does). CI (`.github/workflows/ci.yml`) runs both frontend unit tests and backend tests against a MySQL service and fails if any are skipped.
@@ -85,7 +85,8 @@ All authorization is enforced on the backend at the service/API level; hiding UI
    - `V16__align_schema_with_entities.sql` creates the tables and columns that only Hibernate ever created (`activity_logs`, `system_notifications`, three `users` columns), adds `APPROVED`/`REJECTED` to `complaints.status`, and widens upload columns from 255-byte `TINYBLOB` to `LONGBLOB`.
    - `V17__extend_activity_logs.sql`: extends `activity_logs` (nullable `user_id`, actor snapshot, outcome, target, request columns, indexes). Entries are append-only: no API edits or deletes them.
    - `V18__harden_setup_verification_code.sql`: adds `users.email_verification_attempts` and clears pending setup codes. Email verification codes are 6-digit, BCrypt-hashed, with a 15-minute expiry and 5 maximum attempts before lockout.
-   - `V19__widen_legacy_enum_columns.sql`: on databases Hibernate built before Flyway, ENUM columns were frozen at their original values (e.g. `maintenance_bills.charge_type` without `NOC`, `users.role` without `MASTER_ADMIN`). V19 widens only columns that are really ENUM to the current Java enum values, keeping NULL/NOT NULL; fresh databases are untouched.
+   - `V19__align_users_role_enum.sql`: adds `MASTER_ADMIN` to `users.role` on databases where V4 was skipped by the baseline (applied to the dev database during smoke testing; kept so every database shares one history).
+   - `V20__widen_legacy_enum_columns.sql`: on databases Hibernate built before Flyway, ENUM columns were frozen at their original values (e.g. `maintenance_bills.charge_type` without `NOC`, `users.role` without `MASTER_ADMIN`). V19 widens only columns that are really ENUM to the current Java enum values, keeping NULL/NOT NULL; fresh databases are untouched.
    - `MySqlMigrationIntegrationTests` (opt-in via `-Dmysql.it.url`) boots the app against throwaway MySQL databases to prove fresh and existing databases migrate and pass `validate`.
 7. **Hibernate Validation & Centralized CORS:**
    - `spring.jpa.hibernate.ddl-auto=validate` replaces `update`. Flyway is the sole schema authority.
