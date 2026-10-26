@@ -2,22 +2,26 @@ import React from 'react';
 import { LayoutDashboard, Receipt, MessageSquare, UserCircle } from 'lucide-react';
 import PortalLayout from './PortalLayout';
 
-const NAV_ITEMS = [
-    { to: '/resident/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/resident/invoices', label: 'Bills & Invoices', icon: Receipt },
-    { to: '/resident/complaints', label: 'Helpdesk', icon: MessageSquare },
-    { to: '/resident/profile', label: 'Profile', icon: UserCircle },
+const NAV_GROUPS = [
+    {
+        items: [
+            { to: '/resident/dashboard', label: 'Home', icon: LayoutDashboard },
+            { to: '/resident/invoices', label: 'Bills & payments', icon: Receipt },
+            { to: '/resident/complaints', label: 'Helpdesk', icon: MessageSquare },
+            { to: '/resident/profile', label: 'My profile', icon: UserCircle },
+        ],
+    },
 ];
 
 const TITLES = {
-    '/resident/dashboard': 'Dashboard',
-    '/resident/invoices': 'Bills & Invoices',
+    '/resident/dashboard': 'Home',
+    '/resident/invoices': 'Bills & payments',
     '/resident/complaints': 'Helpdesk',
-    '/resident/profile': 'My Profile',
+    '/resident/profile': 'My profile',
 };
 
 const ResidentLayout = () => (
-    <PortalLayout portalName="Resident Portal" navItems={NAV_ITEMS} titles={TITLES} fallbackTitle="Resident Portal" />
+    <PortalLayout portalName="Resident portal" navGroups={NAV_GROUPS} titles={TITLES} fallbackTitle="Resident portal" profilePath="/resident/profile" />
 );
 
 export default ResidentLayout;

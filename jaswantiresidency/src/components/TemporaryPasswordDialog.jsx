@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
-import { KeyRound, Copy, Check } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Check, Copy, KeyRound } from 'lucide-react';
+import Modal from './ui/Modal';
+import Button from './ui/Button';
+import { Alert } from './ui/Feedback';
 
 /**
  * Shows a newly issued temporary password exactly once. It is not stored anywhere in the app afterwards, so the
@@ -7,7 +10,7 @@ import { KeyRound, Copy, Check } from 'lucide-react';
  */
 const TemporaryPasswordDialog = ({ info, onClose }) => {
     const [copied, setCopied] = useState(false);
-    if (!info) return null;
+    useEffect(() => { setCopied(false); }, [info]);
 
     const copy = async () => {
         try {
@@ -19,28 +22,28 @@ const TemporaryPasswordDialog = ({ info, onClose }) => {
     };
 
     return (
-        <div className="premium-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="temp-password-title">
-            <div className="premium-modal-content" style={{ maxWidth: '440px' }}>
-                <div className="premium-modal-header">
-                    <h3 id="temp-password-title" className="premium-modal-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <KeyRound size={20} aria-hidden="true" /> Temporary password
-                    </h3>
+        <Modal
+            isOpen={Boolean(info)}
+            onClose={onClose}
+            size="sm"
+            icon={KeyRound}
+            tone="success"
+            title="Temporary password ready"
+            description={info ? `Share it with ${info.name} privately.` : undefined}
+            footer={<Button onClick={onClose}>Done</Button>}
+        >
+            {info && (
+                <div className="stack">
+                    <div className="secret-box">
+                        <code>{info.password}</code>
+                        <Button variant={copied ? 'soft' : 'secondary'} size="sm" icon={copied ? Check : Copy} onClick={copy} aria-label="Copy temporary password" data-autofocus>
+                            {copied ? 'Copied' : 'Copy'}
+                        </Button>
+                    </div>
+                    <Alert tone="warning">This is shown only once. They will choose their own password the first time they sign in.</Alert>
                 </div>
-                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary-light)', margin: '0.5rem 0 1rem' }}>
-                    Share this with <strong>{info.name}</strong> privately. It is shown only once, and they will be asked to
-                    set their own password when they first sign in.
-                </p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--background-light)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem' }}>
-                    <code style={{ flex: 1, fontSize: '1.15rem', letterSpacing: '0.08em' }}>{info.password}</code>
-                    <button type="button" className="custom-btn btn-secondary" onClick={copy} aria-label="Copy temporary password">
-                        {copied ? <Check size={16} /> : <Copy size={16} />} {copied ? 'Copied' : 'Copy'}
-                    </button>
-                </div>
-                <div className="premium-actions" style={{ marginTop: '1.25rem' }}>
-                    <button type="button" className="custom-btn primary" onClick={onClose}>Done</button>
-                </div>
-            </div>
-        </div>
+            )}
+        </Modal>
     );
 };
 

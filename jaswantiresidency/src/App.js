@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import { HibiscusMark, PageLoader } from './components/ui/Hibiscus';
 
 // Layouts
 import ResidentLayout from './layouts/ResidentLayout';
@@ -15,20 +16,20 @@ import ForgotPassword from './pages/ForgotPassword';
 import SetupProfile from './pages/SetupProfile';
 
 // Resident Pages
-import ResidentDashboard from './pages/ResidentDashboard';
-import ResidentInvoices from './pages/ResidentInvoices';
-import ResidentComplaints from './pages/ResidentComplaints';
-import ResidentProfile from './pages/ResidentProfile';
+const ResidentDashboard = lazy(() => import('./pages/ResidentDashboard'));
+const ResidentInvoices = lazy(() => import('./pages/ResidentInvoices'));
+const ResidentComplaints = lazy(() => import('./pages/ResidentComplaints'));
+const ResidentProfile = lazy(() => import('./pages/ResidentProfile'));
 
 // Admin Pages
-import AdminDashboard from './pages/AdminDashboard';
-import AdminResidents from './pages/AdminResidents';
-import AdminRooms from './pages/AdminRooms';
-import AdminBilling from './pages/AdminBilling';
-import AdminTransactions from './pages/AdminTransactions';
-import AdminComplaints from './pages/AdminComplaints';
-import AdminAnnouncements from './pages/AdminAnnouncements';
-import SystemLogs from './pages/SystemLogs';
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const AdminResidents = lazy(() => import('./pages/AdminResidents'));
+const AdminRooms = lazy(() => import('./pages/AdminRooms'));
+const AdminBilling = lazy(() => import('./pages/AdminBilling'));
+const AdminTransactions = lazy(() => import('./pages/AdminTransactions'));
+const AdminComplaints = lazy(() => import('./pages/AdminComplaints'));
+const AdminAnnouncements = lazy(() => import('./pages/AdminAnnouncements'));
+const SystemLogs = lazy(() => import('./pages/SystemLogs'));
 
 const RootRedirect = () => {
     const { user, loading } = useAuth();
@@ -41,20 +42,20 @@ const RootRedirect = () => {
     return <Navigate to="/resident/dashboard" replace />;
 };
 
-const ErrorPage = ({ code, message }) => {
+const ErrorPage = ({ code, title, message }) => {
     const { user } = useAuth();
     const homeTarget = !user
-        ? "/login"
-        : (user.role === 'ADMIN' || user.role === 'MASTER_ADMIN' ? "/admin/dashboard" : "/resident/dashboard");
+        ? '/login'
+        : (user.role === 'ADMIN' || user.role === 'MASTER_ADMIN' ? '/admin/dashboard' : '/resident/dashboard');
 
     return (
-        <div style={{ padding: '4rem 2rem', textAlign: 'center' }}>
-            <h1 style={{ fontSize: '4rem', color: 'var(--primary-color)' }}>{code}</h1>
-            <h2>{message}</h2>
-            <Link to={homeTarget} style={{ color: 'var(--primary-color)', marginTop: '2rem', display: 'inline-block', fontWeight: 600 }}>
-                Return to Dashboard
-            </Link>
-        </div>
+        <main className="error-page">
+            <HibiscusMark size={56} />
+            <p className="error-code">{code}</p>
+            <h1>{title}</h1>
+            <p className="text-muted">{message}</p>
+            <Link to={homeTarget} className="btn btn-primary btn-lg">{user ? 'Back to my dashboard' : 'Go to sign in'}</Link>
+        </main>
     );
 };
 
@@ -62,6 +63,7 @@ function App() {
     return (
         <AuthProvider>
             <BrowserRouter>
+                <Suspense fallback={<PageLoader label="Loading" />}>
                 <Routes>
                     {/* Public Routes */}
                     <Route path="/" element={<RootRedirect />} />
@@ -96,11 +98,12 @@ function App() {
                     </Route>
 
                     {/* Error Pages */}
-                    <Route path="/403" element={<ErrorPage code="403" message="Access Forbidden" />} />
-                    <Route path="*" element={<ErrorPage code="404" message="Page Not Found" />} />
+                    <Route path="/403" element={<ErrorPage code="403" title="This page is not for your account" message="You are signed in, but your role does not have access here." />} />
+                    <Route path="*" element={<ErrorPage code="404" title="We could not find that page" message="The link may be old, or the page may have moved." />} />
                 </Routes>
+                </Suspense>
             </BrowserRouter>
-            <ToastContainer position="top-right" autoClose={4000} newestOnTop pauseOnFocusLoss={false} />
+            <ToastContainer position="top-right" autoClose={4000} newestOnTop pauseOnFocusLoss={false} hideProgressBar closeOnClick theme="light" />
         </AuthProvider>
     );
 }

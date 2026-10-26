@@ -1,13 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import PageHeader from '../components/ui/PageHeader';
 import DataTable from '../components/ui/DataTable';
 import StatusChip from '../components/ui/StatusChip';
 import Button from '../components/ui/Button';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
-import { Plus, Edit, Trash2, Ban, CheckCircle2, ShieldAlert, CheckCircle, KeyRound } from 'lucide-react';
+import Menu from '../components/ui/Menu';
+import { Tabs } from '../components/ui/Feedback';
+import { Ban, CheckCircle2, KeyRound, Pencil, ShieldCheck, ShieldPlus, UserMinus, UserPlus, UserRound, Users } from 'lucide-react';
+import { notifyError, notifySuccess } from '../utils/notify';
+import { initials } from '../layouts/PortalLayout';
 import TemporaryPasswordDialog from '../components/TemporaryPasswordDialog';
 import ResidentModal from '../components/ResidentModal';
 import { useAuth } from '../context/AuthContext';
+
+const ROLE_LABEL = { RESIDENT: 'Resident', ADMIN: 'Admin', MASTER_ADMIN: 'Master admin' };
+const ROLE_TONE = { RESIDENT: 'neutral', ADMIN: 'info', MASTER_ADMIN: 'brand' };
 
 const AdminResidents = () => {
     const { user } = useAuth();
@@ -19,8 +26,10 @@ const AdminResidents = () => {
     const [residents, setResidents] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    const [errorMessage, setErrorMessage] = useState('');
-    const [successMessage, setSuccessMessage] = useState('');
+    const [tab, setTab] = useState('all');
+    // Feedback is shown as toasts; these keep the old call sites readable
+    const setErrorMessage = (m) => { if (m) notifyError(m); };
+    const setSuccessMessage = (m) => { if (m) notifySuccess(m); };
     const [temporaryPassword, setTemporaryPassword] = useState(null);
 
     const [confirmDialog, setConfirmDialog] = useState({
@@ -39,7 +48,7 @@ const AdminResidents = () => {
             const data = await getResidents();
             setResidents(data);
         } catch (err) {
-            console.error("Failed to fetch residents", err);
+            notifyError('Could not load the user list. Please refresh the page.');
             setResidents([]);
         } finally {
             setIsLoading(false);
@@ -57,19 +66,18 @@ const AdminResidents = () => {
             const { addResident, updateResident } = await import('../api/adminApi');
             if (selectedResident) {
                 await updateResident(selectedResident.id, formData);
-                setSuccessMessage("Resident updated successfully.");
+                setSuccessMessage("Details updated");
             } else {
                 const created = await addResident(formData);
-                setSuccessMessage("Resident added successfully.");
+                setSuccessMessage(`${formData.name} added`);
                 if (created?.temporaryPassword) {
                     setTemporaryPassword({ name: created.fullName || formData.name, password: created.temporaryPassword });
                 }
             }
             await fetchResidents();
         } catch (err) {
-            console.error(err);
-            const msg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to save resident.";
-            setErrorMessage(msg);
+            // The dialog stays open and shows this, so nothing typed is lost
+            throw new Error(err.response?.data?.message || err.response?.data?.error || 'We could not save these details. Please try again.');
         }
     };
 
@@ -84,20 +92,19 @@ const AdminResidents = () => {
 
         setConfirmDialog({
             isOpen: true,
-            title: 'Change User Role',
-            message: `Are you sure you want to change the role of "${targetName}" from ${currentRole} to ${newRole}?`,
-            confirmText: 'Change Role',
+            title: 'Change role',
+            message: `${targetName} will change from ${ROLE_LABEL[currentRole] || currentRole} to ${ROLE_LABEL[newRole] || newRole}. Their access changes the next time they sign in.`,
+            confirmText: `Make ${ROLE_LABEL[newRole] || newRole}`,
             confirmVariant: newRole === 'MASTER_ADMIN' ? 'danger' : 'primary',
             onConfirm: async () => {
                 setIsProcessing(true);
                 try {
                     const { updateUserRole } = await import('../api/adminApi');
                     await updateUserRole(row.id, newRole);
-                    setSuccessMessage(`Role successfully updated to ${newRole} for "${targetName}".`);
+                    setSuccessMessage(`${targetName} is now ${ROLE_LABEL[newRole] || newRole}`);
                     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
                     await fetchResidents();
                 } catch (err) {
-                    console.error("Failed to update role", err);
                     const msg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to update user role.";
                     setErrorMessage(msg);
                     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -119,8 +126,8 @@ const AdminResidents = () => {
 
         setConfirmDialog({
             isOpen: true,
-            title: `${actionLabel} Account`,
-            message: `Are you sure you want to ${actionLabel.toLowerCase()} the account for "${targetName}"?`,
+            title: `${actionLabel} account`,
+            message: isReactivate ? `${targetName} will be able to sign in again.` : `${targetName} will be signed out and cannot sign in until you unblock them.`,
             confirmText: actionLabel,
             confirmVariant: isReactivate ? 'primary' : 'danger',
             onConfirm: async () => {
@@ -128,7 +135,7 @@ const AdminResidents = () => {
                 try {
                     const { updateResidentStatus } = await import('../api/adminApi');
                     const updated = await updateResidentStatus(row.id, newStatus);
-                    setSuccessMessage(`Account ${actionLabel.toLowerCase()}d successfully for "${targetName}".`);
+                    setSuccessMessage(isReactivate ? `${targetName} can sign in again` : `${targetName} is blocked`);
                     // Accounts that never finished first sign-in get a fresh temporary password on reactivation
                     if (updated?.temporaryPassword) {
                         setTemporaryPassword({ name: targetName, password: updated.temporaryPassword });
@@ -136,7 +143,6 @@ const AdminResidents = () => {
                     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
                     await fetchResidents();
                 } catch (err) {
-                    console.error("Failed to update status", err);
                     const msg = err.response?.data?.message || err.response?.data?.error || err.message || `Failed to ${actionLabel.toLowerCase()} account.`;
                     setErrorMessage(msg);
                     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -153,9 +159,9 @@ const AdminResidents = () => {
         const targetName = row.fullName || row.name || row.email;
         setConfirmDialog({
             isOpen: true,
-            title: 'Reset Password',
-            message: `Issue a new temporary password for "${targetName}"? Their current password stops working and they will be signed out everywhere.`,
-            confirmText: 'Reset Password',
+            title: 'Reset password',
+            message: `Issue a new temporary password for ${targetName}? Their current password stops working and they are signed out everywhere.`,
+            confirmText: 'Reset password',
             confirmVariant: 'danger',
             onConfirm: async () => {
                 setIsProcessing(true);
@@ -163,7 +169,7 @@ const AdminResidents = () => {
                     const { resetUserPassword } = await import('../api/adminApi');
                     const result = await resetUserPassword(row.id);
                     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-                    setSuccessMessage(`Temporary password issued for "${targetName}".`);
+                    
                     setTemporaryPassword({ name: targetName, password: result.temporaryPassword });
                 } catch (err) {
                     const msg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to reset password.";
@@ -185,8 +191,8 @@ const AdminResidents = () => {
 
         setConfirmDialog({
             isOpen: true,
-            title: 'Deactivate Account',
-            message: `Are you sure you want to deactivate "${targetName}"? The account will be marked inactive and the user will be unable to log in.`,
+            title: 'Deactivate account',
+            message: `${targetName} will no longer be able to sign in. Their bills and history are kept, and you can reactivate them later.`,
             confirmText: 'Deactivate',
             confirmVariant: 'danger',
             onConfirm: async () => {
@@ -194,11 +200,10 @@ const AdminResidents = () => {
                 try {
                     const { deleteResident } = await import('../api/adminApi');
                     await deleteResident(row.id);
-                    setSuccessMessage(`Account deactivated successfully for "${targetName}".`);
+                    setSuccessMessage(`${targetName} deactivated`);
                     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
                     await fetchResidents();
                 } catch (err) {
-                    console.error("Failed to deactivate user", err);
                     const msg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to deactivate account.";
                     setErrorMessage(msg);
                     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -209,245 +214,111 @@ const AdminResidents = () => {
         });
     };
 
-    const getRoleBadgeStyle = (role) => {
-        switch (role) {
-            case 'MASTER_ADMIN':
-                return {
-                    backgroundColor: '#f3e8ff',
-                    color: '#6b21a8',
-                    border: '1px solid #d8b4fe',
-                    padding: '0.2rem 0.55rem',
-                    borderRadius: '9999px',
-                    fontSize: '0.75rem',
-                    fontWeight: '600',
-                    display: 'inline-block'
-                };
-            case 'ADMIN':
-                return {
-                    backgroundColor: '#e0f2fe',
-                    color: '#0369a1',
-                    border: '1px solid #7dd3fc',
-                    padding: '0.2rem 0.55rem',
-                    borderRadius: '9999px',
-                    fontSize: '0.75rem',
-                    fontWeight: '600',
-                    display: 'inline-block'
-                };
-            default:
-                return {
-                    backgroundColor: '#f1f5f9',
-                    color: '#475569',
-                    border: '1px solid #cbd5e1',
-                    padding: '0.2rem 0.55rem',
-                    borderRadius: '9999px',
-                    fontSize: '0.75rem',
-                    fontWeight: '500',
-                    display: 'inline-block'
-                };
-        }
+    const counts = useMemo(() => ({
+        all: residents.length,
+        RESIDENT: residents.filter((r) => (r.role || 'RESIDENT') === 'RESIDENT').length,
+        staff: residents.filter((r) => r.role === 'ADMIN' || r.role === 'MASTER_ADMIN').length,
+        inactive: residents.filter((r) => r.active === false || r.status === 'BLOCKED').length,
+    }), [residents]);
+
+    const visible = useMemo(() => {
+        if (tab === 'RESIDENT') return residents.filter((r) => (r.role || 'RESIDENT') === 'RESIDENT');
+        if (tab === 'staff') return residents.filter((r) => r.role === 'ADMIN' || r.role === 'MASTER_ADMIN');
+        if (tab === 'inactive') return residents.filter((r) => r.active === false || r.status === 'BLOCKED');
+        return residents;
+    }, [residents, tab]);
+
+    const statusChip = (row) => {
+        if (row.active === false) return <StatusChip tone="neutral" label="Deactivated" />;
+        if (row.status === 'BLOCKED') return <StatusChip tone="danger" label="Blocked" />;
+        if (row.forcePasswordChange) return <StatusChip tone="warning" label="Invited" />;
+        return <StatusChip tone="success" label="Active" />;
+    };
+
+    const rowActions = (row) => {
+        const role = row.role || 'RESIDENT';
+        const isSelf = String(row.id) === String(user?.userId);
+        const canReset = (isMasterAdmin || role === 'RESIDENT') && !isSelf;
+        return [
+            { label: 'Edit details', icon: Pencil, onClick: () => { setSelectedResident(row); setIsResidentModalOpen(true); } },
+            { label: 'Reset password', icon: KeyRound, onClick: () => handleResetPasswordPrompt(row), hidden: !canReset },
+            ...(isMasterAdmin && !isSelf ? [
+                'separator',
+                { label: 'Make resident', icon: UserRound, onClick: () => handleRoleChangePrompt(row, 'RESIDENT'), hidden: role === 'RESIDENT' },
+                { label: 'Make admin', icon: ShieldCheck, onClick: () => handleRoleChangePrompt(row, 'ADMIN'), hidden: role === 'ADMIN' },
+                { label: 'Make master admin', icon: ShieldPlus, onClick: () => handleRoleChangePrompt(row, 'MASTER_ADMIN'), hidden: role === 'MASTER_ADMIN' },
+                'separator',
+                row.status === 'BLOCKED' || row.active === false
+                    ? { label: 'Reactivate', icon: CheckCircle2, onClick: () => handleStatusTogglePrompt(row, 'ACTIVE') }
+                    : { label: 'Block sign-in', icon: Ban, onClick: () => handleStatusTogglePrompt(row, 'BLOCKED') },
+                { label: 'Deactivate', icon: UserMinus, danger: true, onClick: () => handleDeactivatePrompt(row), hidden: row.active === false },
+            ] : []),
+        ];
     };
 
     const columns = [
-        { header: 'Room', accessor: 'roomNumber', render: (row) => row.roomNumber || '—' },
-        { header: 'Name', accessor: 'fullName', render: (row) => row.fullName || row.name || '—' },
-        { header: 'Email', accessor: 'email' },
-        { header: 'Phone', accessor: 'phoneNumber', render: (row) => row.phoneNumber || row.phone || '—' },
+        {
+            header: 'Name',
+            accessor: 'fullName',
+            render: (row) => (
+                <div className="row" style={{ '--gap': '0.7rem' }}>
+                    <span className="avatar avatar-sm" aria-hidden="true">{initials(row.fullName || row.name || row.email)}</span>
+                    <div style={{ minWidth: 0 }}>
+                        <div className="cell-primary">{row.fullName || row.name || '—'}</div>
+                        <div className="cell-sub">{row.email}</div>
+                    </div>
+                </div>
+            ),
+        },
+        { header: 'Flat', accessor: 'roomNumber', render: (row) => (row.roomNumber ? <span className="fw-600 num">{row.roomNumber}</span> : <span className="text-subtle">—</span>) },
+        { header: 'Phone', accessor: 'phoneNumber', render: (row) => <span className="num">{row.phoneNumber || row.phone || '—'}</span> },
         {
             header: 'Role',
             render: (row) => {
                 const role = row.role || 'RESIDENT';
-                const roleLabel = role === 'MASTER_ADMIN' ? 'Master Admin' : role === 'ADMIN' ? 'Admin' : 'Resident';
-
-                if (!isMasterAdmin) {
-                    return <span style={getRoleBadgeStyle(role)}>{roleLabel}</span>;
-                }
-
-                return (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <span style={getRoleBadgeStyle(role)}>{roleLabel}</span>
-                        <select
-                            value={role}
-                            disabled={isProcessing}
-                            onChange={(e) => handleRoleChangePrompt(row, e.target.value)}
-                            style={{
-                                padding: '0.2rem 0.4rem',
-                                fontSize: '0.75rem',
-                                borderRadius: '0.25rem',
-                                border: '1px solid #cbd5e1',
-                                backgroundColor: '#ffffff',
-                                cursor: 'pointer',
-                                color: '#1e293b'
-                            }}
-                            title="Change user role"
-                            aria-label={`Change role for ${row.fullName || row.email}`}
-                        >
-                            <option value="RESIDENT">Resident</option>
-                            <option value="ADMIN">Admin</option>
-                            <option value="MASTER_ADMIN">Master Admin</option>
-                        </select>
-                    </div>
-                );
-            }
+                return <span className={`chip chip-${ROLE_TONE[role]} no-dot`}>{ROLE_LABEL[role] || role}</span>;
+            },
         },
+        { header: 'Status', render: statusChip },
         {
-            header: 'Status',
-            render: (row) => {
-                if (row.active === false) {
-                    return <StatusChip status="Deactivated" />;
-                }
-                return <StatusChip status={row.status || 'Active'} />;
-            }
-        },
-        {
-            header: 'Actions',
+            header: <span className="visually-hidden">Actions</span>,
             render: (row) => (
-                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                    <Button
-                        variant="secondary"
-                        title="Edit details"
-                        style={{ padding: '0.4rem 0.6rem' }}
-                        onClick={() => { setSelectedResident(row); setIsResidentModalOpen(true); }}
-                    >
-                        <Edit size={16} />
-                    </Button>
-
-                    {/* Admins may reset residents; a Master Admin may reset anyone */}
-                    {(isMasterAdmin || (row.role || 'RESIDENT') === 'RESIDENT') && String(row.id) !== String(user?.userId) && (
-                        <Button
-                            variant="secondary"
-                            title="Reset password"
-                            aria-label="Reset password"
-                            style={{ padding: '0.4rem 0.6rem' }}
-                            onClick={() => handleResetPasswordPrompt(row)}
-                        >
-                            <KeyRound size={16} />
-                        </Button>
-                    )}
-
-                    {isMasterAdmin && (
-                        <>
-                            {/* Block / Reactivate Status Button */}
-                            {row.status === 'BLOCKED' ? (
-                                <Button
-                                    variant="secondary"
-                                    title="Reactivate (Unblock) Account"
-                                    style={{ padding: '0.4rem 0.6rem' }}
-                                    onClick={() => handleStatusTogglePrompt(row, 'ACTIVE')}
-                                >
-                                    <CheckCircle2 size={16} className="text-success" />
-                                </Button>
-                            ) : (
-                                row.active !== false && (
-                                    <Button
-                                        variant="secondary"
-                                        title="Block Account"
-                                        style={{ padding: '0.4rem 0.6rem' }}
-                                        onClick={() => handleStatusTogglePrompt(row, 'BLOCKED')}
-                                    >
-                                        <Ban size={16} className="text-warning" />
-                                    </Button>
-                                )
-                            )}
-
-                            {/* Deactivate / Reactivate Account Button */}
-                            {row.active === false ? (
-                                <Button
-                                    variant="secondary"
-                                    title="Reactivate Deactivated Account"
-                                    style={{ padding: '0.4rem 0.6rem', color: '#16a34a' }}
-                                    onClick={() => handleStatusTogglePrompt(row, 'ACTIVE')}
-                                >
-                                    <CheckCircle2 size={16} className="text-success" />
-                                </Button>
-                            ) : (
-                                <Button
-                                    variant="secondary"
-                                    title="Deactivate Account"
-                                    style={{ padding: '0.4rem 0.6rem' }}
-                                    onClick={() => handleDeactivatePrompt(row)}
-                                >
-                                    <Trash2 size={16} className="text-danger" />
-                                </Button>
-                            )}
-                        </>
-                    )}
+                <div className="row-actions">
+                    <Button variant="ghost" size="sm" iconOnly icon={Pencil} aria-label={`Edit ${row.fullName || row.email}`} title="Edit details"
+                        onClick={() => { setSelectedResident(row); setIsResidentModalOpen(true); }} />
+                    <Menu label={`More actions for ${row.fullName || row.email}`} items={rowActions(row).slice(1)} />
                 </div>
-            )
-        }
+            ),
+        },
+    ];
+
+    const tabs = [
+        { value: 'all', label: 'Everyone', count: counts.all },
+        { value: 'RESIDENT', label: 'Residents', count: counts.RESIDENT },
+        { value: 'staff', label: 'Committee & admins', count: counts.staff },
+        { value: 'inactive', label: 'Blocked or inactive', count: counts.inactive },
     ];
 
     return (
         <div>
             <PageHeader
-                title={isMasterAdmin ? "Manage Users & Roles" : "Manage Residents"}
-                breadcrumbs={['Admin', isMasterAdmin ? 'User Management' : 'Residents']}
-                actionButton={
-                    <div style={{ display: 'flex', gap: '1rem' }}>
-                        <Button onClick={() => { setSelectedResident(null); setIsResidentModalOpen(true); }}>
-                            <Plus size={18} /> Add Resident
-                        </Button>
-                    </div>
-                }
+                title={isMasterAdmin ? 'Users & roles' : 'Residents'}
+                description={isMasterAdmin
+                    ? 'Everyone with an account: add residents, reset passwords, and decide who can administer the society.'
+                    : 'Residents with portal access. New residents sign in with a temporary password and set up their own account.'}
+                actions={<Button icon={UserPlus} onClick={() => { setSelectedResident(null); setIsResidentModalOpen(true); }}>Add resident</Button>}
             />
 
-            {errorMessage && (
-                <div style={{
-                    padding: '0.85rem 1.25rem',
-                    backgroundColor: '#fef2f2',
-                    border: '1px solid #f87171',
-                    color: '#991b1b',
-                    borderRadius: '0.5rem',
-                    marginBottom: '1.25rem',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                        <ShieldAlert size={20} color="#b91c1c" />
-                        <span style={{ fontSize: '0.9rem' }}><strong>Safeguard Alert:</strong> {errorMessage}</span>
-                    </div>
-                    <button
-                        onClick={() => setErrorMessage('')}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.25rem', color: '#991b1b', lineHeight: 1 }}
-                        aria-label="Dismiss alert"
-                    >
-                        ×
-                    </button>
-                </div>
-            )}
-
-            {successMessage && (
-                <div style={{
-                    padding: '0.85rem 1.25rem',
-                    backgroundColor: '#f0fdf4',
-                    border: '1px solid #4ade80',
-                    color: '#166534',
-                    borderRadius: '0.5rem',
-                    marginBottom: '1.25rem',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                        <CheckCircle size={20} color="#16a34a" />
-                        <span style={{ fontSize: '0.9rem' }}>{successMessage}</span>
-                    </div>
-                    <button
-                        onClick={() => setSuccessMessage('')}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.25rem', color: '#166534', lineHeight: 1 }}
-                        aria-label="Dismiss alert"
-                    >
-                        ×
-                    </button>
-                </div>
-            )}
+            <Tabs tabs={tabs} value={tab} onChange={setTab} label="Filter people" />
 
             <DataTable
                 columns={columns}
-                data={residents}
+                data={visible}
                 isLoading={isLoading}
+                searchPlaceholder="Search name, email, flat or phone"
+                emptyIcon={Users}
+                emptyTitle="No one here"
+                emptyMessage={tab === 'all' ? 'Add your first resident to give them portal access.' : 'Nobody matches this filter.'}
             />
 
             <ResidentModal

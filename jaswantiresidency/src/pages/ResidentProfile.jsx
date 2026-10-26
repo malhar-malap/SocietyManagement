@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { notifySuccess, notifyError, errorMessage } from '../utils/notify';
-import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
+import { TextInput } from '../components/ui/Field';
+import { EmptyState, Skeleton } from '../components/ui/Feedback';
+import StatusChip from '../components/ui/StatusChip';
+import PasswordChecklist from '../components/auth/PasswordChecklist';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Phone, Home, ShieldCheck, Download, User as UserIcon, Edit2, CheckCircle2 } from 'lucide-react';
+import { initials } from '../layouts/PortalLayout';
+import { passwordPolicyError } from '../utils/passwordPolicy';
+import { formatDate, formatMoney } from '../utils/format';
+import { AtSign, BadgeCheck, Building2, Download, KeyRound, Pencil, Phone, UserRound } from 'lucide-react';
 import api from '../api/axiosConfig';
 import { downloadAuthenticatedFile } from '../api/fileUtils';
 
@@ -20,7 +25,6 @@ const ResidentProfile = () => {
     const [editName, setEditName] = useState('');
     const [editPhone, setEditPhone] = useState('');
     const [isSavingProfile, setIsSavingProfile] = useState(false);
-    const [profileSuccessMsg, setProfileSuccessMsg] = useState('');
 
     // Change Password State
     const [oldPassword, setOldPassword] = useState('');
@@ -50,7 +54,7 @@ const ResidentProfile = () => {
                 setEditPhone(loadedPhone);
                 setMyRooms(roomsRes.data || []);
             } catch (err) {
-                console.error("Failed to fetch profile", err);
+                notifyError('Could not load your profile. Please refresh the page.');
             } finally {
                 setIsLoading(false);
             }
@@ -58,13 +62,20 @@ const ResidentProfile = () => {
         fetchProfile();
     }, [user]);
 
-    if (isLoading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading profile...</div>;
-    if (!profile) return <div style={{ padding: '2rem', textAlign: 'center' }}>Profile not found.</div>;
+    if (isLoading) {
+        return (
+            <div className="stack" aria-busy="true">
+                <Skeleton height={120} style={{ borderRadius: 14 }} />
+                <div className="grid grid-2"><Skeleton height={260} style={{ borderRadius: 14 }} /><Skeleton height={260} style={{ borderRadius: 14 }} /></div>
+            </div>
+        );
+    }
+    if (!profile) return <div className="card"><EmptyState icon={UserRound} title="Profile unavailable">Please refresh the page or sign in again.</EmptyState></div>;
 
     const handleProfileSave = async (e) => {
         e.preventDefault();
         if (!editName.trim()) {
-            notifyError('Name cannot be empty.');
+            notifyError('Your name cannot be empty.');
             return;
         }
         setIsSavingProfile(true);
@@ -90,11 +101,9 @@ const ResidentProfile = () => {
             });
 
             setIsEditingProfile(false);
-            setProfileSuccessMsg('Profile updated successfully! Dashboard greeting updated.');
-            setTimeout(() => setProfileSuccessMsg(''), 4000);
+            notifySuccess('Your details are saved');
         } catch (err) {
-            console.error('Failed to update profile', err);
-            notifyError(errorMessage(err, 'Failed to update profile.'));
+            notifyError(errorMessage(err, 'We could not save your details. Please try again.'));
         } finally {
             setIsSavingProfile(false);
         }
@@ -102,8 +111,10 @@ const ResidentProfile = () => {
 
     const handlePasswordChange = async (e) => {
         e.preventDefault();
+        const policy = passwordPolicyError(newPassword);
+        if (policy) { notifyError(policy); return; }
         if (newPassword !== confirmPassword) {
-            notifyError('New passwords do not match.');
+            notifyError('The new passwords do not match.');
             return;
         }
         try {
@@ -114,13 +125,12 @@ const ResidentProfile = () => {
             if (res && res.accessToken) {
                 login(res);
             }
-            notifySuccess('Password updated.');
+            notifySuccess('Password changed');
             setOldPassword('');
             setNewPassword('');
             setConfirmPassword('');
         } catch (error) {
-            console.error(error);
-            notifyError(errorMessage(error, 'Failed to change password. Make sure your current password is correct.'));
+            notifyError(errorMessage(error, 'We could not change your password. Check your current password and try again.'));
         } finally {
             setIsChangingPassword(false);
         }
@@ -130,164 +140,88 @@ const ResidentProfile = () => {
         downloadAuthenticatedFile(`/rooms/${roomId}/share-certificate/download`, `share_certificate_${roomNumber}.pdf`);
     };
 
+    const cancelEdit = () => {
+        setIsEditingProfile(false);
+        setEditName(profile.name);
+        setEditPhone(profile.phone === 'Not Provided' ? '' : profile.phone);
+    };
+
     return (
-        <div>
-            <PageHeader
-                title="My Profile"
-                breadcrumbs={['Resident', 'Profile']}
-            />
-
-            {profileSuccessMsg && (
-                <div style={{ padding: '0.75rem 1rem', background: '#dcfce7', color: '#166534', borderRadius: 8, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <CheckCircle2 size={18} /> {profileSuccessMsg}
+        <div className="stack stack-lg">
+            <section className="profile-hero card">
+                <span className="avatar avatar-lg" aria-hidden="true">{initials(profile.name)}</span>
+                <div className="grow">
+                    <h1 className="profile-name">{profile.name}</h1>
+                    <div className="row row-wrap text-sm text-muted" style={{ '--gap': '0.4rem 1rem' }}>
+                        <span className="row" style={{ '--gap': '0.3rem' }}><Building2 size={14} /> {profile.room}</span>
+                        <span className="row" style={{ '--gap': '0.3rem' }}><AtSign size={14} /> {profile.email}</span>
+                        {profile.isEmailVerified && <span className="chip chip-success no-dot"><BadgeCheck size={12} /> Verified</span>}
+                    </div>
                 </div>
-            )}
+            </section>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '2rem' }}>
-
-                {/* Personal Details & Edit Profile */}
+            <div className="profile-grid">
                 <Card
-                    title="Personal Details"
-                    action={
-                        !isEditingProfile && (
-                            <Button
-                                variant="secondary"
-                                style={{ padding: '0.35rem 0.75rem', fontSize: '0.85rem' }}
-                                onClick={() => setIsEditingProfile(true)}
-                            >
-                                <Edit2 size={14} /> Edit Profile
-                            </Button>
-                        )
-                    }
+                    title="Personal details"
+                    subtitle="Shown to the society office and committee."
+                    action={!isEditingProfile && <Button variant="secondary" size="sm" icon={Pencil} onClick={() => setIsEditingProfile(true)}>Edit</Button>}
                 >
                     {!isEditingProfile ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <UserIcon className="text-secondary-light" />
-                                <div>
-                                    <p className="input-label" style={{margin: 0}}>Full Name</p>
-                                    <p style={{margin: 0, fontWeight: 600, fontSize: '1.05rem', color: 'var(--primary)'}}>
-                                        {profile.name}
-                                    </p>
-                                </div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <Home className="text-secondary-light" />
-                                <div>
-                                    <p className="input-label" style={{margin: 0}}>Assigned Room(s)</p>
-                                    <p style={{margin: 0, fontWeight: 500}}>{profile.room}</p>
-                                </div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <Mail className="text-secondary-light" />
-                                <div>
-                                    <p className="input-label" style={{margin: 0}}>Email Address</p>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        <p style={{margin: 0, fontWeight: 500}}>{profile.email}</p>
-                                        {profile.isEmailVerified && <ShieldCheck size={16} className="text-success" title="Verified" />}
-                                    </div>
-                                </div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <Phone className="text-secondary-light" />
-                                <div>
-                                    <p className="input-label" style={{margin: 0}}>Phone Number</p>
-                                    <p style={{margin: 0, fontWeight: 500}}>{profile.phone}</p>
-                                </div>
-                            </div>
-                        </div>
+                        <dl className="detail-list detail-list-stack">
+                            <div><dt>Full name</dt><dd>{profile.name}</dd></div>
+                            <div><dt>Mobile</dt><dd>{profile.phone}</dd></div>
+                            <div><dt>Email</dt><dd>{profile.email}</dd></div>
+                        </dl>
                     ) : (
-                        <form onSubmit={handleProfileSave} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <Input
-                                label="Full Name (Displayed on Dashboard)"
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                placeholder="Enter your full name"
-                                required
-                            />
-                            <Input
-                                label="Phone Number"
-                                value={editPhone}
-                                onChange={(e) => setEditPhone(e.target.value)}
-                                placeholder="Enter your phone number"
-                            />
-                            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
-                                <Button type="submit" isLoading={isSavingProfile}>
-                                    Save Changes
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="secondary"
-                                    onClick={() => {
-                                        setIsEditingProfile(false);
-                                        setEditName(profile.name);
-                                        setEditPhone(profile.phone === 'Not Provided' ? '' : profile.phone);
-                                    }}
-                                >
-                                    Cancel
-                                </Button>
+                        <form onSubmit={handleProfileSave} className="stack" noValidate>
+                            <TextInput label="Full name" icon={UserRound} value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus />
+                            <TextInput label="Mobile" icon={Phone} value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="98765 43210" />
+                            <p className="text-xs text-subtle">To change your sign-in email, contact the society office.</p>
+                            <div className="row row-end">
+                                <Button variant="ghost" onClick={cancelEdit} disabled={isSavingProfile}>Cancel</Button>
+                                <Button type="submit" isLoading={isSavingProfile}>Save</Button>
                             </div>
                         </form>
                     )}
                 </Card>
 
-                {/* Units & Share Certificates */}
-                <Card title="Units & Share Certificates">
+                <Card title="Change password" subtitle="You will stay signed in on this device.">
+                    <form onSubmit={handlePasswordChange} className="stack" noValidate>
+                        <TextInput type="password" label="Current password" icon={KeyRound} autoComplete="current-password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} />
+                        <TextInput type="password" label="New password" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                        {newPassword && <PasswordChecklist password={newPassword} />}
+                        <TextInput type="password" label="Confirm new password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                            error={confirmPassword && confirmPassword !== newPassword ? 'Passwords do not match.' : undefined} />
+                        <div className="row row-end">
+                            <Button type="submit" isLoading={isChangingPassword} disabled={!oldPassword || !newPassword || !confirmPassword}>Update password</Button>
+                        </div>
+                    </form>
+                </Card>
+
+                <Card title="My home" subtitle="Units linked to your account" className="span-all">
                     {myRooms.length === 0 ? (
-                        <p style={{ color: 'var(--text-secondary-light)', fontSize: '0.875rem' }}>No linked units found.</p>
+                        <EmptyState compact icon={Building2} title="No unit linked yet">Ask the society office to link your flat to your account.</EmptyState>
                     ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            {myRooms.map(r => (
-                                <div key={r.id} style={{ background: '#f8fafc', padding: '0.875rem', borderRadius: 8, border: '1px solid var(--border-light)' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                                        <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Room {r.roomNumber} ({r.wing} Wing, Floor {r.floor})</span>
-                                        <span style={{ fontSize: '0.75rem', padding: '0.15rem 0.5rem', borderRadius: 4, background: '#e0e7ff', color: '#3730a3', fontWeight: 600 }}>
-                                            {r.unitCategory || 'RESIDENTIAL'}
-                                        </span>
+                        <div className="unit-cards">
+                            {myRooms.map((r) => (
+                                <div key={r.id} className="unit-card">
+                                    <div className="row row-between">
+                                        <span className="unit-badge">{r.roomNumber}</span>
+                                        <span className="tag">{(r.unitCategory || 'RESIDENTIAL').toLowerCase().replace(/^./, (c) => c.toUpperCase())}</span>
                                     </div>
-                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary-light)', marginBottom: '0.5rem' }}>
-                                        {r.nocApplicable && (
-                                            <span style={{ color: 'var(--primary)', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>
-                                                NOC Applicable: ₹{Number(r.nocAmount || 0).toFixed(2)}/month
-                                            </span>
-                                        )}
-                                        <div>
-                                            Share Certificate: <strong>{r.shareCertificateNumber || 'Not Issued Yet'}</strong>
-                                            {r.shareCertificateIssuedDate && ` (Issued: ${r.shareCertificateIssuedDate})`}
-                                        </div>
-                                    </div>
-                                    {r.shareCertificateData || r.shareCertificateNumber ? (
-                                        <Button
-                                            variant="secondary"
-                                            style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '0.4rem',
-                                                padding: '0.4rem 0.75rem',
-                                                fontSize: '0.85rem'
-                                            }}
-                                            onClick={() => handleDownloadCertificate(r.id, r.roomNumber)}
-                                        >
-                                            <Download size={14} /> Download Share Certificate
-                                        </Button>
-                                    ) : null}
+                                    <dl className="kv">
+                                        <dt>Location</dt><dd>Wing {r.wing} · Floor {r.floor}</dd>
+                                        <dt>Share certificate</dt><dd>{r.shareCertificateNumber || <span className="text-subtle">Not issued yet</span>}</dd>
+                                        {r.shareCertificateIssuedDate && <><dt>Issued on</dt><dd>{formatDate(r.shareCertificateIssuedDate)}</dd></>}
+                                        {r.nocApplicable && <><dt>NOC charge</dt><dd>{formatMoney(r.nocAmount, 2)} / month</dd></>}
+                                    </dl>
+                                    {(r.shareCertificateData || r.shareCertificateNumber) ? (
+                                        <Button variant="secondary" size="sm" icon={Download} onClick={() => handleDownloadCertificate(r.id, r.roomNumber)}>Download certificate</Button>
+                                    ) : <StatusChip tone="neutral" label="Certificate pending" />}
                                 </div>
                             ))}
                         </div>
                     )}
-                </Card>
-
-                {/* Security Settings */}
-                <Card title="Security Settings">
-                    <form onSubmit={handlePasswordChange} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <p className="subtitle">Update your password to keep your account secure.</p>
-
-                        <Input type="password" label="Current Password" placeholder="Enter current password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} required />
-                        <Input type="password" label="New Password" placeholder="Enter new password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
-                        <Input type="password" label="Confirm New Password" placeholder="Confirm new password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
-
-                        <Button type="submit" isLoading={isChangingPassword} style={{ alignSelf: 'flex-start', marginTop: '1rem' }}>Update Password</Button>
-                    </form>
                 </Card>
             </div>
         </div>

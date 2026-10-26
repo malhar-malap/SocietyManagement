@@ -1,130 +1,77 @@
 import React, { useState, useEffect } from 'react';
-import { X, Type, FileText, Calendar } from 'lucide-react';
-import './ui/shared.css';
+import { Megaphone } from 'lucide-react';
+import Modal from './ui/Modal';
+import Button from './ui/Button';
+import { TextInput, Textarea } from './ui/Field';
+import { Alert } from './ui/Feedback';
 
 const AnnouncementModal = ({ isOpen, onClose, onSave, initialData }) => {
     const isEditMode = !!initialData;
-    
-    const [formData, setFormData] = useState({
-        title: '',
-        description: '',
-        expiryDate: ''
-    });
+    const [formData, setFormData] = useState({ title: '', description: '', expiryDate: '' });
+    const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        if (initialData) {
-            setFormData({
-                title: initialData.title || '',
-                description: initialData.description || '',
-                expiryDate: initialData.expiryDate ? initialData.expiryDate.split('T')[0] : ''
-            });
-        } else {
-            setFormData({ title: '', description: '', expiryDate: '' });
-        }
+        setFormData(initialData ? {
+            title: initialData.title || '',
+            description: initialData.description || '',
+            expiryDate: initialData.expiryDate ? initialData.expiryDate.split('T')[0] : '',
+        } : { title: '', description: '', expiryDate: '' });
+        setError('');
     }, [initialData, isOpen]);
-
-    if (!isOpen) return null;
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
+        setError('');
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!formData.title.trim() || !formData.description.trim()) {
+            setError('Add a title and the message residents should read.');
+            return;
+        }
         setIsLoading(true);
         try {
-            // Convert date to ISO format if provided
-            let payload = { ...formData };
-            if (payload.expiryDate) {
-                payload.expiryDate = `${payload.expiryDate}T23:59:59`;
-            } else {
-                payload.expiryDate = null;
-            }
-            await onSave(payload);
+            await onSave({
+                title: formData.title.trim(),
+                description: formData.description.trim(),
+                expiryDate: formData.expiryDate ? `${formData.expiryDate}T23:59:59` : null,
+            });
             onClose();
-        } catch (error) {
-            console.error(error);
+        } catch (err) {
+            setError(err.message);
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="premium-modal-overlay">
-            <div className="premium-modal-content">
-                <div className="premium-modal-header">
-                    <div>
-                        <h2 className="premium-modal-title">
-                            {isEditMode ? 'Edit Announcement' : 'Publish Announcement'}
-                        </h2>
-                        <p className="premium-modal-subtitle">
-                            {isEditMode ? 'Update the announcement details below.' : 'Create a new announcement for the residents.'}
-                        </p>
-                    </div>
-                    <button className="premium-modal-close" onClick={onClose} aria-label="Close modal">
-                        <X size={20} />
-                    </button>
-                </div>
-
-                <form onSubmit={handleSubmit}>
-                    
-                    <div className="input-group-modern">
-                        <label className="input-label">Title</label>
-                        <div className="modern-input-wrapper">
-                            <Type size={18} className="modern-input-icon" />
-                            <input
-                                type="text"
-                                name="title"
-                                className="modern-input"
-                                value={formData.title}
-                                onChange={handleChange}
-                                placeholder="Water supply maintenance"
-                                required
-                            />
-                        </div>
-                    </div>
-
-                    <div className="input-group-modern">
-                        <label className="input-label">Description</label>
-                        <div className="modern-input-wrapper" style={{ alignItems: 'flex-start' }}>
-                            <FileText size={18} className="modern-input-icon" style={{ top: '1rem' }} />
-                            <textarea
-                                name="description"
-                                className="modern-input"
-                                value={formData.description}
-                                onChange={handleChange}
-                                placeholder="Provide detailed information here..."
-                                rows="4"
-                                style={{ height: 'auto', paddingTop: '1rem' }}
-                                required
-                            />
-                        </div>
-                    </div>
-
-                    <div className="input-group-modern">
-                        <label className="input-label">Expiry Date (Optional)</label>
-                        <div className="modern-input-wrapper">
-                            <Calendar size={18} className="modern-input-icon" />
-                            <input
-                                type="date"
-                                name="expiryDate"
-                                className="modern-input"
-                                value={formData.expiryDate}
-                                onChange={handleChange}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="premium-actions">
-                        <button type="button" className="custom-btn secondary" onClick={onClose} disabled={isLoading}>Cancel</button>
-                        <button type="submit" className="custom-btn primary" disabled={isLoading}>
-                            {isLoading ? <span className="spinner"></span> : (isEditMode ? 'Save Changes' : 'Publish')}
-                        </button>
-                    </div>
-                </form>
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            as="form"
+            onSubmit={handleSubmit}
+            icon={Megaphone}
+            title={isEditMode ? 'Edit notice' : 'New notice'}
+            description={isEditMode ? 'Changes show for residents straight away.' : 'Every resident sees this on their home screen and gets a notification.'}
+            dismissible={!isLoading}
+            footer={(
+                <>
+                    <Button variant="secondary" onClick={onClose} disabled={isLoading}>Cancel</Button>
+                    <Button type="submit" isLoading={isLoading}>{isEditMode ? 'Save changes' : 'Publish notice'}</Button>
+                </>
+            )}
+        >
+            <div className="stack">
+                {error && <Alert tone="error">{error}</Alert>}
+                <TextInput label="Title" name="title" value={formData.title} onChange={handleChange} placeholder="Water supply shutdown on Saturday" maxLength={120} />
+                <Textarea label="Message" name="description" rows={5} value={formData.description} onChange={handleChange}
+                    placeholder="What is happening, when, and what residents should do." />
+                <TextInput label="Show until" optional type="date" name="expiryDate" value={formData.expiryDate} onChange={handleChange}
+                    hint="After this date the notice moves to Expired." />
             </div>
-        </div>
+        </Modal>
     );
 };
 

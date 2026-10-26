@@ -1,10 +1,15 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { notifySuccess, notifyError, errorMessage } from '../utils/notify';
 import PageHeader from '../components/ui/PageHeader';
 import DataTable from '../components/ui/DataTable';
 import StatusChip from '../components/ui/StatusChip';
 import Button from '../components/ui/Button';
-import { Plus, Download, Banknote, CheckSquare, FileSpreadsheet, Upload, FileText } from 'lucide-react';
+import Menu from '../components/ui/Menu';
+import { Select } from '../components/ui/Field';
+import { Segmented, StatCard } from '../components/ui/Feedback';
+import { AlertTriangle, Banknote, ClipboardCheck, Download, FileSpreadsheet, FileText, IndianRupee, Plus, Receipt, Upload, Wallet } from 'lucide-react';
+import { getPaymentSubmissions } from '../api/billingApi';
+import { formatDate, formatMoney, monthLabel } from '../utils/format';
 import GenerateBillsDialog from '../components/GenerateBillsDialog';
 import RecordPaymentModal from '../components/RecordPaymentModal';
 import PendingPaymentApprovalsModal from '../components/PendingPaymentApprovalsModal';
@@ -20,6 +25,8 @@ const AdminBilling = () => {
     const [isApprovalsModalOpen, setIsApprovalsModalOpen] = useState(false);
     const [selectedBill, setSelectedBill] = useState(null);
     const [isImporting, setIsImporting] = useState(false);
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [pendingSubmissions, setPendingSubmissions] = useState(0);
 
     const fileInputRef = useRef(null);
 
@@ -29,16 +36,27 @@ const AdminBilling = () => {
             const data = await getBills(selectedFY || undefined);
             setBills(data || []);
         } catch (err) {
-            console.error('Failed to fetch bills', err);
+            notifyError('Could not load bills. Please refresh the page.');
             setBills([]);
         } finally {
             setIsLoading(false);
         }
     }, [selectedFY]);
 
+    const fetchPendingCount = useCallback(async () => {
+        try {
+            const list = await getPaymentSubmissions();
+            setPendingSubmissions((list || []).filter((s) => s.status === 'PENDING').length);
+        } catch {
+            /* the badge is a convenience; the review dialog loads its own list */
+        }
+    }, []);
+
     useEffect(() => {
         fetchBills();
     }, [fetchBills]);
+
+    useEffect(() => { fetchPendingCount(); }, [fetchPendingCount]);
 
     const handleGenerateBills = async (formData) => {
         try {
@@ -46,7 +64,6 @@ const AdminBilling = () => {
             await generateMonthlyBills(formData.billingMonth, formData.amount, formData.dueDate);
             await fetchBills();
         } catch (err) {
-            console.error('Failed to generate bills', err);
             throw err;
         }
     };
@@ -58,13 +75,12 @@ const AdminBilling = () => {
         setIsImporting(true);
         try {
             const result = await importBillsExcel(file);
-            notifySuccess(`Excel import finished: ${result.totalRows} rows processed, ${result.createdCount} created, ${result.skippedCount} skipped.`);
+            notifySuccess(`Import finished: ${result.createdCount} bills created, ${result.skippedCount} skipped (${result.totalRows} rows).`);
             if (result.errors && result.errors.length > 0) {
                 notifyError(`${result.errors.length} row(s) had problems: ${result.errors.slice(0, 3).join('; ')}${result.errors.length > 3 ? '…' : ''}`);
             }
             await fetchBills();
         } catch (err) {
-            console.error('Excel import failed', err);
             notifyError(errorMessage(err, 'Import failed.'));
         } finally {
             setIsImporting(false);
@@ -84,170 +100,147 @@ const AdminBilling = () => {
     const canPay = (row) =>
         ['PENDING', 'PARTIALLY_PAID'].includes(row.status);
 
+    const outstandingOf = (row) => Math.max(0, (parseFloat(row.amount) || 0) + (parseFloat(row.lateFee) || 0) - (parseFloat(row.paidAmount) || 0));
+    const isOverdue = (row) => canPay(row) && row.dueDate && new Date(row.dueDate) < new Date(new Date().toDateString());
+
+    const summary = useMemo(() => bills.reduce((acc, b) => {
+        acc.billed += (parseFloat(b.amount) || 0) + (parseFloat(b.lateFee) || 0);
+        acc.collected += parseFloat(b.paidAmount) || 0;
+        acc.outstanding += canPay(b) ? outstandingOf(b) : 0;
+        if (isOverdue(b)) acc.overdue += 1;
+        return acc;
+    }, { billed: 0, collected: 0, outstanding: 0, overdue: 0 }), [bills]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const visible = useMemo(() => {
+        if (statusFilter === 'unpaid') return bills.filter(canPay);
+        if (statusFilter === 'overdue') return bills.filter(isOverdue);
+        if (statusFilter === 'paid') return bills.filter((b) => b.status === 'PAID');
+        return bills;
+    }, [bills, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
     const columns = [
-        { header: 'Invoice ID', accessor: 'id' },
-        { header: 'Room', accessor: 'roomNumber' },
-        { header: 'Resident', accessor: 'residentName' },
-        { header: 'Period', accessor: 'billingMonth' },
         {
-            header: 'Type',
+            header: 'Bill',
+            accessor: 'billingMonth',
+            searchValue: (row) => monthLabel(row.billingMonth),
             render: (row) => (
-                <span style={{
-                    padding: '0.15rem 0.45rem',
-                    borderRadius: 4,
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    background: row.chargeType === 'NOC' ? '#fef3c7' : '#e0e7ff',
-                    color: row.chargeType === 'NOC' ? '#92400e' : '#3730a3'
-                }}>
-                    {row.chargeType || 'MAINTENANCE'}
-                </span>
-            )
+                <div>
+                    <div className="cell-primary">{monthLabel(row.billingMonth) || row.billingMonth}</div>
+                    <div className="cell-sub">#{row.id} · {row.chargeType === 'NOC' ? 'NOC charge' : 'Maintenance'}</div>
+                </div>
+            ),
+        },
+        {
+            header: 'Flat',
+            accessor: 'roomNumber',
+            render: (row) => (
+                <div>
+                    <div className="fw-600 num">{row.roomNumber}</div>
+                    <div className="cell-sub truncate" style={{ maxWidth: 180 }}>{row.residentName || '—'}</div>
+                </div>
+            ),
         },
         {
             header: 'Amount',
+            align: 'right',
             render: (row) => {
                 const total = (parseFloat(row.amount) || 0) + (parseFloat(row.lateFee) || 0);
                 const paid = parseFloat(row.paidAmount) || 0;
-                const outstanding = Math.max(0, total - paid);
+                const due = outstandingOf(row);
                 return (
-                    <span>
-                        ₹{(parseFloat(row.amount) || 0).toFixed(2)}
-                        {parseFloat(row.lateFee) > 0 && (
-                            <span style={{ color: 'var(--warning)', fontSize: '0.8rem', marginLeft: '0.3rem' }}>
-                                +₹{parseFloat(row.lateFee).toFixed(2)} late fee
-                            </span>
-                        )}
-                        {paid > 0 && (
-                            <span style={{ color: 'var(--success)', fontSize: '0.8rem', marginLeft: '0.3rem' }}>
-                                · Paid ₹{paid.toFixed(2)}
-                                {outstanding > 0 && ` · Due ₹${outstanding.toFixed(2)}`}
-                            </span>
-                        )}
-                    </span>
+                    <div>
+                        <div className="fw-600">{formatMoney(total, 2)}</div>
+                        <div className="cell-sub">
+                            {parseFloat(row.lateFee) > 0 && <span className="text-warning">incl. {formatMoney(row.lateFee)} late fee · </span>}
+                            {paid > 0 && due > 0 ? `${formatMoney(due, 2)} left` : paid > 0 ? 'Fully paid' : 'Not paid'}
+                        </div>
+                    </div>
                 );
             },
         },
-        { header: 'Due Date', accessor: 'dueDate' },
-        { header: 'Status', render: (row) => <StatusChip status={row.status} /> },
         {
-            header: 'Actions',
+            header: 'Due',
+            accessor: 'dueDate',
+            render: (row) => <span className={isOverdue(row) ? 'text-danger fw-600 nowrap' : 'text-muted nowrap'}>{formatDate(row.dueDate)}</span>,
+        },
+        { header: 'Status', render: (row) => (isOverdue(row) ? <StatusChip tone="danger" label="Overdue" /> : <StatusChip status={row.status} />) },
+        {
+            header: <span className="visually-hidden">Actions</span>,
             render: (row) => (
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <Button
-                        variant="secondary"
-                        title="Download Invoice PDF"
-                        style={{ padding: '0.4rem 0.6rem' }}
-                        onClick={() => downloadAuthenticatedFile(`/bills/${row.id}/invoice-pdf`, `invoice_${row.billingMonth || row.id}.pdf`)}
-                    >
-                        <Download size={16} />
-                    </Button>
-                    {canPay(row) && (
-                        <Button
-                            variant="secondary"
-                            title="Record Payment"
-                            style={{ padding: '0.4rem 0.6rem' }}
-                            onClick={() => openPaymentModal(row)}
-                        >
-                            <Banknote size={16} style={{ color: 'var(--success)' }} />
-                        </Button>
-                    )}
+                <div className="row-actions">
+                    {canPay(row) && <Button variant="secondary" size="sm" icon={Banknote} onClick={() => openPaymentModal(row)}>Record payment</Button>}
+                    <Button variant="ghost" size="sm" iconOnly icon={Download} title="Download invoice" aria-label={`Download invoice ${row.id}`}
+                        onClick={() => downloadAuthenticatedFile(`/bills/${row.id}/invoice-pdf`, `invoice_${row.billingMonth || row.id}.pdf`)} />
                 </div>
             ),
         },
     ];
 
+    const toolbar = (
+        <>
+            <Segmented
+                label="Filter by status"
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[{ value: 'all', label: 'All' }, { value: 'unpaid', label: 'Unpaid' }, { value: 'overdue', label: 'Overdue' }, { value: 'paid', label: 'Paid' }]}
+            />
+            <div style={{ width: 220 }}>
+                <Select aria-label="Financial year" value={selectedFY} onChange={(e) => setSelectedFY(e.target.value)}>
+                    <option value="">All financial years</option>
+                    <option value="2026-2027">FY 2026–27</option>
+                    <option value="2027-2028">FY 2027–28</option>
+                    <option value="2028-2029">FY 2028–29</option>
+                    <option value="2029-2030">FY 2029–30</option>
+                    <option value="2030-2031">FY 2030–31</option>
+                </Select>
+            </div>
+            <input type="file" ref={fileInputRef} accept=".xlsx" className="visually-hidden" tabIndex={-1} onChange={handleImportFileChange} />
+            <Menu
+                label="Excel import and export"
+                trigger={(props) => <Button variant="secondary" icon={FileSpreadsheet} isLoading={isImporting} {...props}>Excel</Button>}
+                items={[
+                    { label: 'Export this view', icon: Download, onClick: () => exportBillsExcel(selectedFY) },
+                    { label: 'Download import template', icon: FileText, onClick: downloadImportTemplate },
+                    'separator',
+                    { label: 'Import bills from Excel…', icon: Upload, onClick: () => fileInputRef.current?.click() },
+                ]}
+            />
+        </>
+    );
+
     return (
         <div>
             <PageHeader
-                title="Billing Management"
-                breadcrumbs={['Admin', 'Billing']}
-                actionButton={
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <Button variant="secondary" onClick={() => setIsApprovalsModalOpen(true)}>
-                            <CheckSquare size={18} /> Review Payment Submissions
+                title="Billing"
+                description="Generate monthly maintenance bills, record payments made at the office, and approve payments residents submit online."
+                actions={(
+                    <>
+                        <Button variant="secondary" icon={ClipboardCheck} onClick={() => setIsApprovalsModalOpen(true)}>
+                            Review payments{pendingSubmissions > 0 && <span className="count-pill">{pendingSubmissions}</span>}
                         </Button>
-                        <Button onClick={() => setIsGenerateModalOpen(true)}>
-                            <Plus size={18} /> Generate Bills
-                        </Button>
-                    </div>
-                }
+                        <Button icon={Plus} onClick={() => setIsGenerateModalOpen(true)}>Generate bills</Button>
+                    </>
+                )}
             />
 
-            {/* Controls Bar: FY Filter + Excel Bulk Operations */}
-            <div style={{
-                background: '#fff',
-                padding: '0.85rem 1rem',
-                borderRadius: 8,
-                border: '1px solid var(--border-light)',
-                marginBottom: '1rem',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '0.75rem'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary-light)' }}>
-                        Operating Period / FY:
-                    </span>
-                    <select
-                        value={selectedFY}
-                        onChange={(e) => setSelectedFY(e.target.value)}
-                        style={{ padding: '0.45rem 0.75rem', borderRadius: 6, border: '1px solid var(--border-light)', fontSize: '0.85rem', fontWeight: 500 }}
-                    >
-                        <option value="">All Operating Years (2026 – 2031)</option>
-                        <option value="2026-2027">FY 2026–27 (Apr 2026 – Mar 2027)</option>
-                        <option value="2027-2028">FY 2027–28 (Apr 2027 – Mar 2028)</option>
-                        <option value="2028-2029">FY 2028–29 (Apr 2028 – Mar 2029)</option>
-                        <option value="2029-2030">FY 2029–30 (Apr 2029 – Mar 2030)</option>
-                        <option value="2030-2031">FY 2030–31 (Apr 2030 – Mar 2031)</option>
-                    </select>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Button
-                        variant="secondary"
-                        onClick={() => exportBillsExcel(selectedFY)}
-                        title="Export current view to Excel workbook"
-                        style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem' }}
-                    >
-                        <FileSpreadsheet size={15} style={{ color: 'var(--success)' }} /> Export Excel
-                    </Button>
-
-                    <Button
-                        variant="secondary"
-                        onClick={downloadImportTemplate}
-                        title="Download sample template for bulk import"
-                        style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem' }}
-                    >
-                        <FileText size={15} /> Template
-                    </Button>
-
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        accept=".xlsx"
-                        style={{ display: 'none' }}
-                        onChange={handleImportFileChange}
-                    />
-
-                    <Button
-                        variant="secondary"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isImporting}
-                        title="Import bills from Excel workbook"
-                        style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem' }}
-                    >
-                        <Upload size={15} /> {isImporting ? 'Importing...' : 'Import Excel'}
-                    </Button>
-                </div>
+            <div className="grid grid-4 mb-6">
+                <StatCard label="Billed" value={formatMoney(summary.billed)} icon={Receipt} loading={isLoading} foot={`${bills.length} bills in view`} />
+                <StatCard label="Collected" value={formatMoney(summary.collected)} icon={IndianRupee} tone="success" loading={isLoading}
+                    foot={summary.billed ? `${Math.round((summary.collected / summary.billed) * 100)}% of billed` : '—'} />
+                <StatCard label="Outstanding" value={formatMoney(summary.outstanding)} icon={Wallet} tone="warning" loading={isLoading} onClick={() => setStatusFilter('unpaid')} />
+                <StatCard label="Overdue bills" value={summary.overdue} icon={AlertTriangle} tone="danger" loading={isLoading} onClick={() => setStatusFilter('overdue')} foot="Past their due date" />
             </div>
 
             <DataTable
                 columns={columns}
-                data={bills}
+                data={visible}
                 isLoading={isLoading}
+                toolbar={toolbar}
+                searchPlaceholder="Search flat, resident or month"
+                emptyIcon={Receipt}
+                emptyTitle={bills.length ? 'No bills match' : 'No bills yet'}
+                emptyMessage={bills.length ? 'Try another status or year.' : 'Generate this month’s maintenance bills to get started.'}
+                emptyAction={!bills.length && <Button size="sm" icon={Plus} onClick={() => setIsGenerateModalOpen(true)}>Generate bills</Button>}
             />
 
             <GenerateBillsDialog
@@ -265,8 +258,8 @@ const AdminBilling = () => {
 
             <PendingPaymentApprovalsModal
                 isOpen={isApprovalsModalOpen}
-                onClose={() => setIsApprovalsModalOpen(false)}
-                onActionSuccess={fetchBills}
+                onClose={() => { setIsApprovalsModalOpen(false); fetchPendingCount(); }}
+                onActionSuccess={() => { fetchBills(); fetchPendingCount(); }}
             />
         </div>
     );

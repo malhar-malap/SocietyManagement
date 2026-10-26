@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell } from 'lucide-react';
+import { Bell, BellOff } from 'lucide-react';
 import { getMyNotifications, markNotificationRead } from '../api/notificationApi';
+import { EmptyState } from './ui/Feedback';
 
 const POLL_MS = 60000;
 
@@ -90,6 +91,18 @@ const NotificationBell = ({ userId }) => {
         }
     };
 
+    const markAllRead = () => {
+        const broadcasts = new Set(readBroadcasts);
+        items.forEach((n) => {
+            if (isRead(n)) return;
+            if (n.broadcast) broadcasts.add(n.id);
+            else markNotificationRead(n.id).catch(() => {});
+        });
+        setReadBroadcasts(broadcasts);
+        saveReadBroadcasts(userId, broadcasts);
+        setItems((list) => list.map((x) => (x.broadcast ? x : { ...x, read: true })));
+    };
+
     return (
         <div className="notification-bell" ref={wrapperRef}>
             <button
@@ -99,19 +112,23 @@ const NotificationBell = ({ userId }) => {
                 aria-expanded={open}
                 onClick={() => setOpen((o) => !o)}
             >
-                <Bell size={20} />
+                <Bell size={19} />
                 {unread > 0 && <span className="notification-badge">{unread > 9 ? '9+' : unread}</span>}
             </button>
             {open && (
                 <div className="notification-panel" role="dialog" aria-label="Notifications">
-                    <div className="notification-panel-header">Notifications</div>
+                    <div className="notification-panel-header">
+                        <h3>Notifications</h3>
+                        {unread > 0 && <button type="button" className="btn btn-link btn-sm" onClick={markAllRead}>Mark all as read</button>}
+                    </div>
                     {items.length === 0 ? (
-                        <p className="notification-empty">You're all caught up.</p>
+                        <EmptyState icon={BellOff} title="You're all caught up" compact>New notices and updates will appear here.</EmptyState>
                     ) : (
                         <ul className="notification-list">
                             {items.slice(0, 20).map((n) => (
                                 <li key={n.id}>
                                     <button type="button" className={`notification-item ${isRead(n) ? '' : 'unread'}`} onClick={() => openItem(n)}>
+                                        <span className="dot" aria-hidden="true" />
                                         <span className="notification-title">{n.title}</span>
                                         <span className="notification-message">{n.message}</span>
                                         <span className="notification-time">{timeAgo(n.createdAt)}</span>

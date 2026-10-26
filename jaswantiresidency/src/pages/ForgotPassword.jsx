@@ -1,90 +1,137 @@
-import React, { useState } from 'react';
-import { notifySuccess, notifyError, errorMessage } from '../utils/notify';
-import Card from '../components/ui/Card';
-import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
-import { KeyRound } from 'lucide-react';
-import { forgotPassword, resetPassword } from '../api/authApi';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import './auth.css';
+import { ArrowLeft, AtSign, CheckCircle2, MailCheck } from 'lucide-react';
+import { forgotPassword, resetPassword } from '../api/authApi';
+import { errorMessage, notifySuccess } from '../utils/notify';
+import { passwordPolicyError } from '../utils/passwordPolicy';
+import AuthShell from '../components/auth/AuthShell';
+import Button from '../components/ui/Button';
+import { TextInput } from '../components/ui/Field';
+import { Alert } from '../components/ui/Feedback';
+import OtpInput from '../components/ui/OtpInput';
+import PasswordChecklist from '../components/auth/PasswordChecklist';
+
+const RESEND_SECONDS = 45;
 
 const ForgotPassword = () => {
-    const [step, setStep] = useState(1);
+    const navigate = useNavigate();
+    const [step, setStep] = useState('email'); // email -> reset -> done
     const [email, setEmail] = useState('');
     const [otp, setOtp] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const navigate = useNavigate();
+    const [error, setError] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [cooldown, setCooldown] = useState(0);
 
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    useEffect(() => {
+        if (cooldown <= 0) return undefined;
+        const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+        return () => clearTimeout(t);
+    }, [cooldown]);
 
-    const handleSendOtp = async () => {
-        if (!email.trim()) {
-            notifyError('Enter your registered email address.');
-            return;
-        }
-        setIsSubmitting(true);
+    const confirmError = useMemo(
+        () => (confirmPassword && confirmPassword !== newPassword ? 'Passwords do not match.' : ''),
+        [confirmPassword, newPassword],
+    );
+
+    const sendCode = async (e) => {
+        e?.preventDefault();
+        if (!/^\S+@\S+\.\S+$/.test(email.trim())) { setError('Enter the email address you use to sign in.'); return; }
+        setError('');
+        setBusy(true);
         try {
             await forgotPassword(email.trim());
-            setStep(2);
-        } catch (e) {
-            notifyError(errorMessage(e, 'Could not send the reset code. Please try again.'));
+            setStep('reset');
+            setCooldown(RESEND_SECONDS);
+        } catch (err) {
+            setError(errorMessage(err, 'We could not send the code. Please try again.'));
         } finally {
-            setIsSubmitting(false);
+            setBusy(false);
         }
     };
 
-    const handleReset = async () => {
-        if (newPassword !== confirmPassword) {
-            notifyError('Passwords do not match.');
-            return;
-        }
-        setIsSubmitting(true);
+    const reset = async (e) => {
+        e.preventDefault();
+        if (otp.length !== 6) { setError('Enter the 6-digit code from the email.'); return; }
+        const policy = passwordPolicyError(newPassword);
+        if (policy) { setError(policy); return; }
+        if (newPassword !== confirmPassword) { setError('Passwords do not match.'); return; }
+        setError('');
+        setBusy(true);
         try {
-            await resetPassword(email.trim(), otp.trim(), newPassword);
-            notifySuccess('Password reset. Please sign in with your new password.');
-            navigate('/login');
-        } catch (e) {
-            notifyError(errorMessage(e, 'Could not reset the password. Check the code and try again.'));
+            await resetPassword(email.trim(), otp, newPassword);
+            setStep('done');
+        } catch (err) {
+            setError(errorMessage(err, 'That code did not work. Check it, or request a new one.'));
         } finally {
-            setIsSubmitting(false);
+            setBusy(false);
         }
     };
-    
-    return (
-        <div className="auth-container">
-            <div className="auth-card-wrapper glass">
-                <Card>
-                    <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                        <div style={{ display: 'inline-flex', padding: '1rem', backgroundColor: 'rgba(79, 70, 229, 0.1)', borderRadius: '50%', color: 'var(--primary-color)', marginBottom: '1rem' }}>
-                            <KeyRound size={32} />
-                        </div>
-                        <h2 className="dialog-title">Forgot Password</h2>
-                        <p className="subtitle">Let's get you back into your account</p>
-                    </div>
 
-                    {step === 1 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <Input label="Registered Email" placeholder="Enter your email address" value={email} onChange={(e) => setEmail(e.target.value)} />
-                            <Button onClick={handleSendOtp} isLoading={isSubmitting} disabled={isSubmitting}>Send Reset OTP</Button>
-                            <Link to="/login" style={{ textAlign: 'center', fontSize: '0.9rem', color: 'var(--text-secondary-light)', marginTop: '1rem' }}>Back to Login</Link>
+    return (
+        <AuthShell>
+            {step === 'email' && (
+                <>
+                    <Link to="/login" className="auth-back"><ArrowLeft size={16} /> Back to sign in</Link>
+                    <div className="auth-heading">
+                        <h1>Reset your password</h1>
+                        <p>Enter the email you use to sign in and we will send you a 6-digit code.</p>
+                    </div>
+                    <form className="stack" onSubmit={sendCode} noValidate>
+                        {error && <Alert tone="error">{error}</Alert>}
+                        <TextInput label="Email address" type="email" icon={AtSign} autoComplete="email" placeholder="you@example.com"
+                            value={email} onChange={(e) => { setEmail(e.target.value); setError(''); }} autoFocus />
+                        <Button type="submit" size="lg" block isLoading={busy}>Send code</Button>
+                    </form>
+                    <div className="auth-note">
+                        Still on your first sign-in? Your temporary password comes from the society office — ask them to issue a new one.
+                    </div>
+                </>
+            )}
+
+            {step === 'reset' && (
+                <>
+                    <button type="button" className="auth-back" onClick={() => { setStep('email'); setError(''); setOtp(''); }}>
+                        <ArrowLeft size={16} /> Use a different email
+                    </button>
+                    <div className="auth-heading">
+                        <span className="auth-heading-icon"><MailCheck size={22} /></span>
+                        <h1>Check your email</h1>
+                        <p>If <strong>{email.trim()}</strong> has an account, a 6-digit code is on its way. It expires in a few minutes.</p>
+                    </div>
+                    <form className="stack" onSubmit={reset} noValidate>
+                        {error && <Alert tone="error">{error}</Alert>}
+                        <div className="field">
+                            <span className="field-label">Verification code</span>
+                            <OtpInput value={otp} onChange={(v) => { setOtp(v); setError(''); }} autoFocus />
+                            <div className="auth-resend">
+                                {cooldown > 0 ? <span>Resend code in {cooldown}s</span> : (
+                                    <button type="button" className="btn btn-link btn-sm" onClick={() => sendCode()} disabled={busy}>Resend code</button>
+                                )}
+                            </div>
                         </div>
-                    ) : step === 2 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <Input label="Enter OTP" placeholder="• • • • • •" style={{ letterSpacing: '0.5rem', textAlign: 'center', fontSize: '1.5rem' }} value={otp} onChange={(e) => setOtp(e.target.value)} />
-                            <Button onClick={() => setStep(3)}>Verify OTP</Button>
-                            <Button variant="secondary" onClick={() => setStep(1)}>Back</Button>
-                        </div>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <Input type="password" label="New Password" placeholder="Enter new password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-                            <Input type="password" label="Confirm Password" placeholder="Confirm new password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
-                            <Button onClick={handleReset} isLoading={isSubmitting} disabled={isSubmitting} className="mt-2">Reset Password</Button>
-                        </div>
-                    )}
-                </Card>
-            </div>
-        </div>
+                        <TextInput label="New password" type="password" autoComplete="new-password" value={newPassword}
+                            onChange={(e) => { setNewPassword(e.target.value); setError(''); }} />
+                        <PasswordChecklist password={newPassword} />
+                        <TextInput label="Confirm new password" type="password" autoComplete="new-password" value={confirmPassword}
+                            onChange={(e) => { setConfirmPassword(e.target.value); setError(''); }} error={confirmError} />
+                        <Button type="submit" size="lg" block isLoading={busy}>Reset password</Button>
+                    </form>
+                </>
+            )}
+
+            {step === 'done' && (
+                <div className="auth-success">
+                    <span className="auth-success-icon"><CheckCircle2 size={28} /></span>
+                    <h1>Password updated</h1>
+                    <p>You can now sign in with your new password.</p>
+                    <Button size="lg" block onClick={() => { notifySuccess('Password reset — please sign in.'); navigate('/login', { replace: true }); }}>
+                        Go to sign in
+                    </Button>
+                </div>
+            )}
+        </AuthShell>
     );
 };
 

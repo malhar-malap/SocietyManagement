@@ -8,7 +8,7 @@ A full-stack housing society management web application for **Jaswanti Residency
 
 | Layer | Technology |
 |---|---|
-| Frontend | React, TailwindCSS, Lucide React, Axios |
+| Frontend | React, a small in-house CSS design system (`src/styles`), Lucide React, Recharts, Axios |
 | Backend | Spring Boot 4, Spring Security, JWT |
 | Database | MySQL + Flyway migrations |
 | Email | Gmail SMTP (JavaMailSender) |

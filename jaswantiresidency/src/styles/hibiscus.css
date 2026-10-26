@@ -1,0 +1,73 @@
+/* ---------- Hibiscus mark ---------- */
+.hibiscus-mark { color: var(--brand); overflow: visible; --hb-fill: #FCEFF1; }
+.flower-loader { --hb-fill: #FCEFF1; }
+.hibiscus-mark path, .flower-loader path { fill: none; stroke: currentColor; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.hibiscus-mark .hb-petal > path:first-child { fill: var(--hb-fill); }
+.hibiscus-mark .hb-vein, .flower-loader .hb-vein { stroke-width: 1.8; opacity: 0.55; }
+.hibiscus-mark .hb-pollen, .flower-loader .hb-pollen { fill: currentColor; }
+.hibiscus-mark .hb-eye, .flower-loader .hb-eye { fill: var(--surface); stroke: currentColor; stroke-width: 3; }
+.hibiscus-mark.on-brand { color: #fff; --hb-fill: #5A1626; }
+.hibiscus-mark.on-brand .hb-eye { fill: var(--brand); }
+
+/* ---------- Flower loader ---------- */
+.flower-loader { display: inline-flex; flex-direction: column; align-items: center; gap: 0.85rem; color: var(--brand); }
+.flower-loader svg { overflow: visible; }
+.flower-loader-label { font-size: var(--text-sm); color: var(--text-muted); font-weight: 500; letter-spacing: 0.01em; }
+.flower-loader .hb-spin { transform-origin: 0 0; animation: hb-breathe 2.8s var(--ease) infinite; }
+
+.flower-loader .hb-petal > path:first-child {
+  stroke-dasharray: 1; stroke-dashoffset: 1; fill: var(--hb-fill); fill-opacity: 0;
+  animation: hb-petal 2.8s var(--ease) infinite; animation-delay: calc(var(--i) * 110ms);
+}
+.flower-loader .hb-vein { stroke-dasharray: 1; stroke-dashoffset: 1; animation: hb-vein 2.8s var(--ease) infinite; animation-delay: calc(var(--i) * 110ms + 380ms); }
+.flower-loader .hb-column { stroke-dasharray: 1; stroke-dashoffset: 1; animation: hb-column 2.8s var(--ease) infinite; animation-delay: 600ms; }
+.flower-loader .hb-pollen { transform-box: fill-box; transform-origin: center; opacity: 0; animation: hb-pollen 2.8s var(--ease) infinite; animation-delay: calc(900ms + var(--i) * 60ms); }
+.flower-loader .hb-eye { opacity: 0; animation: hb-pollen 2.8s var(--ease) infinite; animation-delay: 500ms; }
+
+@keyframes hb-petal {
+  0% { stroke-dashoffset: 1; fill-opacity: 0; opacity: 1; }
+  32% { stroke-dashoffset: 0; fill-opacity: 0; }
+  52% { fill-opacity: 1; }
+  78% { stroke-dashoffset: 0; fill-opacity: 1; opacity: 1; }
+  92%, 100% { stroke-dashoffset: 0; fill-opacity: 1; opacity: 0; }
+}
+@keyframes hb-vein {
+  0% { stroke-dashoffset: 1; opacity: 0; }
+  25% { stroke-dashoffset: 0; opacity: 0.55; }
+  62% { opacity: 0.55; }
+  76%, 100% { stroke-dashoffset: 0; opacity: 0; }
+}
+@keyframes hb-column {
+  0% { stroke-dashoffset: 1; opacity: 1; }
+  22% { stroke-dashoffset: 0; }
+  66% { opacity: 1; }
+  78%, 100% { stroke-dashoffset: 0; opacity: 0; }
+}
+@keyframes hb-pollen {
+  0% { opacity: 0; transform: scale(0.2); }
+  10% { opacity: 1; transform: scale(1.15); }
+  16% { transform: scale(1); }
+  60% { opacity: 1; }
+  70%, 100% { opacity: 0; transform: scale(1); }
+}
+@keyframes hb-breathe {
+  0% { transform: rotate(-6deg) scale(0.94); }
+  60% { transform: rotate(4deg) scale(1); }
+  100% { transform: rotate(10deg) scale(1.02); }
+}
+
+/* Reduced motion: a still flower that gently pulses instead of drawing itself */
+@media (prefers-reduced-motion: reduce) {
+  .flower-loader .hb-spin, .flower-loader .hb-petal > path:first-child, .flower-loader .hb-vein,
+  .flower-loader .hb-column, .flower-loader .hb-pollen, .flower-loader .hb-eye {
+    animation: none !important; stroke-dashoffset: 0; opacity: 1; transform: none;
+  }
+  .flower-loader .hb-petal > path:first-child { fill-opacity: 1; }
+  .flower-loader .hb-vein { opacity: 0.55; }
+  .flower-loader svg { animation: hb-pulse 1.6s ease-in-out infinite alternate !important; animation-duration: 1.6s !important; animation-iteration-count: infinite !important; }
+}
+@keyframes hb-pulse { from { opacity: 0.55; } to { opacity: 1; } }
+
+.page-loader { display: flex; align-items: center; justify-content: center; min-height: 320px; padding: 2rem; animation: fade-in 300ms ease-out both; animation-delay: 120ms; }
+.page-loader.is-fullscreen { min-height: 100vh; background: var(--bg); }
+.inline-loader { display: flex; justify-content: center; padding: 2rem 1rem; }

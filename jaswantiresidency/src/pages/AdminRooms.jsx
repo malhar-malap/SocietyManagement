@@ -1,13 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Award, Building2, Pencil, Plus, Users } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import DataTable from '../components/ui/DataTable';
 import Button from '../components/ui/Button';
-import { Users, Plus, Edit2, Award } from 'lucide-react';
+import StatusChip from '../components/ui/StatusChip';
+import { Segmented } from '../components/ui/Feedback';
 import { getRooms } from '../api/adminApi';
 import OccupancyModal from '../components/OccupancyModal';
 import RoomEditModal from '../components/RoomEditModal';
 import ShareCertificateModal from '../components/ShareCertificateModal';
 import { useAuth } from '../context/AuthContext';
+import { notifyError } from '../utils/notify';
+import { formatMoney } from '../utils/format';
+
+const CATEGORY_LABELS = { RESIDENTIAL: 'Residential', COMMERCIAL: 'Commercial', OFFICE: 'Office', SHOP: 'Shop' };
 
 const AdminRooms = () => {
     const { user } = useAuth();
@@ -15,171 +21,121 @@ const AdminRooms = () => {
 
     const [rooms, setRooms] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-
+    const [filter, setFilter] = useState('all');
     const [selectedRoom, setSelectedRoom] = useState(null);
-    const [isOccupancyModalOpen, setIsOccupancyModalOpen] = useState(false);
-    const [isRoomEditModalOpen, setIsRoomEditModalOpen] = useState(false);
-    const [isCertModalOpen, setIsCertModalOpen] = useState(false);
+    const [modal, setModal] = useState(null); // 'occupants' | 'edit' | 'certificate'
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const roomsData = await getRooms();
-            setRooms(roomsData || []);
+            setRooms((await getRooms()) || []);
         } catch (err) {
-            console.error("Failed to fetch rooms data", err);
+            notifyError('Could not load rooms. Please refresh the page.');
         } finally {
             setIsLoading(false);
         }
-    };
-
-    useEffect(() => {
-        fetchData();
     }, []);
 
-    const handleOpenOccupancy = (room) => {
-        setSelectedRoom(room);
-        setIsOccupancyModalOpen(true);
-    };
+    useEffect(() => { fetchData(); }, [fetchData]);
 
-    const handleOpenEdit = (room) => {
-        setSelectedRoom(room);
-        setIsRoomEditModalOpen(true);
-    };
+    const open = (kind, room = null) => { setSelectedRoom(room); setModal(kind); };
+    const close = () => setModal(null);
 
-    const handleOpenCreate = () => {
-        setSelectedRoom(null);
-        setIsRoomEditModalOpen(true);
-    };
+    const counts = useMemo(() => ({
+        all: rooms.length,
+        occupied: rooms.filter((r) => r.resident).length,
+        vacant: rooms.filter((r) => !r.resident).length,
+        commercial: rooms.filter((r) => r.unitCategory && r.unitCategory !== 'RESIDENTIAL').length,
+    }), [rooms]);
 
-    const handleOpenCert = (room) => {
-        setSelectedRoom(room);
-        setIsCertModalOpen(true);
-    };
-
-    const getCategoryBadge = (category) => {
-        const cat = category || 'RESIDENTIAL';
-        const styles = {
-            RESIDENTIAL: { background: '#f1f5f9', color: '#475569' },
-            COMMERCIAL: { background: '#fef3c7', color: '#92400e' },
-            OFFICE: { background: '#e0e7ff', color: '#3730a3' },
-            SHOP: { background: '#dcfce7', color: '#166534' }
-        };
-        const s = styles[cat] || styles.RESIDENTIAL;
-        return (
-            <span style={{
-                background: s.background,
-                color: s.color,
-                padding: '0.2rem 0.5rem',
-                borderRadius: '4px',
-                fontSize: '0.75rem',
-                fontWeight: 600
-            }}>
-                {cat}
-            </span>
-        );
-    };
+    const visible = useMemo(() => {
+        if (filter === 'occupied') return rooms.filter((r) => r.resident);
+        if (filter === 'vacant') return rooms.filter((r) => !r.resident);
+        if (filter === 'commercial') return rooms.filter((r) => r.unitCategory && r.unitCategory !== 'RESIDENTIAL');
+        return rooms;
+    }, [rooms, filter]);
 
     const columns = [
-        { header: 'Unit No', accessor: 'roomNumber' },
-        { header: 'Wing', accessor: 'wing' },
-        { header: 'Floor', accessor: 'floor' },
         {
-            header: 'Category',
-            render: (row) => getCategoryBadge(row.unitCategory)
+            header: 'Unit',
+            accessor: 'roomNumber',
+            render: (row) => (
+                <div className="row" style={{ '--gap': '0.7rem' }}>
+                    <span className="unit-badge">{row.roomNumber}</span>
+                    <div className="cell-sub" style={{ marginTop: 0 }}>Wing {row.wing || '—'} · Floor {row.floor ?? '—'}</div>
+                </div>
+            ),
+        },
+        { header: 'Type', render: (row) => <span className="tag">{CATEGORY_LABELS[row.unitCategory] || 'Residential'}</span> },
+        {
+            header: 'Primary occupant',
+            searchValue: (row) => `${row.resident?.name || ''} ${row.resident?.email || ''}`,
+            render: (row) => (row.resident ? (
+                <div>
+                    <div className="cell-primary">{row.resident.name}</div>
+                    <div className="cell-sub">{row.resident.email}</div>
+                </div>
+            ) : <StatusChip tone="neutral" label="Vacant" />),
         },
         {
-            header: 'NOC Charge',
-            render: (row) => row.nocApplicable ? (
-                <span style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '0.85rem' }}>
-                    ₹{Number(row.nocAmount || 0).toFixed(2)}/mo
-                </span>
-            ) : (
-                <span style={{ color: 'var(--text-secondary-light)', fontSize: '0.8rem' }}>None</span>
-            )
-        },
-        {
-            header: 'Primary Occupant',
-            render: (row) => row.resident ? `${row.resident.name} (${row.resident.email})` : 'Unassigned'
+            header: 'NOC charge',
+            align: 'right',
+            render: (row) => (row.nocApplicable ? <span className="fw-600">{formatMoney(row.nocAmount, 2)}<span className="text-subtle text-xs"> /mo</span></span> : <span className="text-subtle">—</span>),
         },
         ...(isAdminOrMaster ? [{
-            header: 'Actions',
+            header: <span className="visually-hidden">Actions</span>,
             render: (row) => (
-                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                    <Button
-                        variant="secondary"
-                        onClick={() => handleOpenOccupancy(row)}
-                        title="Manage Occupants"
-                        style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem' }}
-                    >
-                        <Users size={14} /> Occupants
-                    </Button>
-                    <Button
-                        variant="secondary"
-                        onClick={() => handleOpenCert(row)}
-                        title="Share Certificate"
-                        style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem' }}
-                    >
-                        <Award size={14} /> {row.shareCertificateNumber ? 'Certificate' : 'Share Cert'}
-                    </Button>
-                    <Button
-                        variant="secondary"
-                        onClick={() => handleOpenEdit(row)}
-                        title="Edit Unit & NOC"
-                        style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem' }}
-                    >
-                        <Edit2 size={14} />
-                    </Button>
+                <div className="row-actions" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="secondary" size="sm" icon={Users} onClick={() => open('occupants', row)}>Occupants</Button>
+                    <Button variant="ghost" size="sm" iconOnly icon={Award} onClick={() => open('certificate', row)}
+                        aria-label={`Share certificate for ${row.roomNumber}`} title="Share certificate" />
+                    <Button variant="ghost" size="sm" iconOnly icon={Pencil} onClick={() => open('edit', row)}
+                        aria-label={`Edit unit ${row.roomNumber}`} title="Edit unit" />
                 </div>
-            )
-        }] : [])
+            ),
+        }] : []),
     ];
 
     return (
         <div>
             <PageHeader
-                title="Room Directory & Occupancy"
-                breadcrumbs={['Admin', 'Rooms']}
-                actionButton={
-                    isAdminOrMaster && (
-                        <Button onClick={handleOpenCreate}>
-                            <Plus size={18} /> Add Unit
-                        </Button>
-                    )
-                }
+                title="Rooms & occupancy"
+                description="Every unit in the building, who lives there, and any NOC charges billed alongside maintenance."
+                actions={isAdminOrMaster && <Button icon={Plus} onClick={() => open('edit', null)}>Add unit</Button>}
             />
+
+            <div className="row row-wrap row-between mb-4">
+                <Segmented
+                    label="Filter units"
+                    value={filter}
+                    onChange={setFilter}
+                    options={[
+                        { value: 'all', label: `All ${counts.all}` },
+                        { value: 'occupied', label: `Occupied ${counts.occupied}` },
+                        { value: 'vacant', label: `Vacant ${counts.vacant}` },
+                        { value: 'commercial', label: `Commercial ${counts.commercial}` },
+                    ]}
+                />
+            </div>
 
             <DataTable
                 columns={columns}
-                data={rooms}
+                data={visible}
                 isLoading={isLoading}
-                emptyMessage="No rooms found."
+                searchPlaceholder="Search unit, name or email"
+                emptyIcon={Building2}
+                emptyTitle="No units here"
+                emptyMessage={filter === 'all' ? 'Add the first unit to get started.' : 'No units match this filter.'}
+                onRowClick={isAdminOrMaster ? (row) => open('occupants', row) : undefined}
             />
 
             {isAdminOrMaster && (
-                <OccupancyModal
-                    isOpen={isOccupancyModalOpen}
-                    onClose={() => setIsOccupancyModalOpen(false)}
-                    room={selectedRoom}
-                    onOccupantsChanged={fetchData}
-                />
+                <OccupancyModal isOpen={modal === 'occupants'} onClose={close} room={selectedRoom} onOccupantsChanged={fetchData} />
             )}
-
             {isAdminOrMaster && (
-                <RoomEditModal
-                    isOpen={isRoomEditModalOpen}
-                    onClose={() => setIsRoomEditModalOpen(false)}
-                    room={selectedRoom}
-                    onSaved={fetchData}
-                />
+                <RoomEditModal isOpen={modal === 'edit'} onClose={close} room={selectedRoom} onSaved={fetchData} />
             )}
-
-            <ShareCertificateModal
-                isOpen={isCertModalOpen}
-                onClose={() => setIsCertModalOpen(false)}
-                room={selectedRoom}
-                onCertificateUpdated={fetchData}
-            />
+            <ShareCertificateModal isOpen={modal === 'certificate'} onClose={close} room={selectedRoom} onCertificateUpdated={fetchData} />
         </div>
     );
 };

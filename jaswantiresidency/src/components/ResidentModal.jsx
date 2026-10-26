@@ -1,154 +1,97 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Phone, Mail, Hash } from 'lucide-react';
-import './ui/shared.css';
+import { AtSign, KeyRound, Phone, UserRound, UserPlus, UserCog } from 'lucide-react';
+import Modal from './ui/Modal';
+import Button from './ui/Button';
+import { TextInput } from './ui/Field';
+import { Alert } from './ui/Feedback';
+import { PASSWORD_HINT, passwordPolicyError } from '../utils/passwordPolicy';
+
+const EMPTY = { name: '', phone: '', email: '', password: '', role: 'RESIDENT', status: 'ACTIVE' };
 
 const ResidentModal = ({ isOpen, onClose, onSave, initialData }) => {
     const isEditMode = !!initialData;
-    
-    const [formData, setFormData] = useState({
-        name: '',
-        phone: '',
-        email: '',
-        password: '',
-        role: 'RESIDENT',
-        status: 'ACTIVE'
-    });
-    
+    const [formData, setFormData] = useState(EMPTY);
+    const [errors, setErrors] = useState({});
+    const [formError, setFormError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        if (initialData) {
-            setFormData({
-                name: initialData.fullName || '',
-                phone: initialData.phoneNumber || '',
-                email: initialData.email || '',
-                password: '', // Never prefill password
-                role: 'RESIDENT',
-                status: initialData.status || 'ACTIVE'
-            });
-        } else {
-            setFormData({ name: '', phone: '', email: '', password: '', role: 'RESIDENT', status: 'ACTIVE' });
-        }
+        setFormData(initialData ? {
+            name: initialData.fullName || '',
+            phone: initialData.phoneNumber || '',
+            email: initialData.email || '',
+            password: '', // Never prefill password
+            role: 'RESIDENT',
+            status: initialData.status || 'ACTIVE',
+        } : EMPTY);
+        setErrors({});
+        setFormError('');
     }, [initialData, isOpen]);
-
-    if (!isOpen) return null;
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
+        setErrors((er) => ({ ...er, [e.target.name]: undefined }));
+    };
+
+    const validate = () => {
+        const e = {};
+        if (formData.name.trim().length < 2) e.name = 'Enter the full name.';
+        if (!/^\S+@\S+\.\S+$/.test(formData.email.trim())) e.email = 'Enter a valid email address.';
+        if (!/^\d{10}$/.test(formData.phone.replace(/[\s-]/g, ''))) e.phone = 'Enter a 10-digit mobile number.';
+        if (!isEditMode && formData.password) {
+            const policy = passwordPolicyError(formData.password);
+            if (policy) e.password = policy;
+        }
+        setErrors(e);
+        return Object.keys(e).length === 0;
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!validate()) return;
         setIsLoading(true);
+        setFormError('');
         try {
-            await onSave(formData);
+            await onSave({ ...formData, name: formData.name.trim(), email: formData.email.trim(), phone: formData.phone.replace(/[\s-]/g, '') });
             onClose();
         } catch (error) {
-            console.error(error);
+            setFormError(error.message);
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="premium-modal-overlay">
-            <div className="premium-modal-content">
-                <div className="premium-modal-header">
-                    <div>
-                        <h2 className="premium-modal-title">
-                            {isEditMode ? 'Edit Resident' : 'Add New Resident'}
-                        </h2>
-                        <p className="premium-modal-subtitle">
-                            {isEditMode ? 'Update the details of the resident below.' : 'Enter the details to register a new resident.'}
-                        </p>
-                    </div>
-                    <button className="premium-modal-close" onClick={onClose} aria-label="Close modal">
-                        <X size={20} />
-                    </button>
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            as="form"
+            onSubmit={handleSubmit}
+            icon={isEditMode ? UserCog : UserPlus}
+            title={isEditMode ? 'Edit details' : 'Add a resident'}
+            description={isEditMode ? 'Update this person’s contact details.' : 'They will sign in with a temporary password and set up their own account.'}
+            dismissible={!isLoading}
+            footer={(
+                <>
+                    <Button variant="secondary" onClick={onClose} disabled={isLoading}>Cancel</Button>
+                    <Button type="submit" isLoading={isLoading}>{isEditMode ? 'Save changes' : 'Add resident'}</Button>
+                </>
+            )}
+        >
+            <div className="stack">
+                {formError && <Alert tone="error">{formError}</Alert>}
+                <TextInput label="Full name" name="name" icon={UserRound} value={formData.name} onChange={handleChange} error={errors.name} placeholder="Priya Sharma" />
+                <div className="form-grid">
+                    <TextInput label="Email" name="email" type="email" icon={AtSign} value={formData.email} onChange={handleChange} error={errors.email} placeholder="name@example.com" />
+                    <TextInput label="Mobile" name="phone" type="tel" icon={Phone} value={formData.phone} onChange={handleChange} error={errors.phone} placeholder="98765 43210" />
                 </div>
-
-                <form onSubmit={handleSubmit}>
-                    
-                    <div className="input-group-modern">
-                        <label className="input-label">Full Name</label>
-                        <div className="modern-input-wrapper">
-                            <User size={18} className="modern-input-icon" />
-                            <input
-                                type="text"
-                                name="name"
-                                className="modern-input"
-                                value={formData.name}
-                                onChange={handleChange}
-                                placeholder="Enter full name"
-                                required
-                            />
-                        </div>
-                    </div>
-
-                    <div className="input-group-modern">
-                        <label className="input-label">Email Address</label>
-                        <div className="modern-input-wrapper">
-                            <Mail size={18} className="modern-input-icon" />
-                            <input
-                                type="email"
-                                name="email"
-                                className="modern-input"
-                                value={formData.email}
-                                onChange={handleChange}
-                                placeholder="name@example.com"
-                                required
-                            />
-                        </div>
-                    </div>
-
-                    <div className="input-group-modern">
-                        <label className="input-label">Phone Number</label>
-                        <div className="modern-input-wrapper">
-                            <Phone size={18} className="modern-input-icon" />
-                            <input
-                                type="tel"
-                                name="phone"
-                                className="modern-input"
-                                value={formData.phone}
-                                onChange={handleChange}
-                                placeholder="10-digit mobile number"
-                                required
-                            />
-                        </div>
-                    </div>
-
-                    {!isEditMode && (
-                        <div className="input-group-modern">
-                            <label className="input-label">Initial Password (optional)</label>
-                            <div className="modern-input-wrapper">
-                                <Hash size={18} className="modern-input-icon" />
-                                <input
-                                    type="password"
-                                    name="password"
-                                    className="modern-input"
-                                    value={formData.password}
-                                    onChange={handleChange}
-                                    placeholder="Leave blank to generate one"
-                                    autoComplete="new-password"
-                                />
-                            </div>
-                            <small style={{ color: 'var(--text-secondary-light)', fontSize: '0.78rem' }}>
-                                At least 8 characters with a letter and a digit. The resident must change it at first sign-in.
-                            </small>
-                        </div>
-                    )}
-
-                    <div className="premium-actions">
-                        <button type="button" className="custom-btn secondary" onClick={onClose} disabled={isLoading}>
-                            Cancel
-                        </button>
-                        <button type="submit" className="custom-btn primary" disabled={isLoading}>
-                            {isLoading ? <span className="spinner"></span> : (isEditMode ? 'Save Changes' : 'Add Resident')}
-                        </button>
-                    </div>
-                </form>
+                {!isEditMode && (
+                    <TextInput label="Temporary password" optional name="password" type="password" icon={KeyRound} value={formData.password}
+                        onChange={handleChange} error={errors.password} autoComplete="new-password" placeholder="Leave blank to generate one"
+                        hint={`${PASSWORD_HINT}. They must change it at first sign-in.`} />
+                )}
             </div>
-        </div>
+        </Modal>
     );
 };
 

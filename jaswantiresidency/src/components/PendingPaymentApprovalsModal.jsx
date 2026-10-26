@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { ArrowLeft, CheckCircle2, ClipboardCheck, ImageOff, Maximize2, RefreshCw, XCircle } from 'lucide-react';
+import Modal from './ui/Modal';
 import Button from './ui/Button';
-import { CheckCircle2, XCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { Select, TextInput, Textarea } from './ui/Field';
+import { Alert, EmptyState, Skeleton } from './ui/Feedback';
+import { notifySuccess } from '../utils/notify';
+import { formatDateTime, formatMoney, timeAgo } from '../utils/format';
 import { getPaymentSubmissions, approvePaymentSubmission, rejectPaymentSubmission } from '../api/billingApi';
 import { getBankAccounts } from '../api/adminApi';
 import { viewAuthenticatedFile, useAuthenticatedMedia } from '../api/fileUtils';
-import './ui/shared.css';
 
 const PendingPaymentApprovalsModal = ({ isOpen, onClose, onActionSuccess }) => {
     const [submissions, setSubmissions] = useState([]);
@@ -35,8 +39,7 @@ const PendingPaymentApprovalsModal = ({ isOpen, onClose, onActionSuccess }) => {
                 setSelectedBankId(banks[0].id);
             }
         } catch (err) {
-            console.error('Failed to load submissions or bank accounts', err);
-            setError('Failed to load pending submissions.');
+            setError('We could not load the submissions. Try refreshing.');
         } finally {
             setIsLoading(false);
         }
@@ -60,7 +63,7 @@ const PendingPaymentApprovalsModal = ({ isOpen, onClose, onActionSuccess }) => {
     const handleApprove = async () => {
         if (!selectedSub) return;
         if (!selectedBankId) {
-            setError('Please select a society bank account to credit.');
+            setError('Choose the account the money was received in.');
             return;
         }
 
@@ -72,11 +75,12 @@ const PendingPaymentApprovalsModal = ({ isOpen, onClose, onActionSuccess }) => {
                 receiptNumber: receiptNumber.trim() || undefined,
                 notes: approvalNotes.trim() || undefined
             });
+            notifySuccess(`Approved ${formatMoney(selectedSub.amount, 2)} from ${selectedSub.roomNumber}`);
             setSelectedSub(null);
             await loadData();
             if (onActionSuccess) onActionSuccess();
         } catch (err) {
-            setError(err?.response?.data?.message || err.message || 'Approval failed.');
+            setError(err?.response?.data?.message || 'We could not approve this payment. Please try again.');
         } finally {
             setIsProcessing(false);
         }
@@ -85,7 +89,7 @@ const PendingPaymentApprovalsModal = ({ isOpen, onClose, onActionSuccess }) => {
     const handleReject = async () => {
         if (!selectedSub) return;
         if (!rejectionReason.trim()) {
-            setError('Please provide a reason for rejecting the payment proof.');
+            setError('Tell the resident why, so they can fix it and resubmit.');
             return;
         }
 
@@ -95,259 +99,131 @@ const PendingPaymentApprovalsModal = ({ isOpen, onClose, onActionSuccess }) => {
             await rejectPaymentSubmission(selectedSub.id, {
                 reason: rejectionReason.trim()
             });
+            notifySuccess(`Submission from ${selectedSub.roomNumber} rejected — the resident has been told why`);
             setSelectedSub(null);
             setIsRejecting(false);
             await loadData();
             if (onActionSuccess) onActionSuccess();
         } catch (err) {
-            setError(err?.response?.data?.message || err.message || 'Rejection failed.');
+            setError(err?.response?.data?.message || 'We could not reject this submission. Please try again.');
         } finally {
             setIsProcessing(false);
         }
     };
 
-    if (!isOpen) return null;
-
     const pendingList = submissions.filter(s => s.status === 'PENDING');
+    const modeLabel = (m) => (m || '').replace(/_MANUAL$/, '').replace(/_/g, ' ').toLowerCase().replace(/^upi/, 'UPI');
 
     return (
-        <div className="premium-modal-overlay">
-            <div className="premium-modal-content" style={{ maxWidth: '850px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
-                <div className="premium-modal-header">
-                    <div>
-                        <h2 className="premium-modal-title">Payment Submissions Approval Queue</h2>
-                        <p className="premium-modal-subtitle">
-                            Verify resident transaction screenshots and credit the society bank accounts.
-                        </p>
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            size="xl"
+            icon={ClipboardCheck}
+            title="Review payments"
+            description="Check each resident’s proof of payment, then approve it into a society account or send it back."
+            dismissible={!isProcessing}
+            className="approvals-modal"
+        >
+            <div className={`split ${selectedSub ? 'has-selection' : ''}`}>
+                <div className="split-list">
+                    <div className="row row-between split-list-head">
+                        <span className="fw-600">Waiting <span className="tab-count">{pendingList.length}</span></span>
+                        <Button variant="ghost" size="sm" iconOnly icon={RefreshCw} aria-label="Refresh" onClick={loadData} />
                     </div>
-                    <button className="premium-modal-close" onClick={onClose}>
-                        <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>×</span>
-                    </button>
+                    {isLoading ? (
+                        <div className="stack stack-sm">{[0, 1, 2].map((i) => <Skeleton key={i} height={68} style={{ borderRadius: 10 }} />)}</div>
+                    ) : pendingList.length === 0 ? (
+                        <EmptyState compact icon={CheckCircle2} title="All caught up">No payments are waiting for review.</EmptyState>
+                    ) : (
+                        <ul className="pick-list">
+                            {pendingList.map((sub) => (
+                                <li key={sub.id}>
+                                    <button type="button" className={`pick ${selectedSub?.id === sub.id ? 'is-active' : ''}`} onClick={() => handleSelectSubmission(sub)}>
+                                        <div className="row row-between">
+                                            <span className="fw-600">{sub.roomNumber}</span>
+                                            <span className="fw-600 num">{formatMoney(sub.amount, 2)}</span>
+                                        </div>
+                                        <div className="text-sm text-muted truncate">{sub.submittedByUserName}</div>
+                                        <div className="row row-between text-xs text-subtle">
+                                            <span>{modeLabel(sub.paymentMode)}{sub.advanceMonthsCount > 0 ? ` · +${sub.advanceMonthsCount} mo advance` : ''}</span>
+                                            <span>{timeAgo(sub.createdAt)}</span>
+                                        </div>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                 </div>
 
-                {error && (
-                    <div style={{ margin: '1rem 1.5rem 0', padding: '0.75rem', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
-                        <AlertCircle size={16} />
-                        <span>{error}</span>
-                    </div>
-                )}
+                <div className="split-detail">
+                    {selectedSub ? (
+                        <div className="stack">
+                            <button type="button" className="auth-back split-back" onClick={() => setSelectedSub(null)}><ArrowLeft size={16} /> All submissions</button>
+                            {error && <Alert tone="error">{error}</Alert>}
+                            <div>
+                                <div className="eyebrow">Submission #{selectedSub.id}</div>
+                                <div className="detail-amount num">{formatMoney(selectedSub.amount, 2)}</div>
+                                <div className="text-sm text-muted">From {selectedSub.submittedByUserName} · {selectedSub.roomNumber} · {formatDateTime(selectedSub.createdAt)}</div>
+                            </div>
+                            <dl className="kv summary-box">
+                                <dt>Paid by</dt><dd>{modeLabel(selectedSub.paymentMode)}</dd>
+                                <dt>Reference / UTR</dt><dd><code>{selectedSub.referenceNumber || '—'}</code></dd>
+                                {selectedSub.advanceMonthsCount > 0 && <><dt>Advance</dt><dd>{selectedSub.advanceMonthsCount} months</dd></>}
+                            </dl>
+                            {selectedSub.residentDescription && (
+                                <blockquote className="quote">“{selectedSub.residentDescription}”</blockquote>
+                            )}
+                            <div className="field">
+                                <span className="field-label">Proof of payment</span>
+                                <div className="proof">
+                                    {screenshot.src ? (
+                                        <button type="button" className="proof-btn" onClick={() => viewAuthenticatedFile(screenshotUrl)} aria-label="Open the screenshot full size">
+                                            <img src={screenshot.src} alt="Payment proof" />
+                                            <span className="proof-zoom"><Maximize2 size={14} /> Full size</span>
+                                        </button>
+                                    ) : screenshot.loading ? <Skeleton height={160} /> : (
+                                        <span className="proof-empty"><ImageOff size={18} /> No screenshot attached</span>
+                                    )}
+                                </div>
+                            </div>
 
-                <div style={{ display: 'flex', flex: 1, minHeight: '380px', overflow: 'hidden', padding: '1rem 1.5rem', gap: '1.5rem' }}>
-                    {/* Left: Submissions list */}
-                    <div style={{ flex: '1 1 50%', overflowY: 'auto', borderRight: '1px solid var(--border-light)', paddingRight: '1rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                Pending Approvals ({pendingList.length})
-                            </span>
-                            <Button variant="secondary" onClick={loadData} style={{ padding: '0.2rem 0.5rem' }}>
-                                <RefreshCw size={14} />
-                            </Button>
+                            {!isRejecting ? (
+                                <div className="decision">
+                                    <div className="form-grid">
+                                        <Select label="Credit to account" value={selectedBankId} onChange={(e) => setSelectedBankId(e.target.value)}>
+                                            {bankAccounts.map((acc) => (
+                                                <option key={acc.id} value={acc.id}>{acc.accountName} · {formatMoney(acc.currentBalance)}</option>
+                                            ))}
+                                        </Select>
+                                        <TextInput label="Receipt number" optional placeholder="Auto-generated" value={receiptNumber} onChange={(e) => setReceiptNumber(e.target.value)} />
+                                    </div>
+                                    <div className="row row-end">
+                                        <Button variant="danger-ghost" icon={XCircle} onClick={() => setIsRejecting(true)} disabled={isProcessing}>Reject</Button>
+                                        <Button variant="success" icon={CheckCircle2} onClick={handleApprove} isLoading={isProcessing}>Approve payment</Button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="decision tone-danger">
+                                    <Textarea label="Why are you rejecting it?" rows={3} autoFocus value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)}
+                                        placeholder="e.g. The UTR does not match our bank statement, or the screenshot is unreadable." hint="The resident sees this message." />
+                                    <div className="row row-end">
+                                        <Button variant="ghost" onClick={() => setIsRejecting(false)} disabled={isProcessing}>Back</Button>
+                                        <Button variant="danger" onClick={handleReject} isLoading={isProcessing}>Reject submission</Button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
-
-                        {isLoading ? (
-                            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary-light)' }}>Loading...</div>
-                        ) : pendingList.length === 0 ? (
-                            <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-secondary-light)' }}>
-                                No pending payment submissions to review.
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                {pendingList.map(sub => (
-                                    <div
-                                        key={sub.id}
-                                        onClick={() => handleSelectSubmission(sub)}
-                                        style={{
-                                            padding: '0.75rem',
-                                            borderRadius: 8,
-                                            border: selectedSub?.id === sub.id ? '2px solid var(--primary)' : '1px solid var(--border-light)',
-                                            background: selectedSub?.id === sub.id ? '#f0f7ff' : '#fff',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Room {sub.roomNumber} - {sub.submittedByUserName}</span>
-                                            <span style={{ fontWeight: 700, color: 'var(--success)', fontSize: '0.95rem' }}>₹{Number(sub.amount).toFixed(2)}</span>
-                                        </div>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary-light)', marginTop: '0.25rem' }}>
-                                            Mode: {sub.paymentMode} | Ref: {sub.referenceNumber || 'N/A'}
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.4rem', fontSize: '0.75rem' }}>
-                                            <span style={{ color: 'var(--text-secondary-light)' }}>
-                                                {new Date(sub.createdAt).toLocaleDateString()} {new Date(sub.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </span>
-                                            {sub.advanceMonthsCount > 0 && (
-                                                <span style={{ background: '#e0e7ff', color: '#3730a3', padding: '0.1rem 0.4rem', borderRadius: 4, fontWeight: 600 }}>
-                                                    +{sub.advanceMonthsCount} mo adv
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Right: Selected submission details and action */}
-                    <div style={{ flex: '1 1 50%', overflowY: 'auto' }}>
-                        {selectedSub ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                                <div style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem', marginBottom: '1rem' }}>
-                                    <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>
-                                        Submission #{selectedSub.id} - Room {selectedSub.roomNumber}
-                                    </h4>
-                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary-light)', marginTop: '0.2rem' }}>
-                                        Submitted by {selectedSub.submittedByUserName}
-                                    </div>
-                                </div>
-
-                                <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: 6, fontSize: '0.85rem', marginBottom: '1rem' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                                        <span>Amount:</span>
-                                        <strong style={{ fontSize: '1rem', color: 'var(--success)' }}>₹{Number(selectedSub.amount).toFixed(2)}</strong>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                                        <span>Mode:</span>
-                                        <strong>{selectedSub.paymentMode}</strong>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                                        <span>Reference / UTR:</span>
-                                        <strong style={{ fontFamily: 'monospace' }}>{selectedSub.referenceNumber || 'N/A'}</strong>
-                                    </div>
-                                    {selectedSub.advanceMonthsCount > 0 && (
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                                            <span>Advance Period:</span>
-                                            <strong style={{ color: 'var(--primary)' }}>+{selectedSub.advanceMonthsCount} months</strong>
-                                        </div>
-                                    )}
-                                    {selectedSub.residentDescription && (
-                                        <div style={{ marginTop: '0.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem' }}>
-                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary-light)', display: 'block' }}>Resident Note:</span>
-                                            <em>"{selectedSub.residentDescription}"</em>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Screenshot Viewer */}
-                                <div style={{ marginBottom: '1rem' }}>
-                                    <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '0.4rem' }}>
-                                        Attached Screenshot / Proof:
-                                    </label>
-                                    <div style={{ border: '1px solid var(--border-light)', borderRadius: 6, overflow: 'hidden', textAlign: 'center', background: '#f1f5f9', padding: '0.5rem' }}>
-                                        {screenshot.src ? (
-                                            <>
-                                                <img
-                                                    src={screenshot.src}
-                                                    alt="Payment proof screenshot"
-                                                    style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', cursor: 'pointer' }}
-                                                    onClick={() => viewAuthenticatedFile(screenshotUrl)}
-                                                />
-                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary-light)', marginTop: '0.2rem' }}>
-                                                    (Click to open full resolution in new tab)
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary-light)', padding: '1rem', display: 'block' }}>
-                                                {screenshot.loading ? 'Loading screenshot…' : 'No screenshot available or unable to load'}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Action Area */}
-                                {!isRejecting ? (
-                                    <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem' }}>
-                                        <div style={{ marginBottom: '0.75rem' }}>
-                                            <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>
-                                                Select Destination Bank Account <span style={{ color: 'red' }}>*</span>
-                                            </label>
-                                            <select
-                                                value={selectedBankId}
-                                                onChange={(e) => setSelectedBankId(e.target.value)}
-                                                style={{ width: '100%', padding: '0.5rem', borderRadius: 6, border: '1px solid var(--border-light)', fontSize: '0.85rem' }}
-                                            >
-                                                {bankAccounts.map(acc => (
-                                                    <option key={acc.id} value={acc.id}>
-                                                        {acc.accountName} (Balance: ₹{Number(acc.currentBalance).toFixed(2)})
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div style={{ marginBottom: '0.75rem' }}>
-                                            <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>
-                                                Receipt Number (Optional, auto-generated if blank)
-                                            </label>
-                                            <input
-                                                type="text"
-                                                placeholder="e.g. REC-2026-0042"
-                                                value={receiptNumber}
-                                                onChange={(e) => setReceiptNumber(e.target.value)}
-                                                style={{ width: '100%', padding: '0.45rem', borderRadius: 6, border: '1px solid var(--border-light)', fontSize: '0.85rem' }}
-                                            />
-                                        </div>
-
-                                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-                                            <Button
-                                                onClick={handleApprove}
-                                                disabled={isProcessing}
-                                                style={{ flex: 1, background: 'var(--success)' }}
-                                            >
-                                                <CheckCircle2 size={16} /> {isProcessing ? 'Processing...' : 'Approve & Credit'}
-                                            </Button>
-                                            <Button
-                                                variant="secondary"
-                                                onClick={() => setIsRejecting(true)}
-                                                disabled={isProcessing}
-                                                style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
-                                            >
-                                                <XCircle size={16} /> Reject
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem' }}>
-                                        <div style={{ marginBottom: '0.75rem' }}>
-                                            <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '0.25rem', color: 'var(--danger)' }}>
-                                                Rejection Reason <span style={{ color: 'red' }}>*</span>
-                                            </label>
-                                            <textarea
-                                                rows={2}
-                                                placeholder="Explain why this proof is rejected (e.g. invalid UTR, blurred screenshot, mismatching amount)..."
-                                                value={rejectionReason}
-                                                onChange={(e) => setRejectionReason(e.target.value)}
-                                                style={{ width: '100%', padding: '0.5rem', borderRadius: 6, border: '1px solid var(--danger)', fontSize: '0.85rem' }}
-                                            />
-                                        </div>
-
-                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                            <Button
-                                                onClick={handleReject}
-                                                disabled={isProcessing}
-                                                style={{ flex: 1, background: 'var(--danger)' }}
-                                            >
-                                                <XCircle size={16} /> {isProcessing ? 'Rejecting...' : 'Confirm Rejection'}
-                                            </Button>
-                                            <Button
-                                                variant="secondary"
-                                                onClick={() => setIsRejecting(false)}
-                                                disabled={isProcessing}
-                                            >
-                                                Cancel
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <div style={{ padding: '4rem 1rem', textAlign: 'center', color: 'var(--text-secondary-light)' }}>
-                                Select a pending submission from the list on the left to review details and approve.
-                            </div>
-                        )}
-                    </div>
+                    ) : (
+                        <div className="split-placeholder">
+                            {error ? <Alert tone="error">{error}</Alert> : (
+                                <EmptyState icon={ClipboardCheck} title="Pick a submission">Choose one from the list to see the proof and approve it.</EmptyState>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
-        </div>
+        </Modal>
     );
 };
 

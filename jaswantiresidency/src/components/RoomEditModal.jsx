@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { Building2 } from 'lucide-react';
+import Modal from './ui/Modal';
 import Button from './ui/Button';
-import { Save, AlertCircle } from 'lucide-react';
+import { TextInput, Select } from './ui/Field';
+import { Alert } from './ui/Feedback';
 import { createRoom, updateRoom } from '../api/adminApi';
-import './ui/shared.css';
+import { notifySuccess } from '../utils/notify';
 
 const RoomEditModal = ({ isOpen, onClose, room, onSaved }) => {
     const isEdit = Boolean(room?.id);
@@ -48,7 +51,7 @@ const RoomEditModal = ({ isOpen, onClose, room, onSaved }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!roomNumber.trim()) {
-            setError('Room number is required.');
+            setError('Enter the unit number.');
             return;
         }
 
@@ -61,141 +64,65 @@ const RoomEditModal = ({ isOpen, onClose, room, onSaved }) => {
                 floor: parseInt(floor, 10),
                 unitCategory,
                 nocApplicable,
-                nocAmount: nocApplicable ? (parseFloat(nocAmount) || 0) : 0
+                nocAmount: nocApplicable ? (parseFloat(nocAmount) || 0) : 0,
             };
 
-            if (isEdit) {
-                await updateRoom(room.id, payload);
-            } else {
-                await createRoom(payload);
-            }
+            if (isEdit) await updateRoom(room.id, payload);
+            else await createRoom(payload);
 
+            notifySuccess(isEdit ? `Unit ${payload.roomNumber} updated` : `Unit ${payload.roomNumber} added`);
             if (onSaved) onSaved();
             onClose();
         } catch (err) {
-            setError(err?.response?.data?.message || err.message || 'Failed to save unit.');
+            setError(err?.response?.data?.message || 'We could not save this unit. Please try again.');
         } finally {
             setIsSaving(false);
         }
     };
 
-    if (!isOpen) return null;
-
     return (
-        <div className="premium-modal-overlay">
-            <div className="premium-modal-content" style={{ maxWidth: '480px' }}>
-                <div className="premium-modal-header">
-                    <div>
-                        <h2 className="premium-modal-title">{isEdit ? `Edit Room ${room.roomNumber}` : 'Add New Unit'}</h2>
-                        <p className="premium-modal-subtitle">Configure unit category and automatic companion NOC billing</p>
-                    </div>
-                    <button className="premium-modal-close" onClick={onClose}>
-                        <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>×</span>
-                    </button>
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            as="form"
+            onSubmit={handleSubmit}
+            icon={Building2}
+            title={isEdit ? `Edit unit ${room.roomNumber}` : 'Add a unit'}
+            description="Set the unit’s location, type and any NOC charge billed with maintenance."
+            dismissible={!isSaving}
+            footer={(
+                <>
+                    <Button variant="secondary" onClick={onClose} disabled={isSaving}>Cancel</Button>
+                    <Button type="submit" isLoading={isSaving}>{isEdit ? 'Save changes' : 'Add unit'}</Button>
+                </>
+            )}
+        >
+            <div className="stack">
+                {error && <Alert tone="error">{error}</Alert>}
+                <div className="grid grid-3" style={{ '--gap': '0.75rem' }}>
+                    <TextInput label="Unit number" required value={roomNumber} onChange={(e) => setRoomNumber(e.target.value)} placeholder="C-602" />
+                    <TextInput label="Wing" value={wing} onChange={(e) => setWing(e.target.value)} />
+                    <TextInput label="Floor" type="number" value={floor} onChange={(e) => setFloor(e.target.value)} />
                 </div>
-
-                <form onSubmit={handleSubmit} style={{ padding: '1.25rem 1.5rem' }}>
-                    {error && (
-                        <div style={{ marginBottom: '1rem', padding: '0.6rem 0.8rem', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', borderRadius: 6, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <AlertCircle size={16} />
-                            <span>{error}</span>
-                        </div>
+                <Select label="Unit type" value={unitCategory} onChange={(e) => handleCategoryChange(e.target.value)}>
+                    <option value="RESIDENTIAL">Residential apartment</option>
+                    <option value="COMMERCIAL">Commercial / retail</option>
+                    <option value="OFFICE">Office / professional suite</option>
+                    <option value="SHOP">Shop / ground-floor store</option>
+                </Select>
+                <div className="summary-box stack stack-sm">
+                    <label className="check fw-600">
+                        <input type="checkbox" checked={nocApplicable} onChange={(e) => setNocApplicable(e.target.checked)} />
+                        Bill a monthly NOC charge
+                    </label>
+                    <p className="text-sm text-muted">When on, monthly bill generation also creates a separate NOC bill for this unit.</p>
+                    {nocApplicable && (
+                        <TextInput label="Monthly NOC amount" prefix="₹" type="number" step="0.01" min="0" value={nocAmount}
+                            onChange={(e) => setNocAmount(e.target.value)} className="mt-2" style={{ maxWidth: 160 }} />
                     )}
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                                Unit No <span style={{ color: 'red' }}>*</span>
-                            </label>
-                            <input
-                                type="text"
-                                required
-                                value={roomNumber}
-                                onChange={(e) => setRoomNumber(e.target.value)}
-                                style={{ width: '100%', padding: '0.5rem', borderRadius: 6, border: '1px solid var(--border-light)', fontSize: '0.85rem' }}
-                            />
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                                Wing
-                            </label>
-                            <input
-                                type="text"
-                                value={wing}
-                                onChange={(e) => setWing(e.target.value)}
-                                style={{ width: '100%', padding: '0.5rem', borderRadius: 6, border: '1px solid var(--border-light)', fontSize: '0.85rem' }}
-                            />
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                                Floor
-                            </label>
-                            <input
-                                type="number"
-                                value={floor}
-                                onChange={(e) => setFloor(e.target.value)}
-                                style={{ width: '100%', padding: '0.5rem', borderRadius: 6, border: '1px solid var(--border-light)', fontSize: '0.85rem' }}
-                            />
-                        </div>
-                    </div>
-
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                            Unit Category <span style={{ color: 'red' }}>*</span>
-                        </label>
-                        <select
-                            value={unitCategory}
-                            onChange={(e) => handleCategoryChange(e.target.value)}
-                            style={{ width: '100%', padding: '0.5rem', borderRadius: 6, border: '1px solid var(--border-light)', fontSize: '0.85rem' }}
-                        >
-                            <option value="RESIDENTIAL">Residential Apartment</option>
-                            <option value="COMMERCIAL">Commercial / Retail</option>
-                            <option value="OFFICE">Office / Professional Suite</option>
-                            <option value="SHOP">Shop / Ground Floor Store</option>
-                        </select>
-                    </div>
-
-                    <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: 8, marginBottom: '1.25rem', border: '1px solid var(--border-light)' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
-                            <input
-                                type="checkbox"
-                                checked={nocApplicable}
-                                onChange={(e) => setNocApplicable(e.target.checked)}
-                            />
-                            Apply Automatic Companion NOC Charge
-                        </label>
-                        <p style={{ margin: '0.35rem 0 0.75rem 1.4rem', fontSize: '0.75rem', color: 'var(--text-secondary-light)' }}>
-                            When active, monthly billing generation will automatically generate a separate companion NOC invoice.
-                        </p>
-
-                        {nocApplicable && (
-                            <div style={{ marginLeft: '1.4rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                                    Monthly NOC Amount (₹)
-                                </label>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={nocAmount}
-                                    onChange={(e) => setNocAmount(e.target.value)}
-                                    style={{ width: '160px', padding: '0.45rem', borderRadius: 6, border: '1px solid var(--border-light)', fontSize: '0.85rem' }}
-                                />
-                            </div>
-                        )}
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                        <Button variant="secondary" type="button" onClick={onClose}>
-                            Cancel
-                        </Button>
-                        <Button type="submit" disabled={isSaving}>
-                            <Save size={16} /> {isSaving ? 'Saving...' : 'Save Unit'}
-                        </Button>
-                    </div>
-                </form>
+                </div>
             </div>
-        </div>
+        </Modal>
     );
 };
 

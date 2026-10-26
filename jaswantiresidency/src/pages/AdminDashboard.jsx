@@ -1,37 +1,48 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import Card from '../components/ui/Card';
-import { Users, DollarSign, Activity, FileText, Home, Bell, TrendingUp, TrendingDown, Building2, Wallet, Banknote, AlertTriangle } from 'lucide-react';
-import { XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+    ArrowRight, ArrowUpRight, ArrowDownRight, Banknote, Building2, IndianRupee, Landmark, Megaphone,
+    MessageSquare, Receipt, RefreshCw, Users, Wallet,
+} from 'lucide-react';
+import { XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { getAdminDashboard, getTransactions, getAllAnnouncements } from '../api/adminApi';
-import './dashboard.css';
-import './admin.css';
+import Card from '../components/ui/Card';
+import Button from '../components/ui/Button';
+import { Alert, EmptyState, Skeleton, StatCard } from '../components/ui/Feedback';
+import { firstName, formatDate, formatMoney, formatMoneyShort, greeting, monthLabel } from '../utils/format';
 
-const STATUS_SLICES = [
-    { key: 'PAID', name: 'Paid', color: '#10B981' },
-    { key: 'PARTIALLY_PAID', name: 'Partly paid', color: '#F59E0B' },
-    { key: 'PENDING', name: 'Pending', color: '#EF4444' },
+const STATUS_PARTS = [
+    { key: 'PAID', name: 'Paid', tone: 'success' },
+    { key: 'PARTIALLY_PAID', name: 'Partly paid', tone: 'warning' },
+    { key: 'PENDING', name: 'Not paid', tone: 'danger' },
 ];
 
-const formatMoney = (value, fractionDigits = 0) =>
-    `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits })}`;
-
-const greeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+const ChartTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    return (
+        <div className="chart-tooltip">
+            <div className="chart-tooltip-label">{label}</div>
+            <div className="chart-tooltip-value">{formatMoney(payload[0].value)}</div>
+        </div>
+    );
 };
 
-const monthLabel = (ym) => {
-    if (!ym) return '';
-    const [y, m] = ym.split('-').map(Number);
-    return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-};
+const DashboardSkeleton = () => (
+    <div aria-busy="true" aria-label="Loading overview">
+        <Skeleton width={300} height={34} style={{ marginBottom: 10 }} />
+        <Skeleton width={220} height={16} style={{ marginBottom: 28 }} />
+        <div className="grid grid-4 mb-6">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} height={112} style={{ borderRadius: 14 }} />)}</div>
+        <div className="dash-grid">
+            <Skeleton height={340} style={{ borderRadius: 14 }} className="span-2" />
+            <Skeleton height={340} style={{ borderRadius: 14 }} />
+        </div>
+    </div>
+);
 
 const AdminDashboard = () => {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [stats, setStats] = useState(null);
     const [recentTransactions, setRecentTransactions] = useState([]);
     const [latestAnnouncements, setLatestAnnouncements] = useState([]);
@@ -52,7 +63,7 @@ const AdminDashboard = () => {
             if (transactions.status === 'fulfilled') {
                 setRecentTransactions([...(transactions.value || [])]
                     .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0))
-                    .slice(0, 5));
+                    .slice(0, 6));
             }
             if (announcements.status === 'fulfilled') {
                 const now = Date.now();
@@ -63,7 +74,7 @@ const AdminDashboard = () => {
             }
         } catch (err) {
             // Never show placeholder figures on a finance dashboard: say it failed and offer a retry
-            setError('Could not load the dashboard. Check your connection and try again.');
+            setError('We could not load the overview. Check your connection and try again.');
         } finally {
             setIsLoading(false);
         }
@@ -71,298 +82,212 @@ const AdminDashboard = () => {
 
     useEffect(() => { load(); }, [load]);
 
-    if (isLoading) {
-        return (
-            <div className="dashboard-wrapper" aria-busy="true">
-                <div className="skeleton" style={{ height: 32, width: 280, marginBottom: '1.5rem' }} />
-                <div className="dashboard-grid">
-                    {Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton" style={{ height: 110 }} />)}
-                </div>
-            </div>
-        );
-    }
+    if (isLoading) return <DashboardSkeleton />;
 
     if (error || !stats) {
         return (
-            <div className="dashboard-wrapper">
-                <Card>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--danger)' }}>
-                        <AlertTriangle size={20} aria-hidden="true" />
-                        <span style={{ flex: 1 }}>{error || 'Dashboard data is unavailable.'}</span>
-                        <button type="button" className="custom-btn btn-secondary" onClick={load}>Retry</button>
-                    </div>
-                </Card>
-            </div>
+            <Alert tone="error" title="Overview unavailable" action={<Button variant="secondary" size="sm" icon={RefreshCw} onClick={load}>Try again</Button>}>
+                {error || 'Dashboard data is unavailable.'}
+            </Alert>
         );
     }
 
     const collected = Number(stats.monthlyCollection || 0);
     const lastMonth = Number(stats.lastMonthCollection || 0);
-    const collectionChange = lastMonth > 0 ? Math.round(((collected - lastMonth) / lastMonth) * 100) : null;
+    const change = lastMonth > 0 ? Math.round(((collected - lastMonth) / lastMonth) * 100) : null;
 
     const statusCounts = stats.billStatusThisMonth || {};
-    const totalBillsThisMonth = STATUS_SLICES.reduce((sum, s) => sum + Number(statusCounts[s.key] || 0), 0);
-    const pieData = STATUS_SLICES.map((s) => ({ ...s, value: Number(statusCounts[s.key] || 0) }));
+    const parts = STATUS_PARTS.map((s) => ({ ...s, value: Number(statusCounts[s.key] || 0) }));
+    const totalBills = parts.reduce((sum, p) => sum + p.value, 0);
+    const paidShare = totalBills ? Math.round((parts[0].value / totalBills) * 100) : 0;
     const trend = (stats.collectionTrend || []).map((p) => ({ ...p, amount: Number(p.amount || 0) }));
     const accounts = stats.bankAccounts || [];
+    const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
 
     return (
-        <div className="dashboard-wrapper animate-fade-up">
-
-            {/* Hero Section */}
-            <div className="dashboard-hero">
-                <h1 className="hero-greeting">{greeting()}, {user?.name || 'Admin'} 👋</h1>
-                <p className="hero-subtext">Here's what's happening at Jaswanti Residency today.</p>
-            </div>
-
-            {/* Live Society Bank Accounts & Cash Ledger */}
-            <div style={{ marginTop: '1.5rem', marginBottom: '0.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary-light)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Building2 size={20} style={{ color: 'var(--primary-color)' }} />
-                        Society Bank Accounts & Liquid Balances
-                    </h3>
+        <div className="stack stack-lg">
+            <header className="page-header" style={{ marginBottom: 0 }}>
+                <div className="grow">
+                    <div className="eyebrow mb-2">{today}</div>
+                    <h1>{greeting()}, {firstName(user?.name) || 'there'}</h1>
+                    <p className="page-description">Here is how Jaswanti Residency is doing this month.</p>
                 </div>
-                <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
-                    <Card className="stat-card animate-scale-in" style={{ borderLeft: '4px solid #10b981' }}>
-                        <div className="stat-content">
-                            <div className="stat-info">
-                                <p className="stat-label">Total Liquid Funds</p>
-                                <h2 className="stat-value" style={{ color: '#10b981' }}>{formatMoney(stats.totalLiquidBalance, 2)}</h2>
-                                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary-light)', marginTop: '0.25rem' }}>Bank + Petty Cash</p>
-                            </div>
-                            <div className="stat-icon-wrapper" style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>
-                                <Wallet size={24} />
-                            </div>
-                        </div>
-                    </Card>
-                    {accounts.length === 0 ? (
-                        <Card className="stat-card">
-                            <p className="stat-label">No bank accounts set up yet</p>
-                            <Link to="/admin/transactions" className="text-link" style={{ margin: 0, fontSize: '0.85rem' }}>Add one in Transactions &gt;</Link>
-                        </Card>
-                    ) : accounts.map((acc) => (
-                        <Card key={acc.id} className="stat-card animate-scale-in" style={{ borderLeft: acc.accountType === 'CASH_LEDGER' ? '4px solid #f59e0b' : '4px solid #3b82f6' }}>
-                            <div className="stat-content">
-                                <div className="stat-info">
-                                    <p className="stat-label">{acc.accountName}</p>
-                                    <h2 className="stat-value">{formatMoney(acc.currentBalance, 2)}</h2>
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary-light)', marginTop: '0.25rem' }}>
-                                        {acc.accountType === 'BANK' ? `${acc.bankName || 'Bank'} Account` : 'Cash Ledger'}
-                                    </p>
-                                </div>
-                                <div className="stat-icon-wrapper" style={{ background: acc.accountType === 'CASH_LEDGER' ? 'rgba(245,158,11,0.12)' : 'rgba(59,130,246,0.12)', color: acc.accountType === 'CASH_LEDGER' ? '#f59e0b' : '#3b82f6' }}>
-                                    {acc.accountType === 'CASH_LEDGER' ? <Banknote size={24} /> : <Building2 size={24} />}
-                                </div>
-                            </div>
-                        </Card>
-                    ))}
+                <div className="header-actions">
+                    {user?.role === 'MASTER_ADMIN' && <Button variant="secondary" icon={Megaphone} onClick={() => navigate('/admin/announcements')}>Post a notice</Button>}
+                    <Button icon={Receipt} onClick={() => navigate('/admin/billing')}>Go to billing</Button>
                 </div>
+            </header>
+
+            <div className="grid grid-4">
+                <StatCard
+                    label="Collected this month"
+                    value={formatMoney(collected)}
+                    icon={IndianRupee}
+                    tone="success"
+                    foot={change === null
+                        ? <>Last month {formatMoney(lastMonth)}</>
+                        : <><span className={change >= 0 ? 'up' : 'down'}>{change >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}{Math.abs(change)}%</span> vs last month</>}
+                />
+                <StatCard
+                    label="Outstanding dues"
+                    value={formatMoney(stats.pendingAmount)}
+                    icon={Wallet}
+                    tone="warning"
+                    foot={<>{stats.unpaidResidents} home{stats.unpaidResidents === 1 ? '' : 's'} with dues</>}
+                    onClick={() => navigate('/admin/billing')}
+                />
+                <StatCard
+                    label="Open requests"
+                    value={stats.openComplaints}
+                    icon={MessageSquare}
+                    tone="brand"
+                    foot={stats.openComplaints ? 'Waiting for a response' : 'Nothing waiting'}
+                    onClick={() => navigate('/admin/complaints')}
+                />
+                <StatCard
+                    label="Active residents"
+                    value={stats.totalResidents}
+                    icon={Users}
+                    tone="info"
+                    foot={<>{stats.activeAnnouncements} active notice{stats.activeAnnouncements === 1 ? '' : 's'}</>}
+                    onClick={() => navigate('/admin/residents')}
+                />
             </div>
 
-            <div className="dashboard-grid mt-4">
-
-                {/* Stat Cards */}
-                <Card className="stat-card animate-scale-in" style={{animationDelay: '0.1s'}}>
-                    <div className="stat-content">
-                        <div className="stat-info">
-                            <p className="stat-label">Active Residents</p>
-                            <h2 className="stat-value">{stats.totalResidents}</h2>
-                            <p className="stat-trend">Accounts that can sign in</p>
-                        </div>
-                        <div className="stat-icon-wrapper" style={{background: 'rgba(225,29,72,0.1)', color: 'var(--primary-color)'}}>
-                            <Users size={24} />
-                        </div>
-                    </div>
-                </Card>
-
-                <Card className="stat-card animate-scale-in" style={{animationDelay: '0.2s'}}>
-                    <div className="stat-content">
-                        <div className="stat-info">
-                            <p className="stat-label">Collected This Month</p>
-                            <h2 className="stat-value">{formatMoney(collected)}</h2>
-                            {collectionChange === null ? (
-                                <p className="stat-trend">Last month: {formatMoney(lastMonth)}</p>
-                            ) : (
-                                <p className={`stat-trend ${collectionChange >= 0 ? 'text-success' : 'text-danger'}`}>
-                                    {collectionChange >= 0 ? <TrendingUp size={14}/> : <TrendingDown size={14}/>} {Math.abs(collectionChange)}% vs last month
-                                </p>
-                            )}
-                        </div>
-                        <div className="stat-icon-wrapper" style={{background: 'rgba(225,29,72,0.1)', color: 'var(--primary-color)'}}>
-                            <DollarSign size={24} />
-                        </div>
-                    </div>
-                </Card>
-
-                <Card className="stat-card animate-scale-in" style={{animationDelay: '0.3s'}}>
-                    <div className="stat-content">
-                        <div className="stat-info">
-                            <p className="stat-label">Outstanding Dues</p>
-                            <h2 className="stat-value">{formatMoney(stats.pendingAmount)}</h2>
-                            <p className="stat-trend">Across {stats.unpaidResidents} unit{stats.unpaidResidents === 1 ? '' : 's'}</p>
-                        </div>
-                        <div className="stat-icon-wrapper" style={{background: 'rgba(225,29,72,0.1)', color: 'var(--primary-color)'}}>
-                            <Activity size={24} />
-                        </div>
-                    </div>
-                </Card>
-
-                <Card className="stat-card animate-scale-in" style={{animationDelay: '0.4s'}}>
-                    <div className="stat-content">
-                        <div className="stat-info">
-                            <p className="stat-label">Open Complaints</p>
-                            <h2 className="stat-value">{stats.openComplaints}</h2>
-                            <Link to="/admin/complaints" className="text-link" style={{margin:0, fontSize: '0.8rem'}}>Open helpdesk &gt;</Link>
-                        </div>
-                        <div className="stat-icon-wrapper" style={{background: 'rgba(225,29,72,0.1)', color: 'var(--primary-color)'}}>
-                            <FileText size={24} />
-                        </div>
-                    </div>
-                </Card>
-
-                <Card className="stat-card animate-scale-in" style={{animationDelay: '0.5s'}}>
-                    <div className="stat-content">
-                        <div className="stat-info">
-                            <p className="stat-label">Units With Dues</p>
-                            <h2 className="stat-value">{stats.unpaidResidents}</h2>
-                            <Link to="/admin/billing" className="text-link" style={{margin:0, fontSize: '0.8rem'}}>View details &gt;</Link>
-                        </div>
-                        <div className="stat-icon-wrapper" style={{background: 'rgba(225,29,72,0.1)', color: 'var(--primary-color)'}}>
-                            <Home size={24} />
-                        </div>
-                    </div>
-                </Card>
-
-                <Card className="stat-card animate-scale-in" style={{animationDelay: '0.6s'}}>
-                    <div className="stat-content">
-                        <div className="stat-info">
-                            <p className="stat-label">Active Announcements</p>
-                            <h2 className="stat-value">{stats.activeAnnouncements}</h2>
-                            <Link to="/admin/announcements" className="text-link" style={{margin:0, fontSize: '0.8rem'}}>View all &gt;</Link>
-                        </div>
-                        <div className="stat-icon-wrapper" style={{background: 'rgba(225,29,72,0.1)', color: 'var(--primary-color)'}}>
-                            <Bell size={24} />
-                        </div>
-                    </div>
-                </Card>
-            </div>
-
-            <div className="dashboard-grid mt-4">
-                {/* Area Chart */}
-                <Card className="col-span-2 glass" title="Collection Trend (Last 6 Months)">
-                    <div style={{ height: '300px', marginTop: '1rem' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={trend} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                <defs>
-                                    <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="var(--primary-color)" stopOpacity={0.3}/>
-                                        <stop offset="95%" stopColor="var(--primary-color)" stopOpacity={0}/>
-                                    </linearGradient>
-                                </defs>
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'var(--text-secondary-light)', fontSize: 12}} />
-                                <YAxis axisLine={false} tickLine={false} tick={{fill: 'var(--text-secondary-light)', fontSize: 12}}
-                                       tickFormatter={(value) => (value >= 1000 ? `₹${Math.round(value / 1000)}k` : `₹${value}`)} />
-                                <Tooltip
-                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: 'var(--shadow-md)' }}
-                                    formatter={(value) => [formatMoney(value, 2), 'Collected']}
-                                />
-                                <Area type="monotone" dataKey="amount" stroke="var(--primary-color)" strokeWidth={3} fillOpacity={1} fill="url(#colorAmount)" />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                </Card>
-
-                {/* Doughnut Chart */}
-                <Card className="glass" title={`Bill Status · ${monthLabel(stats.billingMonth)}`}>
-                    {totalBillsThisMonth === 0 ? (
-                        <p className="empty-state" style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--text-secondary-light)' }}>
-                            No bills have been generated for this month yet.
-                        </p>
+            <div className="dash-grid">
+                <Card className="span-2" title="Collections" subtitle="Payments received over the last six months">
+                    {trend.length === 0 ? (
+                        <EmptyState compact title="No collections yet">Payments will chart here once bills are paid.</EmptyState>
                     ) : (
-                        <div style={{ height: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        <div className="chart-box">
                             <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie data={pieData} innerRadius={70} outerRadius={90} paddingAngle={5} dataKey="value">
-                                        {pieData.map((entry) => <Cell key={entry.key} fill={entry.color} />)}
-                                    </Pie>
-                                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: 'var(--shadow-md)' }} />
-                                </PieChart>
+                                <AreaChart data={trend} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="collectFill" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor="#B4233C" stopOpacity={0.18} />
+                                            <stop offset="100%" stopColor="#B4233C" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid vertical={false} stroke="#ECEAE5" />
+                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#8A847C', fontSize: 12 }} dy={6} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#8A847C', fontSize: 12 }} tickFormatter={formatMoneyShort} width={56} />
+                                    <Tooltip content={<ChartTooltip />} cursor={{ stroke: '#D6D3CC', strokeDasharray: '3 3' }} />
+                                    <Area type="monotone" dataKey="amount" stroke="#B4233C" strokeWidth={2.25} fill="url(#collectFill)"
+                                        activeDot={{ r: 4.5, strokeWidth: 2, stroke: '#fff', fill: '#B4233C' }} />
+                                </AreaChart>
                             </ResponsiveContainer>
-                            <div className="pie-legend">
-                                {pieData.map((entry) => (
-                                    <div key={entry.key} className="pie-legend-item">
-                                        <span className="pie-color" style={{backgroundColor: entry.color}}></span>
-                                        <div className="pie-text">
-                                            <strong>{entry.name}</strong>
-                                            <span>{entry.value} ({Math.round((entry.value / totalBillsThisMonth) * 100)}%)</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
                         </div>
                     )}
                 </Card>
-            </div>
 
-            {/* Bottom Section: Recent Activity */}
-            <div className="dashboard-grid mt-4">
-                <Card className="col-span-2 glass" title="Recent Transactions" action={<Link to="/admin/transactions" className="text-link" style={{margin:0, fontSize: '0.85rem'}}>View All</Link>}>
-                    {recentTransactions.length === 0 ? (
-                        <p style={{ color: 'var(--text-secondary-light)', padding: '1rem 0' }}>No transactions recorded yet.</p>
+                <Card title="Society funds" subtitle="Live balances across accounts" action={<Link to="/admin/transactions" className="card-link">Ledger <ArrowRight size={14} /></Link>}>
+                    <div className="funds-total">
+                        <span className="text-muted text-sm">Total available</span>
+                        <strong className="num">{formatMoney(stats.totalLiquidBalance, 2)}</strong>
+                    </div>
+                    {accounts.length === 0 ? (
+                        <EmptyState compact icon={Landmark} title="No accounts yet" action={<Button size="sm" variant="secondary" onClick={() => navigate('/admin/transactions')}>Add an account</Button>}>
+                            Add the society bank account to start tracking balances.
+                        </EmptyState>
                     ) : (
-                        <div className="table-responsive">
-                            <table className="recent-table">
+                        <ul className="funds-list">
+                            {accounts.map((acc) => {
+                                const isCash = acc.accountType === 'CASH_LEDGER';
+                                return (
+                                    <li key={acc.id}>
+                                        <span className={`stat-icon tone-${isCash ? 'warning' : 'info'}`}>{isCash ? <Banknote size={16} /> : <Building2 size={16} />}</span>
+                                        <div className="grow">
+                                            <div className="fw-600 truncate">{acc.accountName}</div>
+                                            <div className="text-xs text-subtle">{isCash ? 'Petty cash' : `${acc.bankName || 'Bank'} account`}</div>
+                                        </div>
+                                        <span className="num fw-600">{formatMoney(acc.currentBalance, 2)}</span>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    )}
+                </Card>
+
+                <Card title={`Bills for ${monthLabel(stats.billingMonth) || 'this month'}`} subtitle={totalBills ? `${totalBills} homes billed` : undefined}
+                    action={<Link to="/admin/billing" className="card-link">Billing <ArrowRight size={14} /></Link>}>
+                    {totalBills === 0 ? (
+                        <EmptyState compact icon={Receipt} title="Not billed yet" action={<Button size="sm" onClick={() => navigate('/admin/billing')}>Generate bills</Button>}>
+                            Generate this month’s maintenance bills to start collecting.
+                        </EmptyState>
+                    ) : (
+                        <div className="stack">
+                            <div>
+                                <div className="row row-between mb-2"><span className="text-sm text-muted">Fully paid</span><strong className="num">{paidShare}%</strong></div>
+                                <div className="stacked-bar" role="img" aria-label={parts.map((p) => `${p.name} ${p.value}`).join(', ')}>
+                                    {parts.map((p) => p.value > 0 && <span key={p.key} className={`tone-${p.tone}`} style={{ flexGrow: p.value }} />)}
+                                </div>
+                            </div>
+                            <ul className="legend-list">
+                                {parts.map((p) => (
+                                    <li key={p.key}>
+                                        <span className={`legend-dot tone-${p.tone}`} />
+                                        <span className="grow">{p.name}</span>
+                                        <span className="num fw-600">{p.value}</span>
+                                        <span className="num text-subtle legend-pct">{Math.round((p.value / totalBills) * 100)}%</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </Card>
+
+                <Card className="span-2" title="Recent transactions" action={<Link to="/admin/transactions" className="card-link">View all <ArrowRight size={14} /></Link>} flush>
+                    {recentTransactions.length === 0 ? (
+                        <EmptyState compact title="No transactions yet">Payments and expenses will appear here as they are recorded.</EmptyState>
+                    ) : (
+                        <div className="table-scroll">
+                            <table className="table table-compact">
                                 <thead>
-                                    <tr>
-                                        <th>Unit / Payee</th>
-                                        <th>Amount</th>
-                                        <th>Type</th>
-                                        <th>Date</th>
-                                    </tr>
+                                    <tr><th>Details</th><th>Date</th><th className="right">Amount</th></tr>
                                 </thead>
                                 <tbody>
-                                    {recentTransactions.map((tx) => (
-                                        <tr key={tx.id}>
-                                            <td>{tx.roomNumber ? `${tx.roomNumber}${tx.residentName ? ` (${tx.residentName})` : ''}` : (tx.category || 'Society')}</td>
-                                            <td>{formatMoney(tx.amount, 2)}</td>
-                                            <td>
-                                                <span className={tx.entryDirection === 'DEBIT' ? 'chip-warning' : (tx.status === 'SUCCESS' ? 'chip-success' : 'chip-default')}>
-                                                    {tx.entryDirection === 'DEBIT' ? 'Expense' : (tx.status === 'SUCCESS' ? 'Received' : tx.status)}
-                                                </span>
-                                            </td>
-                                            <td>{tx.paymentDate || (tx.timestamp ? new Date(tx.timestamp).toLocaleDateString('en-IN') : '')}</td>
-                                        </tr>
-                                    ))}
+                                    {recentTransactions.map((tx) => {
+                                        const isDebit = tx.entryDirection === 'DEBIT';
+                                        const hasRoom = !isDebit && tx.roomNumber && tx.roomNumber !== 'Unassigned';
+                                        const resident = tx.residentName && tx.residentName !== 'Unknown' ? tx.residentName : '';
+                                        return (
+                                            <tr key={tx.id}>
+                                                <td>
+                                                    <div className="row" style={{ '--gap': '0.65rem' }}>
+                                                        <span className={`tx-icon ${isDebit ? 'is-out' : 'is-in'}`}>{isDebit ? <ArrowUpRight size={15} /> : <ArrowDownRight size={15} />}</span>
+                                                        <div className="grow">
+                                                            <div className="cell-primary truncate">
+                                                                {hasRoom ? `${tx.roomNumber}${resident ? ` · ${resident}` : ''}` : (tx.notes || (tx.category || 'Society expense').replace(/_/g, ' ').toLowerCase())}
+                                                            </div>
+                                                            <div className="cell-sub">{isDebit ? (tx.category || 'Expense').replace(/_/g, ' ').toLowerCase() : `Maintenance · ${(tx.paymentMode || '').replace(/_/g, ' ').toLowerCase()}`}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="text-muted nowrap">{formatDate(tx.paymentDate || tx.timestamp, { day: 'numeric', month: 'short' })}</td>
+                                                <td className={`right num fw-600 ${isDebit ? '' : 'text-success'}`}>{isDebit ? '−' : '+'}{formatMoney(tx.amount, 2)}</td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
                     )}
                 </Card>
 
-                <Card className="glass" title="Latest Announcements" action={<Link to="/admin/announcements" className="text-link" style={{margin:0, fontSize: '0.85rem'}}>View All</Link>}>
+                <Card className="span-all" title="Notice board" action={<Link to="/admin/announcements" className="card-link">All notices <ArrowRight size={14} /></Link>}>
                     {latestAnnouncements.length === 0 ? (
-                        <p style={{ color: 'var(--text-secondary-light)', padding: '1rem 0' }}>No active announcements.</p>
+                        <EmptyState compact icon={Megaphone} title="No active notices" action={user?.role === 'MASTER_ADMIN' && <Button size="sm" variant="secondary" onClick={() => navigate('/admin/announcements')}>Post a notice</Button>}>
+                            Notices you post appear on every resident’s home screen.
+                        </EmptyState>
                     ) : (
-                        <div className="recent-announcements">
-                            {latestAnnouncements.map((a) => {
-                                const created = a.createdDate ? new Date(a.createdDate) : null;
-                                return (
-                                    <div key={a.id} className="ann-card">
-                                        <div className="ann-icon"><Bell size={16}/></div>
-                                        <div className="ann-content">
-                                            <h4>{a.title}</h4>
-                                            <p>{a.description}</p>
-                                        </div>
-                                        {created && (
-                                            <div className="ann-date">
-                                                <strong>{created.getDate()}</strong>
-                                                <span>{created.toLocaleDateString('en-IN', { month: 'short' }).toUpperCase()}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
+                        <div className="notice-grid">
+                            {latestAnnouncements.map((a) => (
+                                <article key={a.id} className="notice">
+                                    <div className="notice-date">{formatDate(a.createdDate, { day: 'numeric', month: 'short' })}</div>
+                                    <h4>{a.title}</h4>
+                                    <p>{a.description}</p>
+                                </article>
+                            ))}
                         </div>
                     )}
                 </Card>

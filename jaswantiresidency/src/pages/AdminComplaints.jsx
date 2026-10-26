@@ -1,49 +1,51 @@
-import React, { useState, useEffect } from 'react';
-import { notifyError, errorMessage } from '../utils/notify';
-import { MessageSquare, Trash2, Paperclip } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { MessageSquare, MessageSquareReply, Search, Trash2 } from 'lucide-react';
+import { notifyError, notifySuccess, errorMessage } from '../utils/notify';
 import UpdateComplaintModal from '../components/UpdateComplaintModal';
 import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
+import TicketCard, { TYPE_LABELS } from '../components/helpdesk/TicketCard';
 import PageHeader from '../components/ui/PageHeader';
-import DataTable from '../components/ui/DataTable';
 import Button from '../components/ui/Button';
-import StatusChip from '../components/ui/StatusChip';
+import Menu from '../components/ui/Menu';
+import { EmptyState, Segmented, Skeleton, Tabs } from '../components/ui/Feedback';
 import { getComplaints, respondToComplaint, deleteComplaint } from '../api/adminApi';
-import { viewAuthenticatedFile } from '../api/fileUtils';
+
+const OPEN_STATES = ['OPEN', 'IN_PROGRESS'];
 
 const AdminComplaints = () => {
     const [complaints, setComplaints] = useState([]);
     const [selectedType, setSelectedType] = useState('ALL');
+    const [statusFilter, setStatusFilter] = useState('open');
+    const [query, setQuery] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [selectedComplaint, setSelectedComplaint] = useState(null);
     const [isProcessing, setIsProcessing] = useState(false);
 
-    const fetchComplaints = async () => {
+    const fetchComplaints = useCallback(async () => {
         setIsLoading(true);
         try {
             const data = await getComplaints();
-            setComplaints(data || []);
+            setComplaints((data || []).sort((a, b) => new Date(b.createdDate || 0) - new Date(a.createdDate || 0)));
         } catch (err) {
-            console.error("Failed to fetch complaints", err);
+            notifyError('Could not load helpdesk requests. Please refresh the page.');
             setComplaints([]);
         } finally {
             setIsLoading(false);
         }
-    };
-
-    useEffect(() => {
-        fetchComplaints();
     }, []);
+
+    useEffect(() => { fetchComplaints(); }, [fetchComplaints]);
 
     const handleUpdateStatus = async (complaintId, newStatus, adminResponse) => {
         try {
             await respondToComplaint(complaintId, { status: newStatus, adminResponse });
+            notifySuccess('Reply saved — the resident has been notified');
             await fetchComplaints();
             setIsUpdateModalOpen(false);
         } catch (err) {
-            console.error("Failed to update status", err);
-            notifyError(errorMessage(err, 'Failed to update response.'));
+            throw new Error(errorMessage(err, 'We could not save your reply. Please try again.'));
         }
     };
 
@@ -52,137 +54,86 @@ const AdminComplaints = () => {
         setIsProcessing(true);
         try {
             await deleteComplaint(selectedComplaint.id);
+            notifySuccess(`Request #${selectedComplaint.id} deleted`);
             await fetchComplaints();
             setIsDeleteModalOpen(false);
         } catch (e) {
-            console.error(e);
+            notifyError(errorMessage(e, 'We could not delete this request.'));
         } finally {
             setIsProcessing(false);
         }
     };
 
-    const filteredComplaints = complaints.filter(c => {
-        if (selectedType === 'ALL') return true;
-        return c.submissionType === selectedType;
-    });
+    const byType = useMemo(() => complaints.filter((c) => selectedType === 'ALL' || c.submissionType === selectedType), [complaints, selectedType]);
 
-    const getTypeBadge = (type) => {
-        const styles = {
-            COMPLAINT: { bg: '#fee2e2', text: '#991b1b' },
-            QUERY: { bg: '#e0e7ff', text: '#3730a3' },
-            SUGGESTION: { bg: '#fef3c7', text: '#92400e' },
-            PERMISSION: { bg: '#dcfce7', text: '#166534' }
-        };
-        const s = styles[type] || styles.COMPLAINT;
-        return (
-            <span style={{ background: s.bg, color: s.text, padding: '0.15rem 0.5rem', borderRadius: 4, fontSize: '0.75rem', fontWeight: 700 }}>
-                {type || 'COMPLAINT'}
-            </span>
-        );
-    };
+    const visible = useMemo(() => {
+        const term = query.trim().toLowerCase();
+        return byType
+            .filter((c) => (statusFilter === 'all' ? true : statusFilter === 'open' ? OPEN_STATES.includes(c.status) : !OPEN_STATES.includes(c.status)))
+            .filter((c) => !term || [c.description, c.category, c.roomNumber, c.residentName, String(c.id)].join(' ').toLowerCase().includes(term));
+    }, [byType, statusFilter, query]);
 
-    const columns = [
-        { header: 'ID', accessor: 'id' },
-        {
-            header: 'Type',
-            render: (row) => getTypeBadge(row.submissionType)
-        },
-        { header: 'Room', accessor: 'roomNumber' },
-        { header: 'Resident', accessor: 'residentName' },
-        { header: 'Category', accessor: 'category' },
-        {
-            header: 'Description / Scope',
-            render: (row) => (
-                <div style={{ maxWidth: '280px' }}>
-                    <div style={{ fontSize: '0.85rem' }}>{row.description}</div>
-                    {row.submissionType === 'PERMISSION' && (
-                        <div style={{ fontSize: '0.75rem', color: 'var(--primary)', marginTop: '0.2rem' }}>
-                            Scope: {row.permissionCategory} ({row.startDate || '?'} to {row.endDate || '?'})
-                        </div>
-                    )}
-                    {row.hasAttachment && (
-                        <button
-                            type="button"
-                            onClick={() => viewAuthenticatedFile(`/complaints/${row.id}/attachment`)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: '#2563eb', marginTop: '0.2rem' }}
-                        >
-                            <Paperclip size={12} /> View Attached Proof
-                        </button>
-                    )}
-                </div>
-            )
-        },
-        {
-            header: 'Admin Response',
-            render: (row) => row.adminResponse ? (
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary-light)', fontStyle: 'italic' }}>
-                    "{row.adminResponse}"
-                </span>
-            ) : (
-                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>None</span>
-            )
-        },
-        { header: 'Status', render: (row) => <StatusChip status={row.status} /> },
-        {
-            header: 'Actions',
-            render: (row) => (
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <Button
-                        variant="secondary"
-                        title="Respond / Update Status"
-                        style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem' }}
-                        onClick={() => { setSelectedComplaint(row); setIsUpdateModalOpen(true); }}
-                    >
-                        <MessageSquare size={14} className="text-primary" /> Respond
-                    </Button>
-                    <Button
-                        variant="secondary"
-                        title="Delete Request"
-                        style={{ padding: '0.35rem 0.6rem' }}
-                        onClick={() => { setSelectedComplaint(row); setIsDeleteModalOpen(true); }}
-                    >
-                        <Trash2 size={14} className="text-danger" />
-                    </Button>
-                </div>
-            )
-        }
-    ];
+    const openCount = (type) => complaints.filter((c) => (type === 'ALL' || c.submissionType === type) && OPEN_STATES.includes(c.status)).length;
+    const tabs = ['ALL', 'COMPLAINT', 'QUERY', 'SUGGESTION', 'PERMISSION'].map((t) => ({
+        value: t,
+        label: t === 'ALL' ? 'All requests' : `${TYPE_LABELS[t]}s`,
+        count: openCount(t) || undefined,
+    }));
+
+    const respond = (c) => { setSelectedComplaint(c); setIsUpdateModalOpen(true); };
 
     return (
         <div>
             <PageHeader
-                title="Helpdesk & Resident Requests"
-                breadcrumbs={['Admin', 'Helpdesk']}
+                title="Helpdesk"
+                description="Complaints, questions, suggestions and permission requests from residents. Replies are sent to the resident straight away."
             />
 
-            {/* Filter Tabs */}
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-                {['ALL', 'COMPLAINT', 'QUERY', 'SUGGESTION', 'PERMISSION'].map(type => (
-                    <button
-                        key={type}
-                        onClick={() => setSelectedType(type)}
-                        style={{
-                            padding: '0.45rem 0.85rem',
-                            borderRadius: '6px',
-                            border: selectedType === type ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                            background: selectedType === type ? 'var(--primary)' : '#fff',
-                            color: selectedType === type ? '#fff' : 'var(--text-secondary-light)',
-                            fontWeight: 600,
-                            fontSize: '0.85rem',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        {type === 'ALL' ? 'All Requests' : type.charAt(0) + type.slice(1).toLowerCase() + 's'}
-                    </button>
-                ))}
+            <Tabs tabs={tabs} value={selectedType} onChange={setSelectedType} label="Request type" />
+
+            <div className="row row-wrap row-between mb-4">
+                <Segmented
+                    label="Filter by status"
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                    options={[{ value: 'open', label: 'Needs attention' }, { value: 'closed', label: 'Closed' }, { value: 'all', label: 'All' }]}
+                />
+                <div className="table-search" style={{ flex: '0 1 300px' }}>
+                    <Search size={16} aria-hidden="true" />
+                    <input type="search" placeholder="Search requests" aria-label="Search requests" value={query} onChange={(e) => setQuery(e.target.value)} />
+                </div>
             </div>
 
-            <DataTable
-                columns={columns}
-                data={filteredComplaints}
-                isLoading={isLoading}
-                emptyMessage="No requests found."
-            />
+            {isLoading ? (
+                <div className="ticket-list">{[0, 1, 2].map((i) => <Skeleton key={i} height={140} style={{ borderRadius: 14 }} />)}</div>
+            ) : visible.length === 0 ? (
+                <div className="card">
+                    <EmptyState icon={MessageSquare} title={statusFilter === 'open' ? 'Nothing needs attention' : 'No requests here'}>
+                        {statusFilter === 'open' ? 'Every request has been answered. New ones will appear here.' : 'Try a different filter.'}
+                    </EmptyState>
+                </div>
+            ) : (
+                <div className="ticket-list">
+                    {visible.map((c) => (
+                        <TicketCard
+                            key={c.id}
+                            ticket={c}
+                            showResident
+                            onOpen={() => respond(c)}
+                            actions={(
+                                <>
+                                    <Button size="sm" variant={OPEN_STATES.includes(c.status) ? 'primary' : 'secondary'} icon={MessageSquareReply} onClick={() => respond(c)}>
+                                        {c.adminResponse ? 'Update reply' : 'Reply'}
+                                    </Button>
+                                    <Menu label={`More actions for request ${c.id}`} items={[
+                                        { label: 'Delete request', icon: Trash2, danger: true, onClick: () => { setSelectedComplaint(c); setIsDeleteModalOpen(true); } },
+                                    ]} />
+                                </>
+                            )}
+                        />
+                    ))}
+                </div>
+            )}
 
             <UpdateComplaintModal
                 isOpen={isUpdateModalOpen}
@@ -193,8 +144,8 @@ const AdminComplaints = () => {
 
             <DeleteConfirmationDialog
                 isOpen={isDeleteModalOpen}
-                title="Delete Request"
-                itemName={`Request #${selectedComplaint?.id}`}
+                title="Delete request"
+                itemName={`request #${selectedComplaint?.id}`}
                 onClose={() => setIsDeleteModalOpen(false)}
                 onConfirm={handleDelete}
                 isDeleting={isProcessing}

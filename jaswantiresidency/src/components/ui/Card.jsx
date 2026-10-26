@@ -1,22 +1,20 @@
 import React from 'react';
-import './ui.css';
 
-// `action` renders in the card header (e.g. a "View All" link); it used to fall through to the <div> as an
-// invalid attribute, so the link never showed and React logged a warning
-const Card = ({ children, className = '', title, action, ...props }) => {
-    return (
-        <div className={`custom-card ${className}`} {...props}>
-            {(title || action) && (
-                <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+/** Surface with an optional header (title, subtitle, action) and footer. */
+const Card = ({ children, className = '', title, subtitle, action, footer, flush = false, divider = false, as: As = 'section', ...props }) => (
+    <As className={`card ${className}`} {...props}>
+        {(title || action) && (
+            <div className={`card-header ${divider ? 'with-divider' : ''}`}>
+                <div className="grow">
                     {title && <h3 className="card-title">{title}</h3>}
-                    {action}
+                    {subtitle && <p className="card-subtitle">{subtitle}</p>}
                 </div>
-            )}
-            <div className="card-body">
-                {children}
+                {action}
             </div>
-        </div>
-    );
-};
+        )}
+        <div className={`card-body ${flush ? 'flush' : ''}`}>{children}</div>
+        {footer && <div className="card-footer">{footer}</div>}
+    </As>
+);
 
 export default Card;

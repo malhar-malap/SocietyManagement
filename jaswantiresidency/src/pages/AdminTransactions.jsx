@@ -1,28 +1,31 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { notifySuccess, notifyError, errorMessage } from '../utils/notify';
 import PageHeader from '../components/ui/PageHeader';
 import DataTable from '../components/ui/DataTable';
 import StatusChip from '../components/ui/StatusChip';
 import Button from '../components/ui/Button';
+import Modal from '../components/ui/Modal';
+import Menu from '../components/ui/Menu';
+import { Select, TextInput, Textarea } from '../components/ui/Field';
+import { Alert, EmptyState, Segmented, Skeleton } from '../components/ui/Feedback';
 import {
-    Building2, Wallet, Banknote, Plus, RotateCcw, Lock, Unlock,
-    CheckCircle2, XCircle, AlertCircle, X, ArrowDownRight, ArrowUpRight,
-    ShieldAlert, RefreshCw, Download, Mail, Scale
+    ArrowDownRight, ArrowLeftRight, ArrowUpRight, Banknote, Building2, CheckCircle2, Download, Lock, Mail,
+    MinusCircle, RefreshCw, RotateCcw, Scale, ShieldAlert, Unlock, XCircle,
 } from 'lucide-react';
+import { formatDate, formatMoney } from '../utils/format';
 import { emailReceipt, reconcileBankAccounts } from '../api/adminApi';
 import { downloadAuthenticatedFile } from '../api/fileUtils';
-import '../components/ui/shared.css';
 
 const EXPENSE_CATEGORIES = [
-    { value: 'STAFF_SALARY', label: 'Staff Salary' },
-    { value: 'DAILY_WAGES', label: 'Daily Wages' },
-    { value: 'UTILITY_EXPENSE', label: 'Electricity / Water / Utility' },
-    { value: 'VENDOR_PAYMENT', label: 'Vendor / Contractor Payment' },
-    { value: 'OTHER_INCOME', label: 'Other Operational Expense' }
+    { value: 'STAFF_SALARY', label: 'Staff salary' },
+    { value: 'DAILY_WAGES', label: 'Daily wages' },
+    { value: 'UTILITY_EXPENSE', label: 'Electricity, water and utilities' },
+    { value: 'VENDOR_PAYMENT', label: 'Vendor or contractor' },
+    { value: 'OTHER_INCOME', label: 'Other expense' }
 ];
 
 const PAYMENT_MODES = [
-    { value: 'BANK_TRANSFER', label: 'Bank Transfer (NEFT/IMPS)' },
+    { value: 'BANK_TRANSFER', label: 'Bank transfer (NEFT / IMPS)' },
     { value: 'CASH', label: 'Cash' },
     { value: 'CHEQUE', label: 'Cheque' },
     { value: 'UPI_MANUAL', label: 'UPI' }
@@ -63,6 +66,7 @@ const AdminTransactions = () => {
     const [reverseError, setReverseError] = useState('');
     const [isSubmittingReverse, setIsSubmittingReverse] = useState(false);
     const [reversalNotification, setReversalNotification] = useState(null);
+    const [direction, setDirection] = useState('all');
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -81,7 +85,7 @@ const AdminTransactions = () => {
                 setExpenseForm(prev => ({ ...prev, bankAccountId: bankData[0].id }));
             }
         } catch (err) {
-            console.error("Failed to fetch transaction data", err);
+            notifyError('Could not load the ledger. Please refresh the page.');
         } finally {
             setIsLoading(false);
         }
@@ -111,18 +115,18 @@ const AdminTransactions = () => {
         const errs = {};
         const amt = parseFloat(expenseForm.amount);
         if (!expenseForm.amount || isNaN(amt) || amt <= 0) {
-            errs.amount = 'Amount must be greater than zero.';
+            errs.amount = 'Enter an amount above zero.';
         }
         if (!expenseForm.bankAccountId) {
-            errs.bankAccountId = 'Bank account is required.';
+            errs.bankAccountId = 'Choose the account it was paid from.';
         }
         if (expenseForm.paymentMode !== 'CASH' && !expenseForm.referenceNumber.trim()) {
-            errs.referenceNumber = 'Reference number is required for non-cash modes.';
+            errs.referenceNumber = 'Add the transfer, cheque or UPI reference.';
         }
         if (!expenseForm.paymentDate) {
-            errs.paymentDate = 'Payment date is required.';
+            errs.paymentDate = 'Choose the payment date.';
         } else if (expenseForm.paymentDate > today()) {
-            errs.paymentDate = 'Payment date cannot be in the future.';
+            errs.paymentDate = 'The date cannot be in the future.';
         }
 
         if (Object.keys(errs).length > 0) {
@@ -145,10 +149,11 @@ const AdminTransactions = () => {
                 notes: expenseForm.notes.trim() || null
             };
             await recordExpense(payload);
+            notifySuccess(`Expense of ${formatMoney(payload.amount, 2)} recorded`);
             setIsExpenseModalOpen(false);
             await fetchData();
         } catch (err) {
-            const msg = err?.response?.data?.message || err?.message || 'Failed to record expense.';
+            const msg = err?.response?.data?.message || 'We could not record this expense. Please try again.';
             setExpenseErrors({ submit: msg });
         } finally {
             setIsSubmittingExpense(false);
@@ -165,7 +170,7 @@ const AdminTransactions = () => {
     const handleConfirmReverse = async (e) => {
         e.preventDefault();
         if (!reverseReason.trim()) {
-            setReverseError('A mandatory reason is required for any ledger reversal.');
+            setReverseError('Explain why this entry is being reversed.');
             return;
         }
 
@@ -179,19 +184,19 @@ const AdminTransactions = () => {
             if (res.status === 202 || res.data?.pendingApproval) {
                 setReversalNotification({
                     type: 'warning',
-                    title: 'Amendment Queued for Master Admin Approval (202 Accepted)',
-                    message: `Transaction #${selectedTx.id} was approved more than 24 hours ago. In accordance with the 24-Hour Admin Edit Lock safeguard, a pending amendment request has been placed in the Master Admin queue.`
+                    title: 'Sent for master admin approval',
+                    message: `Entry #${selectedTx.id} is more than 24 hours old, so the reversal is waiting in the master admin’s approval queue. Balances change once it is approved.`
                 });
             } else {
                 setReversalNotification({
                     type: 'success',
-                    title: 'Transaction Successfully Reversed',
-                    message: `Transaction #${selectedTx.id} has been reversed. Live bank account balances and unit bills have been updated immediately.`
+                    title: 'Entry reversed',
+                    message: `Entry #${selectedTx.id} has been reversed. Account balances and the related bill were updated.`
                 });
             }
             await fetchData();
         } catch (err) {
-            const msg = err?.response?.data?.message || err?.message || 'Failed to reverse transaction.';
+            const msg = err?.response?.data?.message || 'We could not reverse this entry. Please try again.';
             setReverseError(msg);
         } finally {
             setIsSubmittingReverse(false);
@@ -202,9 +207,10 @@ const AdminTransactions = () => {
         try {
             const { resolveAmendmentRequest } = await import('../api/adminApi');
             await resolveAmendmentRequest(reqId, action, `Resolved via Admin Portal`);
+            notifySuccess(action === 'APPROVE' ? 'Reversal approved and applied' : 'Request rejected');
             await fetchData();
         } catch (err) {
-            notifyError(errorMessage(err, 'Failed to resolve the amendment request.'));
+            notifyError(errorMessage(err, 'We could not resolve this request.'));
         }
     };
 
@@ -215,7 +221,7 @@ const AdminTransactions = () => {
             const data = await reconcileBankAccounts();
             setReconciliationList(Array.isArray(data) ? data : []);
         } catch (err) {
-            console.error('Failed to reconcile bank accounts:', err);
+            notifyError(errorMessage(err, 'Reconciliation failed. Please try again.'));
         } finally {
             setIsLoadingReconciliation(false);
         }
@@ -223,614 +229,323 @@ const AdminTransactions = () => {
 
     const pendingQueueCount = amendmentRequests.filter(r => r.status === 'PENDING').length;
 
+    const sendReceiptEmail = async (row) => {
+        try {
+            const res = await emailReceipt(row.id);
+            notifySuccess(`Receipt emailed to ${res.sentTo}`);
+        } catch (err) {
+            notifyError(errorMessage(err, 'We could not email the receipt.'));
+        }
+    };
+
+    const totals = useMemo(() => transactions.reduce((acc, t) => {
+        if (t.status !== 'SUCCESS') return acc;
+        if (t.entryDirection === 'DEBIT') acc.out += Number(t.amount || 0);
+        else acc.in += Number(t.amount || 0);
+        return acc;
+    }, { in: 0, out: 0 }), [transactions]);
+
+    const visible = useMemo(() => {
+        if (direction === 'in') return transactions.filter((t) => t.entryDirection !== 'DEBIT');
+        if (direction === 'out') return transactions.filter((t) => t.entryDirection === 'DEBIT');
+        return transactions;
+    }, [transactions, direction]);
+
+    const payeeOf = (row) => (row.roomNumber && row.roomNumber !== 'Unassigned'
+        ? `${row.roomNumber}${row.residentName && row.residentName !== 'Unknown' ? ` · ${row.residentName}` : ''}`
+        : (row.notes ? row.notes.split('.')[0] : 'Society operations'));
+
     const columns = [
         {
-            header: 'Receipt / Ref',
-            render: (row) => (
-                <div>
-                    <div style={{ fontWeight: 600, color: 'var(--text-primary-light)' }}>
-                        {row.receiptNumber || `TX-${row.id}`}
-                    </div>
-                    {row.referenceNumber && (
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary-light)' }}>
-                            Ref: {row.referenceNumber}
-                        </div>
-                    )}
-                </div>
-            )
-        },
-        {
-            header: 'Category & Direction',
+            header: 'Entry',
+            searchValue: (row) => `${row.receiptNumber || ''} ${row.referenceNumber || ''} ${payeeOf(row)}`,
             render: (row) => {
-                const isCredit = row.entryDirection === 'CREDIT';
+                const isCredit = row.entryDirection !== 'DEBIT';
                 return (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
-                            padding: '0.2rem 0.5rem', borderRadius: 4, fontSize: '0.75rem', fontWeight: 700,
-                            background: isCredit ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
-                            color: isCredit ? '#10b981' : '#ef4444'
-                        }}>
-                            {isCredit ? <ArrowDownRight size={12} /> : <ArrowUpRight size={12} />}
-                            {row.entryDirection || 'CREDIT'}
-                        </span>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary-light)' }}>
-                            {(row.category || 'MAINTENANCE').replace(/_/g, ' ')}
-                        </span>
+                    <div className="row" style={{ '--gap': '0.7rem' }}>
+                        <span className={`tx-icon ${isCredit ? 'is-in' : 'is-out'}`}>{isCredit ? <ArrowDownRight size={15} /> : <ArrowUpRight size={15} />}</span>
+                        <div style={{ minWidth: 0 }}>
+                            <div className="cell-primary truncate" style={{ maxWidth: 260 }}>{payeeOf(row)}</div>
+                            <div className="cell-sub">{(row.category || 'MAINTENANCE').replace(/_/g, ' ').toLowerCase()} · {row.receiptNumber || `#${row.id}`}</div>
+                        </div>
                     </div>
                 );
-            }
+            },
         },
         {
-            header: 'Room / Payee',
+            header: 'Account',
             render: (row) => (
                 <div>
-                    {row.roomNumber && row.roomNumber !== 'Unassigned' ? (
-                        <span>Room <strong>{row.roomNumber}</strong> ({row.residentName || 'Resident'})</span>
-                    ) : (
-                        <span>{row.notes ? row.notes.split('.')[0] : 'Society Operations'}</span>
+                    <div className="text-sm">{row.bankAccountName || 'Main bank account'}</div>
+                    {row.referenceNumber && <div className="cell-sub"><code>{row.referenceNumber}</code></div>}
+                </div>
+            ),
+        },
+        { header: 'Date', render: (row) => <span className="text-muted nowrap">{formatDate(row.paymentDate || row.timestamp)}</span> },
+        {
+            header: 'Status',
+            render: (row) => (
+                <div className="row" style={{ '--gap': '0.4rem' }}>
+                    <StatusChip status={row.status} label={row.status === 'SUCCESS' ? 'Settled' : undefined} />
+                    {row.status === 'SUCCESS' && (
+                        <span className="text-subtle" title={row.locked ? 'Older than 24 hours: reversing needs master admin approval' : 'Within 24 hours: can be reversed directly'}>
+                            {row.locked ? <Lock size={13} aria-label="Locked" /> : <Unlock size={13} aria-label="Editable" />}
+                        </span>
                     )}
                 </div>
-            )
-        },
-        {
-            header: 'Bank / Cash Account',
-            render: (row) => (
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary-light)' }}>
-                    {row.bankAccountName || 'Main Bank A/c'}
-                </span>
-            )
+            ),
         },
         {
             header: 'Amount',
+            align: 'right',
             render: (row) => {
-                const isCredit = row.entryDirection === 'CREDIT';
-                return (
-                    <span style={{
-                        fontWeight: 700,
-                        color: isCredit ? '#10b981' : '#ef4444',
-                        fontFamily: 'monospace', fontSize: '0.95rem'
-                    }}>
-                        {isCredit ? '+' : '-'}₹{Number(row.amount || 0).toFixed(2)}
-                    </span>
-                );
-            }
+                const isCredit = row.entryDirection !== 'DEBIT';
+                return <span className={`fw-600 ${isCredit ? 'text-success' : ''}`}>{isCredit ? '+' : '−'}{formatMoney(row.amount, 2)}</span>;
+            },
         },
         {
-            header: 'Date',
-            render: (row) => row.paymentDate || (row.timestamp ? String(row.timestamp).split('T')[0] : 'N/A')
+            header: <span className="visually-hidden">Actions</span>,
+            render: (row) => (
+                <div className="row-actions">
+                    <Button variant="ghost" size="sm" iconOnly icon={Download} title="Download receipt" aria-label={`Download receipt for entry ${row.id}`}
+                        onClick={() => downloadAuthenticatedFile(`/transactions/${row.id}/receipt-pdf`, `receipt_${row.receiptNumber || row.id}.pdf`)} />
+                    <Menu
+                        label={`More actions for entry ${row.id}`}
+                        items={[
+                            { label: 'Email receipt to resident', icon: Mail, onClick: () => sendReceiptEmail(row), hidden: row.entryDirection === 'DEBIT' },
+                            { label: row.locked ? 'Request reversal…' : 'Reverse entry…', icon: RotateCcw, danger: true, onClick: () => handleOpenReverse(row), hidden: row.status !== 'SUCCESS' },
+                        ]}
+                    />
+                </div>
+            ),
         },
-        {
-            header: 'Status',
-            render: (row) => <StatusChip status={row.status} />
-        },
-        {
-            header: '24h Lock',
-            render: (row) => {
-                const isLocked = row.locked;
-                return (
-                    <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-                        padding: '0.2rem 0.5rem', borderRadius: 12, fontSize: '0.7rem', fontWeight: 600,
-                        background: isLocked ? 'rgba(245,158,11,0.1)' : 'rgba(59,130,246,0.1)',
-                        color: isLocked ? '#d97706' : '#2563eb'
-                    }}>
-                        {isLocked ? <Lock size={11} /> : <Unlock size={11} />}
-                        {isLocked ? 'Locked (>24h)' : 'Editable (<24h)'}
-                    </span>
-                );
-            }
-        },
-        {
-            header: 'Actions',
-            render: (row) => {
-                const handleSendEmail = async () => {
-                    try {
-                        const res = await emailReceipt(row.id);
-                        notifySuccess(`Receipt emailed to ${res.sentTo}`);
-                    } catch (err) {
-                        notifyError(errorMessage(err, 'Failed to email the receipt.'));
-                    }
-                };
-
-                return (
-                    <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-                        <button
-                            className="custom-btn secondary"
-                            style={{ padding: '0.3rem 0.5rem', fontSize: '0.75rem' }}
-                            onClick={() => downloadAuthenticatedFile(`/transactions/${row.id}/receipt-pdf`, `receipt_${row.receiptNumber || row.id}.pdf`)}
-                            title="Download Receipt PDF"
-                        >
-                            <Download size={13} />
-                        </button>
-                        <button
-                            className="custom-btn secondary"
-                            style={{ padding: '0.3rem 0.5rem', fontSize: '0.75rem' }}
-                            onClick={handleSendEmail}
-                            title="Email Receipt to Resident"
-                        >
-                            <Mail size={13} />
-                        </button>
-                        {row.status === 'SUCCESS' && (
-                            <button
-                                className="custom-btn secondary"
-                                style={{ padding: '0.3rem 0.5rem', fontSize: '0.75rem', gap: '0.2rem', color: 'var(--danger)' }}
-                                onClick={() => handleOpenReverse(row)}
-                                title={row.locked ? "Reversal requires Master Admin approval queue (>24h)" : "Immediate reversal (<24h)"}
-                            >
-                                <RotateCcw size={12} /> Reverse
-                            </button>
-                        )}
-                    </div>
-                );
-            }
-        }
     ];
+
+    const toolbar = (
+        <Segmented
+            label="Filter by direction"
+            value={direction}
+            onChange={setDirection}
+            options={[{ value: 'all', label: 'All' }, { value: 'in', label: 'Money in' }, { value: 'out', label: 'Money out' }]}
+        />
+    );
+
+    const setField = (key) => (e) => setExpenseForm({ ...expenseForm, [key]: e.target.value });
 
     return (
         <div>
             <PageHeader
-                title="Transaction & Expense Ledger"
-                breadcrumbs={['Admin', 'Transactions']}
-                actionButton={
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                title="Transactions"
+                description="The society’s ledger: every payment received and every expense paid, with live account balances."
+                actions={(
+                    <>
                         {pendingQueueCount > 0 && (
-                            <button
-                                className="custom-btn secondary"
-                                style={{ background: 'rgba(245,158,11,0.1)', color: '#d97706', border: '1px solid rgba(245,158,11,0.3)', gap: '0.4rem' }}
-                                onClick={() => setIsQueueModalOpen(true)}
-                            >
-                                <ShieldAlert size={16} /> Approvals Queue ({pendingQueueCount})
-                            </button>
+                            <Button variant="secondary" icon={ShieldAlert} onClick={() => setIsQueueModalOpen(true)}>
+                                Approvals<span className="count-pill">{pendingQueueCount}</span>
+                            </Button>
                         )}
-                        <Button onClick={handleOpenExpense} style={{ background: 'var(--primary-color)' }}>
-                            <Plus size={16} /> Record Expense / Wages
-                        </Button>
-                    </div>
-                }
+                        <Button variant="secondary" icon={Scale} onClick={handleOpenReconcile}>Reconcile</Button>
+                        <Button icon={MinusCircle} onClick={handleOpenExpense}>Record expense</Button>
+                    </>
+                )}
             />
 
-            {/* Live Bank Balances Bar */}
-            <div style={{ marginBottom: '1.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary-light)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <Building2 size={16} style={{ color: 'var(--primary-color)' }} /> LIVE SOCIETY BALANCES
-                    </span>
-                    <div style={{ display: 'flex', gap: '0.4rem' }}>
-                        <button onClick={handleOpenReconcile} className="custom-btn secondary" style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem', gap: '0.3rem', color: '#10b981', borderColor: 'rgba(16,185,129,0.4)', background: 'rgba(16,185,129,0.06)' }}>
-                            <Scale size={13} /> Reconcile Accounts
-                        </button>
-                        <button onClick={fetchData} className="custom-btn secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', gap: '0.3rem' }}>
-                            <RefreshCw size={12} /> Refresh
-                        </button>
-                    </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-                    {bankAccounts.map((acc) => (
-                        <div key={acc.id} style={{
-                            background: '#ffffff', border: '1px solid var(--border-light)',
-                            borderLeft: acc.accountType === 'CASH_LEDGER' ? '4px solid #f59e0b' : '4px solid #10b981',
-                            borderRadius: 12, padding: '0.85rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                        }}>
-                            <div>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary-light)', fontWeight: 500 }}>
-                                    {acc.accountName}
+            <div className="balance-strip mb-6">
+                {isLoading && bankAccounts.length === 0 ? (
+                    [0, 1, 2].map((i) => <Skeleton key={i} height={86} style={{ borderRadius: 14 }} />)
+                ) : (
+                    <>
+                        {bankAccounts.map((acc) => {
+                            const isCash = acc.accountType === 'CASH_LEDGER';
+                            return (
+                                <div key={acc.id} className="card stat">
+                                    <div className="stat-top">
+                                        <span className="stat-label truncate">{acc.accountName}</span>
+                                        <span className={`stat-icon tone-${isCash ? 'warning' : 'info'}`}>{isCash ? <Banknote size={16} /> : <Building2 size={16} />}</span>
+                                    </div>
+                                    <div className="stat-value">{formatMoney(acc.currentBalance, 2)}</div>
                                 </div>
-                                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary-light)', marginTop: '0.2rem' }}>
-                                    ₹{Number(acc.currentBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </div>
-                            </div>
-                            <div style={{
-                                width: 36, height: 36, borderRadius: '50%',
-                                background: acc.accountType === 'CASH_LEDGER' ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)',
-                                color: acc.accountType === 'CASH_LEDGER' ? '#f59e0b' : '#10b981',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center'
-                            }}>
-                                {acc.accountType === 'CASH_LEDGER' ? <Banknote size={18} /> : <Wallet size={18} />}
+                            );
+                        })}
+                        <div className="card stat flow-card">
+                            <div className="stat-top"><span className="stat-label">Ledger totals</span>
+                                <Button variant="ghost" size="sm" iconOnly icon={RefreshCw} aria-label="Refresh balances" onClick={fetchData} /></div>
+                            <div className="flow-rows">
+                                <span>In</span><strong className="num text-success">+{formatMoney(totals.in)}</strong>
+                                <span>Out</span><strong className="num">−{formatMoney(totals.out)}</strong>
                             </div>
                         </div>
-                    ))}
-                </div>
+                    </>
+                )}
             </div>
 
-            {/* Reversal Notification Banner */}
             {reversalNotification && (
-                <div style={{
-                    padding: '1rem', borderRadius: 8, marginBottom: '1.5rem',
-                    background: reversalNotification.type === 'warning' ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)',
-                    border: reversalNotification.type === 'warning' ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(16,185,129,0.3)',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'
-                }}>
-                    <div>
-                        <div style={{ fontWeight: 700, fontSize: '0.9rem', color: reversalNotification.type === 'warning' ? '#d97706' : '#10b981', marginBottom: '0.25rem' }}>
-                            {reversalNotification.title}
-                        </div>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text-primary-light)' }}>
-                            {reversalNotification.message}
-                        </div>
-                    </div>
-                    <button onClick={() => setReversalNotification(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary-light)' }}>
-                        <X size={16} />
-                    </button>
-                </div>
+                <Alert
+                    tone={reversalNotification.type === 'warning' ? 'warning' : 'success'}
+                    title={reversalNotification.title}
+                    className="mb-4"
+                    action={<button type="button" className="icon-btn icon-btn-sm" aria-label="Dismiss" onClick={() => setReversalNotification(null)}><XCircle size={16} /></button>}
+                >
+                    {reversalNotification.message}
+                </Alert>
             )}
 
             <DataTable
                 columns={columns}
-                data={transactions}
+                data={visible}
                 isLoading={isLoading}
+                toolbar={toolbar}
+                searchPlaceholder="Search flat, receipt, reference or note"
+                emptyIcon={ArrowLeftRight}
+                emptyTitle="No entries yet"
+                emptyMessage="Payments and expenses will appear here as they are recorded."
             />
 
-            {/* Record Expense Modal */}
-            {isExpenseModalOpen && (
-                <div className="premium-modal-overlay">
-                    <div className="premium-modal-content" style={{ maxWidth: '520px' }}>
-                        <div className="premium-modal-header">
-                            <div>
-                                <h2 className="premium-modal-title" style={{ fontSize: '1.2rem' }}>Record Society Expense / Wages</h2>
-                                <p className="premium-modal-subtitle">Automatically debits the selected Society Bank / Cash account.</p>
-                            </div>
-                            <button className="premium-modal-close" onClick={() => setIsExpenseModalOpen(false)}>
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleRecordExpense} style={{ padding: '1.5rem' }}>
-                            <div className="input-group-modern">
-                                <label className="input-label">Expense Category <span style={{ color: 'var(--danger)' }}>*</span></label>
-                                <select
-                                    className="modern-input"
-                                    style={{ paddingLeft: '1rem' }}
-                                    value={expenseForm.category}
-                                    onChange={e => setExpenseForm({ ...expenseForm, category: e.target.value })}
-                                >
-                                    {EXPENSE_CATEGORIES.map(c => (
-                                        <option key={c.value} value={c.value}>{c.label}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="input-group-modern">
-                                <label className="input-label">Pay From Bank / Cash Account <span style={{ color: 'var(--danger)' }}>*</span></label>
-                                <select
-                                    className="modern-input"
-                                    style={{ paddingLeft: '1rem' }}
-                                    value={expenseForm.bankAccountId}
-                                    onChange={e => setExpenseForm({ ...expenseForm, bankAccountId: e.target.value })}
-                                >
-                                    {bankAccounts.map(b => (
-                                        <option key={b.id} value={b.id}>
-                                            {b.accountName} (Balance: ₹{Number(b.currentBalance).toFixed(2)})
-                                        </option>
-                                    ))}
-                                </select>
-                                {expenseErrors.bankAccountId && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{expenseErrors.bankAccountId}</p>}
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                <div className="input-group-modern">
-                                    <label className="input-label">Amount (₹) <span style={{ color: 'var(--danger)' }}>*</span></label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0.01"
-                                        className="modern-input"
-                                        style={{ paddingLeft: '1rem' }}
-                                        placeholder="0.00"
-                                        value={expenseForm.amount}
-                                        onChange={e => setExpenseForm({ ...expenseForm, amount: e.target.value })}
-                                    />
-                                    {expenseErrors.amount && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{expenseErrors.amount}</p>}
-                                </div>
-                                <div className="input-group-modern">
-                                    <label className="input-label">Payment Date <span style={{ color: 'var(--danger)' }}>*</span></label>
-                                    <input
-                                        type="date"
-                                        max={today()}
-                                        className="modern-input"
-                                        style={{ paddingLeft: '1rem' }}
-                                        value={expenseForm.paymentDate}
-                                        onChange={e => setExpenseForm({ ...expenseForm, paymentDate: e.target.value })}
-                                    />
-                                    {expenseErrors.paymentDate && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{expenseErrors.paymentDate}</p>}
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                <div className="input-group-modern">
-                                    <label className="input-label">Payment Mode <span style={{ color: 'var(--danger)' }}>*</span></label>
-                                    <select
-                                        className="modern-input"
-                                        style={{ paddingLeft: '1rem' }}
-                                        value={expenseForm.paymentMode}
-                                        onChange={e => setExpenseForm({ ...expenseForm, paymentMode: e.target.value })}
-                                    >
-                                        {PAYMENT_MODES.map(m => (
-                                            <option key={m.value} value={m.value}>{m.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="input-group-modern">
-                                    <label className="input-label">
-                                        Reference No. {expenseForm.paymentMode !== 'CASH' && <span style={{ color: 'var(--danger)' }}>*</span>}
-                                    </label>
-                                    <input
-                                        type="text"
-                                        className="modern-input"
-                                        style={{ paddingLeft: '1rem' }}
-                                        placeholder={expenseForm.paymentMode === 'CASH' ? 'Optional' : 'NEFT / Cheque / UTR No.'}
-                                        value={expenseForm.referenceNumber}
-                                        onChange={e => setExpenseForm({ ...expenseForm, referenceNumber: e.target.value })}
-                                    />
-                                    {expenseErrors.referenceNumber && <p style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{expenseErrors.referenceNumber}</p>}
-                                </div>
-                            </div>
-
-                            <div className="input-group-modern">
-                                <label className="input-label">Payee Name / Contractor</label>
-                                <input
-                                    type="text"
-                                    className="modern-input"
-                                    style={{ paddingLeft: '1rem' }}
-                                    placeholder="e.g. Ramesh Guard, MSEB Electricity"
-                                    value={expenseForm.payeeName}
-                                    onChange={e => setExpenseForm({ ...expenseForm, payeeName: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="input-group-modern" style={{ marginBottom: 0 }}>
-                                <label className="input-label">Notes / Description</label>
-                                <textarea
-                                    className="modern-input"
-                                    style={{ paddingLeft: '1rem', minHeight: '60px' }}
-                                    placeholder="Purpose of expense"
-                                    value={expenseForm.notes}
-                                    onChange={e => setExpenseForm({ ...expenseForm, notes: e.target.value })}
-                                />
-                            </div>
-
-                            {expenseErrors.submit && (
-                                <div style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '1rem', display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                                    <AlertCircle size={14} /> {expenseErrors.submit}
-                                </div>
-                            )}
-
-                            <div className="premium-actions">
-                                <button type="button" className="custom-btn secondary" onClick={() => setIsExpenseModalOpen(false)}>
-                                    Cancel
-                                </button>
-                                <button type="submit" className="custom-btn primary" disabled={isSubmittingExpense}>
-                                    {isSubmittingExpense ? 'Processing...' : 'Record Expense'}
-                                </button>
-                            </div>
-                        </form>
+            <Modal
+                isOpen={isExpenseModalOpen}
+                onClose={() => setIsExpenseModalOpen(false)}
+                as="form"
+                onSubmit={handleRecordExpense}
+                icon={MinusCircle}
+                title="Record an expense"
+                description="Salaries, wages, utilities and vendor payments. The amount is taken out of the account you choose."
+                dismissible={!isSubmittingExpense}
+                footer={(
+                    <>
+                        <Button variant="secondary" onClick={() => setIsExpenseModalOpen(false)} disabled={isSubmittingExpense}>Cancel</Button>
+                        <Button type="submit" isLoading={isSubmittingExpense}>Record expense</Button>
+                    </>
+                )}
+            >
+                <div className="stack">
+                    {expenseErrors.submit && <Alert tone="error">{expenseErrors.submit}</Alert>}
+                    <div className="form-grid">
+                        <Select label="Category" value={expenseForm.category} onChange={setField('category')}>
+                            {EXPENSE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                        </Select>
+                        <Select label="Paid from" value={expenseForm.bankAccountId} onChange={setField('bankAccountId')} error={expenseErrors.bankAccountId}>
+                            {bankAccounts.map((b) => <option key={b.id} value={b.id}>{b.accountName} · {formatMoney(b.currentBalance)}</option>)}
+                        </Select>
+                        <TextInput label="Amount" prefix="₹" type="number" step="0.01" min="0.01" placeholder="0.00" value={expenseForm.amount} onChange={setField('amount')} error={expenseErrors.amount} />
+                        <TextInput label="Paid on" type="date" max={today()} value={expenseForm.paymentDate} onChange={setField('paymentDate')} error={expenseErrors.paymentDate} />
+                        <Select label="Payment mode" value={expenseForm.paymentMode} onChange={setField('paymentMode')}>
+                            {PAYMENT_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                        </Select>
+                        <TextInput label="Reference" optional={expenseForm.paymentMode === 'CASH'} placeholder={expenseForm.paymentMode === 'CASH' ? '' : 'UTR, cheque or UPI number'}
+                            value={expenseForm.referenceNumber} onChange={setField('referenceNumber')} error={expenseErrors.referenceNumber} />
+                        <TextInput label="Paid to" optional className="span-all" placeholder="e.g. Ramesh (security), MSEDCL electricity" value={expenseForm.payeeName} onChange={setField('payeeName')} />
+                        <Textarea label="Notes" optional className="span-all" rows={2} placeholder="What was this for?" value={expenseForm.notes} onChange={setField('notes')} />
                     </div>
                 </div>
-            )}
+            </Modal>
 
-            {/* Reverse Transaction Modal */}
-            {isReverseModalOpen && selectedTx && (
-                <div className="premium-modal-overlay">
-                    <div className="premium-modal-content" style={{ maxWidth: '480px' }}>
-                        <div className="premium-modal-header">
-                            <div>
-                                <h2 className="premium-modal-title" style={{ fontSize: '1.2rem' }}>Reverse Transaction #{selectedTx.id}</h2>
-                                <p className="premium-modal-subtitle">
-                                    Amount: <strong>₹{Number(selectedTx.amount).toFixed(2)}</strong> ({selectedTx.entryDirection})
-                                </p>
-                            </div>
-                            <button className="premium-modal-close" onClick={() => setIsReverseModalOpen(false)}>
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleConfirmReverse} style={{ padding: '1.5rem' }}>
-                            {selectedTx.locked ? (
-                                <div style={{
-                                    padding: '0.85rem', borderRadius: 8, background: 'rgba(245,158,11,0.1)',
-                                    border: '1px solid rgba(245,158,11,0.3)', marginBottom: '1rem', fontSize: '0.85rem', color: '#b45309'
-                                }}>
-                                    <strong style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.25rem' }}>
-                                        <Lock size={14} /> 24-Hour Admin Edit Lock Active
-                                    </strong>
-                                    This entry was approved over 24 hours ago. As an Admin, submitting this reversal will <strong>not</strong> directly mutate balances; instead, it will place an amendment request into the Master Admin approval queue.
-                                </div>
-                            ) : (
-                                <div style={{
-                                    padding: '0.85rem', borderRadius: 8, background: 'rgba(59,130,246,0.1)',
-                                    border: '1px solid rgba(59,130,246,0.3)', marginBottom: '1rem', fontSize: '0.85rem', color: '#1d4ed8'
-                                }}>
-                                    <strong style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.25rem' }}>
-                                        <Unlock size={14} /> Within 24-Hour Edit Window
-                                    </strong>
-                                    Reversing this transaction will immediately restore the live bank account balance and recalculate associated unit dues.
-                                </div>
-                            )}
-
-                            <div className="input-group-modern" style={{ marginBottom: 0 }}>
-                                <label className="input-label">Mandatory Reversal Reason <span style={{ color: 'var(--danger)' }}>*</span></label>
-                                <textarea
-                                    className="modern-input"
-                                    style={{ paddingLeft: '1rem', minHeight: '80px' }}
-                                    placeholder="Explain why this entry is being reversed (e.g. resident transferred from incorrect room, wrong account credited)..."
-                                    value={reverseReason}
-                                    onChange={e => setReverseReason(e.target.value)}
-                                    required
-                                />
-                            </div>
-
-                            {reverseError && (
-                                <div style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '1rem', display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                                    <AlertCircle size={14} /> {reverseError}
-                                </div>
-                            )}
-
-                            <div className="premium-actions">
-                                <button type="button" className="custom-btn secondary" onClick={() => setIsReverseModalOpen(false)}>
-                                    Cancel
-                                </button>
-                                <button type="submit" className="custom-btn primary" style={{ background: 'var(--danger)', border: 'none' }} disabled={isSubmittingReverse}>
-                                    {isSubmittingReverse ? 'Processing...' : (selectedTx.locked ? 'Queue for Approval' : 'Confirm Reversal')}
-                                </button>
-                            </div>
-                        </form>
+            <Modal
+                isOpen={isReverseModalOpen && Boolean(selectedTx)}
+                onClose={() => setIsReverseModalOpen(false)}
+                as="form"
+                onSubmit={handleConfirmReverse}
+                icon={RotateCcw}
+                tone="danger"
+                title={selectedTx?.locked ? 'Request a reversal' : 'Reverse this entry'}
+                description={selectedTx ? `#${selectedTx.id} · ${selectedTx.entryDirection === 'DEBIT' ? 'expense' : 'payment'} of ${formatMoney(selectedTx.amount, 2)}` : undefined}
+                dismissible={!isSubmittingReverse}
+                footer={(
+                    <>
+                        <Button variant="secondary" onClick={() => setIsReverseModalOpen(false)} disabled={isSubmittingReverse}>Cancel</Button>
+                        <Button type="submit" variant="danger" isLoading={isSubmittingReverse}>{selectedTx?.locked ? 'Send for approval' : 'Reverse entry'}</Button>
+                    </>
+                )}
+            >
+                {selectedTx && (
+                    <div className="stack">
+                        {selectedTx.locked ? (
+                            <Alert tone="warning" title="Older than 24 hours">This entry is locked, so your request goes to the master admin. Balances change only after they approve it.</Alert>
+                        ) : (
+                            <Alert tone="info" title="Within the 24-hour window">Reversing restores the account balance and the related bill straight away.</Alert>
+                        )}
+                        <Textarea label="Reason" rows={3} value={reverseReason} onChange={(e) => setReverseReason(e.target.value)} error={reverseError}
+                            placeholder="e.g. Credited to the wrong flat, or recorded twice." hint="Saved to the system log." />
                     </div>
-                </div>
-            )}
+                )}
+            </Modal>
 
-            {/* Master Admin Amendment Queue Modal */}
-            {isQueueModalOpen && (
-                <div className="premium-modal-overlay">
-                    <div className="premium-modal-content" style={{ maxWidth: '650px' }}>
-                        <div className="premium-modal-header">
-                            <div>
-                                <h2 className="premium-modal-title" style={{ fontSize: '1.2rem' }}>Master Admin Approval Queue</h2>
-                                <p className="premium-modal-subtitle">Review ledger amendment requests submitted after the 24-hour edit lock.</p>
-                            </div>
-                            <button className="premium-modal-close" onClick={() => setIsQueueModalOpen(false)}>
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <div style={{ padding: '1.5rem', maxHeight: '450px', overflowY: 'auto' }}>
-                            {amendmentRequests.length === 0 ? (
-                                <p style={{ textAlign: 'center', color: 'var(--text-secondary-light)', margin: '2rem 0' }}>
-                                    No pending amendment requests found.
-                                </p>
-                            ) : (
-                                amendmentRequests.map(req => (
-                                    <div key={req.id} style={{
-                                        border: '1px solid var(--border-light)', borderRadius: 10,
-                                        padding: '1rem', marginBottom: '1rem', background: '#f8fafc'
-                                    }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                                            <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>
-                                                Request #{req.id} · Transaction #{req.transactionId}
-                                            </span>
+            <Modal
+                isOpen={isQueueModalOpen}
+                onClose={() => setIsQueueModalOpen(false)}
+                size="lg"
+                icon={ShieldAlert}
+                tone="warning"
+                title="Reversal approvals"
+                description="Reversal requests for entries older than 24 hours."
+                footer={<Button variant="secondary" onClick={() => setIsQueueModalOpen(false)}>Close</Button>}
+            >
+                {amendmentRequests.length === 0 ? (
+                    <EmptyState compact icon={CheckCircle2} title="Nothing to review">There are no reversal requests.</EmptyState>
+                ) : (
+                    <ul className="occupant-list">
+                        {amendmentRequests.map((req) => (
+                            <li key={req.id}>
+                                <div className="occupant-row" style={{ alignItems: 'flex-start' }}>
+                                    <div className="grow stack stack-sm">
+                                        <div className="row row-wrap" style={{ '--gap': '0.5rem' }}>
+                                            <span className="fw-600">Entry #{req.transactionId}</span>
                                             <StatusChip status={req.status} />
                                         </div>
-                                        <div style={{ fontSize: '0.85rem', color: 'var(--text-primary-light)', marginBottom: '0.4rem' }}>
-                                            <strong>Requested By:</strong> {req.requestedByAdminName || 'Admin'}
-                                        </div>
-                                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary-light)', marginBottom: '0.75rem' }}>
-                                            <strong>Reason:</strong> {req.reason}
-                                        </div>
-                                        {req.status === 'PENDING' && (
-                                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                                                <button
-                                                    className="custom-btn secondary"
-                                                    style={{ padding: '0.3rem 0.7rem', fontSize: '0.8rem', color: 'var(--danger)' }}
-                                                    onClick={() => handleResolveAmendment(req.id, 'REJECT')}
-                                                >
-                                                    <XCircle size={14} /> Reject
-                                                </button>
-                                                <button
-                                                    className="custom-btn primary"
-                                                    style={{ padding: '0.3rem 0.7rem', fontSize: '0.8rem', background: '#10b981', border: 'none' }}
-                                                    onClick={() => handleResolveAmendment(req.id, 'APPROVE')}
-                                                >
-                                                    <CheckCircle2 size={14} /> Approve & Apply
-                                                </button>
-                                            </div>
-                                        )}
+                                        <div className="text-sm text-muted">Requested by {req.requestedByAdminName || 'an admin'}</div>
+                                        <blockquote className="quote">{req.reason}</blockquote>
                                     </div>
-                                ))
-                            )}
-                        </div>
-
-                        <div className="premium-actions" style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-light)' }}>
-                            <button type="button" className="custom-btn secondary" onClick={() => setIsQueueModalOpen(false)}>
-                                Close
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Bank Accounts Reconciliation Modal */}
-            {isReconcileModalOpen && (
-                <div className="premium-modal-backdrop animate-fade-in">
-                    <div className="premium-modal-card animate-scale-up" style={{ maxWidth: 720 }}>
-                        <div className="premium-modal-header" style={{ borderBottom: '1px solid var(--border-light)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                                <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(16,185,129,0.1)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <Scale size={20} />
                                 </div>
-                                <div>
-                                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>Bank Account Reconciliation</h3>
-                                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary-light)' }}>
-                                        Formula: Opening Balance + Total Credits (Incomes) − Total Debits (Expenses)
-                                    </p>
-                                </div>
-                            </div>
-                            <button className="icon-close-btn" onClick={() => setIsReconcileModalOpen(false)}>
-                                <X size={18} />
-                            </button>
-                        </div>
-
-                        <div className="premium-modal-body" style={{ padding: '1.5rem', maxHeight: '65vh', overflowY: 'auto' }}>
-                            {isLoadingReconciliation ? (
-                                <div style={{ textAlign: 'center', padding: '2rem' }}>Reconciling accounts with ledger transactions...</div>
-                            ) : reconciliationList.length === 0 ? (
-                                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary-light)' }}>No active bank accounts found.</div>
-                            ) : (
-                                reconciliationList.map(rec => (
-                                    <div key={rec.bankAccountId} style={{
-                                        border: '1px solid var(--border-light)', borderRadius: 10, padding: '1.2rem',
-                                        marginBottom: '1rem', background: '#ffffff',
-                                        borderLeft: rec.reconciled ? '4px solid #10b981' : '4px solid #ef4444'
-                                    }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
-                                            <div>
-                                                <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>{rec.accountName}</h4>
-                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary-light)' }}>
-                                                    {rec.accountType} • {rec.transactionCount} transactions analyzed
-                                                </span>
-                                            </div>
-                                            <span style={{
-                                                fontSize: '0.75rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: 20,
-                                                background: rec.reconciled ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
-                                                color: rec.reconciled ? '#10b981' : '#ef4444'
-                                            }}>
-                                                {rec.reconciled ? '✓ 100% Reconciled (₹0 Discrepancy)' : `⚠ Discrepancy: ₹${Number(rec.discrepancy || 0).toFixed(2)}`}
-                                            </span>
-                                        </div>
-
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', background: 'var(--bg-light)', padding: '0.85rem', borderRadius: 8 }}>
-                                            <div>
-                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary-light)' }}>Opening Balance</div>
-                                                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>₹{Number(rec.openingBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                                            </div>
-                                            <div>
-                                                <div style={{ fontSize: '0.7rem', color: '#10b981' }}>+ Total Credits</div>
-                                                <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#10b981' }}>₹{Number(rec.totalCredits || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                                            </div>
-                                            <div>
-                                                <div style={{ fontSize: '0.7rem', color: '#ef4444' }}>− Total Debits</div>
-                                                <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#ef4444' }}>₹{Number(rec.totalDebits || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                                            </div>
-                                            <div>
-                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary-light)' }}>Calculated Balance</div>
-                                                <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#2563eb' }}>₹{Number(rec.calculatedBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                                            </div>
-                                            <div>
-                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary-light)' }}>Live Running Balance</div>
-                                                <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#10b981' }}>₹{Number(rec.currentBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                                            </div>
-                                        </div>
+                                {req.status === 'PENDING' && (
+                                    <div className="occupant-panel" style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+                                        <Button variant="danger-ghost" size="sm" icon={XCircle} onClick={() => handleResolveAmendment(req.id, 'REJECT')}>Reject</Button>
+                                        <Button variant="success" size="sm" icon={CheckCircle2} onClick={() => handleResolveAmendment(req.id, 'APPROVE')}>Approve and apply</Button>
                                     </div>
-                                ))
-                            )}
-                        </div>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </Modal>
 
-                        <div className="premium-actions" style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-light)' }}>
-                            <button type="button" className="custom-btn secondary" onClick={() => setIsReconcileModalOpen(false)}>
-                                Close
-                            </button>
-                        </div>
+            <Modal
+                isOpen={isReconcileModalOpen}
+                onClose={() => setIsReconcileModalOpen(false)}
+                size="lg"
+                icon={Scale}
+                tone="success"
+                title="Reconcile accounts"
+                description="Opening balance + money in − money out, checked against each account’s running balance."
+                footer={<Button variant="secondary" onClick={() => setIsReconcileModalOpen(false)}>Close</Button>}
+            >
+                {isLoadingReconciliation ? (
+                    <div className="stack">{[0, 1].map((i) => <Skeleton key={i} height={120} style={{ borderRadius: 10 }} />)}</div>
+                ) : reconciliationList.length === 0 ? (
+                    <EmptyState compact icon={Building2} title="No accounts">Add a bank account to reconcile it.</EmptyState>
+                ) : (
+                    <div className="stack">
+                        {reconciliationList.map((rec) => (
+                            <section key={rec.bankAccountId} className="recon">
+                                <div className="row row-between row-wrap">
+                                    <div>
+                                        <div className="fw-600">{rec.accountName}</div>
+                                        <div className="text-xs text-subtle">{rec.accountType === 'CASH_LEDGER' ? 'Petty cash' : 'Bank account'} · {rec.transactionCount} entries checked</div>
+                                    </div>
+                                    {rec.reconciled
+                                        ? <StatusChip tone="success" label="Balanced" />
+                                        : <StatusChip tone="danger" label={`Off by ${formatMoney(rec.discrepancy, 2)}`} />}
+                                </div>
+                                <div className="recon-grid">
+                                    <div><span>Opening</span><strong>{formatMoney(rec.openingBalance, 2)}</strong></div>
+                                    <div><span>Money in</span><strong className="text-success">+{formatMoney(rec.totalCredits, 2)}</strong></div>
+                                    <div><span>Money out</span><strong>−{formatMoney(rec.totalDebits, 2)}</strong></div>
+                                    <div><span>Expected</span><strong>{formatMoney(rec.calculatedBalance, 2)}</strong></div>
+                                    <div><span>Actual</span><strong>{formatMoney(rec.currentBalance, 2)}</strong></div>
+                                </div>
+                            </section>
+                        ))}
                     </div>
-                </div>
-            )}
+                )}
+            </Modal>
         </div>
     );
 };

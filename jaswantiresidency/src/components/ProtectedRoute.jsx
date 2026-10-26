@@ -1,18 +1,13 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { PageLoader } from './ui/Hibiscus';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
     const { user, loading } = useAuth();
     const location = useLocation();
 
-    if (loading) {
-        return (
-            <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                <div className="skeleton" style={{ width: '200px', height: '20px' }}></div>
-            </div>
-        );
-    }
+    if (loading) return <PageLoader fullScreen label="Opening your portal" />;
 
     if (!user) {
         // Not logged in, redirect to login page with the return url

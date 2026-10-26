@@ -1,26 +1,26 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, CalendarClock, CheckCircle2, FileText, Megaphone, MessageSquarePlus, RefreshCw, UserRound } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { IndianRupee, CheckCircle2, AlertCircle, AlertTriangle, Clock } from 'lucide-react';
+import StatusChip from '../components/ui/StatusChip';
+import { Alert, EmptyState, Skeleton } from '../components/ui/Feedback';
 import PaymentModal from '../components/PaymentModal';
 import { useAuth } from '../context/AuthContext';
 import { getResidentDashboard } from '../api/residentApi';
 import { getMyTransactions } from '../api/billingApi';
-import './dashboard.css';
+import { firstName, formatDate, formatMoney, greeting, monthLabel } from '../utils/format';
 
 const UNPAID = ['PENDING', 'PARTIALLY_PAID'];
-
-const formatMoney = (value) =>
-    `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-const formatDate = (value) => (value ? new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 
 // What is still owed on a bill: its balance (amount + late fee - already paid), never just the face amount
 const remaining = (bill) => Number(bill.balance ?? (Number(bill.amount || 0) + Number(bill.lateFee || 0) - Number(bill.paidAmount || 0)));
 
+const isOverdue = (bill) => bill.dueDate && new Date(bill.dueDate) < new Date(new Date().toDateString());
+
 const ResidentDashboard = () => {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [dashboardData, setDashboardData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -54,7 +54,7 @@ const ResidentDashboard = () => {
             });
         } catch (err) {
             // Never show placeholder amounts to a resident: say it failed and offer a retry
-            setError('Could not load your dashboard. Check your connection and try again.');
+            setError('We could not load your home screen. Check your connection and try again.');
         } finally {
             setIsLoading(false);
         }
@@ -64,11 +64,11 @@ const ResidentDashboard = () => {
 
     if (isLoading) {
         return (
-            <div className="dashboard-wrapper" aria-busy="true">
-                <div className="skeleton" style={{ height: 32, width: 260, marginBottom: '1.5rem' }} />
-                <div className="dashboard-grid">
-                    <div className="skeleton" style={{ height: 180 }} />
-                    <div className="skeleton" style={{ height: 180 }} />
+            <div aria-busy="true" aria-label="Loading">
+                <Skeleton width={260} height={34} style={{ marginBottom: 28 }} />
+                <div className="res-grid">
+                    <Skeleton height={230} style={{ borderRadius: 14 }} />
+                    <Skeleton height={230} style={{ borderRadius: 14 }} />
                 </div>
             </div>
         );
@@ -76,106 +76,122 @@ const ResidentDashboard = () => {
 
     if (error || !dashboardData) {
         return (
-            <div className="dashboard-wrapper">
-                <Card>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--danger)' }}>
-                        <AlertTriangle size={20} aria-hidden="true" />
-                        <span style={{ flex: 1 }}>{error || 'Dashboard data is unavailable.'}</span>
-                        <Button variant="secondary" onClick={load}>Retry</Button>
-                    </div>
-                </Card>
-            </div>
+            <Alert tone="error" title="Something went wrong" action={<Button variant="secondary" size="sm" icon={RefreshCw} onClick={load}>Try again</Button>}>
+                {error || 'Your dashboard is unavailable right now.'}
+            </Alert>
         );
     }
 
-    const hasDues = dashboardData.outstandingAmount > 0;
+    const { outstandingAmount, unpaidBills, lastPayment, announcements, nextDueDate } = dashboardData;
+    const hasDues = outstandingAmount > 0;
+    const overdue = unpaidBills.some(isOverdue);
 
     return (
-        <div className="dashboard-wrapper animate-fade-up">
+        <div className="stack stack-lg">
+            <header className="page-header" style={{ marginBottom: 0 }}>
+                <div className="grow">
+                    <h1>{greeting()}, {firstName(user?.name) || 'neighbour'}</h1>
+                    <p className="page-description">Your home at Jaswanti Residency, at a glance.</p>
+                </div>
+            </header>
 
-            {/* Hero Section */}
-            <div className="dashboard-hero">
-                <h1 className="hero-greeting">Hello, {user?.name || 'Resident'} 👋</h1>
-                <p className="hero-subtext">Welcome back to Jaswanti Residency.</p>
+            <div className="res-grid">
+                <section className={`balance-card ${hasDues ? '' : 'is-clear'}`} aria-label="Amount due">
+                    <div className="balance-top">
+                        <span className="balance-label">{hasDues ? 'Amount due' : 'Your account'}</span>
+                        {hasDues && <StatusChip tone={overdue ? 'danger' : 'warning'} label={overdue ? 'Overdue' : 'Due soon'} />}
+                    </div>
+                    {hasDues ? (
+                        <>
+                            <div className="balance-amount num">{formatMoney(outstandingAmount, 2)}</div>
+                            <p className="balance-meta">
+                                <CalendarClock size={15} aria-hidden="true" />
+                                {unpaidBills.length} unpaid bill{unpaidBills.length === 1 ? '' : 's'}{nextDueDate ? ` · next due ${formatDate(nextDueDate)}` : ''}
+                            </p>
+                            <div className="balance-actions">
+                                <Button size="lg" onClick={() => setIsPaymentModalOpen(true)}>Pay now</Button>
+                                <Button size="lg" variant="ghost" onClick={() => navigate('/resident/invoices')}>See bills</Button>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="balance-clear"><CheckCircle2 size={26} aria-hidden="true" /> All paid up</div>
+                            <p className="balance-meta">Thank you — there is nothing to pay right now.</p>
+                            <div className="balance-actions">
+                                <Button variant="secondary" onClick={() => navigate('/resident/invoices')}>View payment history</Button>
+                            </div>
+                        </>
+                    )}
+                </section>
+
+                <Card title="Last payment" action={<Link to="/resident/invoices" className="card-link">History <ArrowRight size={14} /></Link>}>
+                    {lastPayment ? (
+                        <div className="stack stack-sm">
+                            <div className="last-pay-amount num">{formatMoney(lastPayment.amount, 2)}</div>
+                            <div className="text-muted text-sm">Paid on {formatDate(lastPayment.paymentDate || lastPayment.timestamp)}</div>
+                            {lastPayment.receiptNumber && <div className="tag" style={{ alignSelf: 'flex-start' }}>Receipt {lastPayment.receiptNumber}</div>}
+                        </div>
+                    ) : (
+                        <EmptyState compact icon={FileText}>No payments yet. Receipts appear here after your first payment.</EmptyState>
+                    )}
+                </Card>
             </div>
 
-            <div className="dashboard-grid mt-4">
-
-                {/* Outstanding Balance Widget */}
-                <Card className="widget-card highlight-card animate-scale-in" style={{animationDelay: '0.1s'}}>
-                    <div className="widget-header">
-                        <h3 className="widget-title">Outstanding Balance</h3>
-                        <IndianRupee className="widget-icon highlight-icon" />
-                    </div>
-                    <div className="widget-body">
-                        <h1 className="amount-large">{formatMoney(dashboardData.outstandingAmount)}</h1>
-                        {hasDues ? (
-                            <p className="due-date text-warning">
-                                {dashboardData.unpaidBills.length} unpaid bill{dashboardData.unpaidBills.length === 1 ? '' : 's'}
-                                {dashboardData.nextDueDate ? ` · next due ${formatDate(dashboardData.nextDueDate)}` : ''}
-                            </p>
-                        ) : (
-                            <p className="due-date text-success">All dues are cleared. Thank you!</p>
-                        )}
-                        <Button
-                            onClick={() => setIsPaymentModalOpen(true)}
-                            disabled={!hasDues}
-                            style={{width: '100%', marginTop: '1.5rem'}}
-                        >
-                            {hasDues ? 'Pay Now' : 'Nothing to pay'}
-                        </Button>
-                    </div>
-                </Card>
-
-                {/* Last Payment Widget */}
-                <Card className="widget-card animate-scale-in" style={{animationDelay: '0.2s'}}>
-                    <div className="widget-header">
-                        <h3 className="widget-title">Last Payment</h3>
-                        <CheckCircle2 className="widget-icon text-success" />
-                    </div>
-                    <div className="widget-body">
-                        {dashboardData.lastPayment ? (
-                            <>
-                                <h2 className="amount-medium">{formatMoney(dashboardData.lastPayment.amount)}</h2>
-                                <p className="subtitle">
-                                    Paid {formatDate(dashboardData.lastPayment.paymentDate || dashboardData.lastPayment.timestamp)}
-                                    {dashboardData.lastPayment.receiptNumber ? ` · Receipt ${dashboardData.lastPayment.receiptNumber}` : ''}
-                                </p>
-                            </>
-                        ) : (
-                            <p className="subtitle" style={{marginTop: '1rem'}}>No previous payments found.</p>
-                        )}
-                        <Link to="/resident/invoices" className="text-link" style={{marginTop: '1rem', display: 'inline-block'}}>View Invoice History</Link>
-                    </div>
-                </Card>
-
-                {/* Announcements Widget */}
-                <Card className="widget-card col-span-2 glass animate-scale-in" style={{animationDelay: '0.3s'}}>
-                    <div className="widget-header">
-                        <h3 className="widget-title">Recent Announcements</h3>
-                        <AlertCircle className="widget-icon text-primary" />
-                    </div>
-                    <div className="announcement-list">
-                        {dashboardData.announcements.length === 0 ? (
-                            <p className="subtitle">No announcements right now.</p>
-                        ) : dashboardData.announcements.map(ann => (
-                            <div key={ann.id} className="announcement-item">
-                                <div className="ann-content">
-                                    <h4 className="ann-title">{ann.title}</h4>
-                                    {ann.description && <p className="subtitle" style={{ margin: '0.25rem 0' }}>{ann.description}</p>}
-                                    <span className="ann-date"><Clock size={14}/> {formatDate(ann.createdDate) || 'N/A'}</span>
+            {hasDues && (
+                <Card title="Unpaid bills" flush action={<Link to="/resident/invoices" className="card-link">All bills <ArrowRight size={14} /></Link>}>
+                    <ul className="bill-list">
+                        {unpaidBills.slice(0, 4).map((b) => (
+                            <li key={b.id}>
+                                <div className="grow">
+                                    <div className="fw-600">{monthLabel(b.billingMonth) || 'Maintenance'}</div>
+                                    <div className="cell-sub">{(b.chargeType || 'Maintenance').replace(/_/g, ' ').toLowerCase()} · due {formatDate(b.dueDate)}</div>
                                 </div>
-                            </div>
+                                {isOverdue(b) ? <StatusChip tone="danger" label="Overdue" /> : <StatusChip status={b.status} />}
+                                <span className="num fw-600 bill-amt">{formatMoney(remaining(b), 2)}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </Card>
+            )}
+
+            <div className="quick-links">
+                <button type="button" className="quick-link" onClick={() => navigate('/resident/complaints')}>
+                    <span className="stat-icon tone-brand"><MessageSquarePlus size={18} /></span>
+                    <span><strong>Raise a request</strong><span>Plumbing, electrical, housekeeping or a question</span></span>
+                    <ArrowRight size={16} className="text-subtle" />
+                </button>
+                <button type="button" className="quick-link" onClick={() => navigate('/resident/invoices')}>
+                    <span className="stat-icon tone-success"><FileText size={18} /></span>
+                    <span><strong>Download receipts</strong><span>Every payment, ready as a PDF</span></span>
+                    <ArrowRight size={16} className="text-subtle" />
+                </button>
+                <button type="button" className="quick-link" onClick={() => navigate('/resident/profile')}>
+                    <span className="stat-icon tone-info"><UserRound size={18} /></span>
+                    <span><strong>My profile</strong><span>Contact details, flat and password</span></span>
+                    <ArrowRight size={16} className="text-subtle" />
+                </button>
+            </div>
+
+            <Card title="Notice board">
+                {announcements.length === 0 ? (
+                    <EmptyState compact icon={Megaphone} title="No notices right now">New notices from the committee will show up here.</EmptyState>
+                ) : (
+                    <div className="notice-grid">
+                        {announcements.map((a) => (
+                            <article key={a.id} className="notice">
+                                <div className="notice-date">{formatDate(a.createdDate, { day: 'numeric', month: 'short' })}</div>
+                                <h4>{a.title}</h4>
+                                {a.description && <p>{a.description}</p>}
+                            </article>
                         ))}
                     </div>
-                </Card>
-            </div>
+                )}
+            </Card>
 
-            {/* Render Payment Modal */}
             {isPaymentModalOpen && (
                 <PaymentModal
-                    amount={Number(dashboardData.outstandingAmount.toFixed(2))}
-                    bills={dashboardData.unpaidBills}
+                    amount={Number(outstandingAmount.toFixed(2))}
+                    bills={unpaidBills}
                     onClose={() => { setIsPaymentModalOpen(false); load(); }}
                 />
             )}
