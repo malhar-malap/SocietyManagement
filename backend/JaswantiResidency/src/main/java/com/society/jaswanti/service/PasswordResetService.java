@@ -89,9 +89,7 @@ public class PasswordResetService {
     @Transactional(noRollbackFor = {InvalidOtpException.class})
     public void resetPassword(String rawEmail, String otp, String newPassword) {
         // 1. Password input validation first (independent of account existence)
-        if (newPassword == null || newPassword.trim().length() < 6) {
-            throw new InvalidPasswordException("Password must be at least 6 characters long.");
-        }
+        com.society.jaswanti.security.PasswordValidator.validate(newPassword);
 
         if (rawEmail == null || rawEmail.trim().isEmpty() || otp == null || otp.trim().isEmpty()) {
             throw new InvalidOtpException("Invalid or expired OTP.");
@@ -145,6 +143,7 @@ public class PasswordResetService {
 
         // 4. Success: update password with BCrypt encoder and invalidate OTP (single-use)
         user.setPassword(passwordEncoder.encode(newPassword));
+        user.setTokenVersion(user.getTokenVersion() + 1);
         user.setPasswordResetOtpHash(null);
         user.setPasswordResetOtpExpiry(null);
         user.setPasswordResetOtpAttempts(0);

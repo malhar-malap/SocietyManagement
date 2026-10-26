@@ -9,6 +9,11 @@ public class SystemNotificationDto {
     private String link;
     private LocalDateTime createdAt;
     private boolean read;
+    // Broadcasts share one row for everyone, so their read state is tracked per user on the client
+    private boolean broadcast;
+
+    public boolean isBroadcast() { return broadcast; }
+    public void setBroadcast(boolean broadcast) { this.broadcast = broadcast; }
 
     public SystemNotificationDto(Long id, String title, String message, String link, LocalDateTime createdAt, boolean read) {
         this.id = id;

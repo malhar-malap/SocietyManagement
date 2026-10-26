@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { notifySuccess, notifyError, errorMessage } from '../utils/notify';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -15,26 +16,38 @@ const ForgotPassword = () => {
     const [confirmPassword, setConfirmPassword] = useState('');
     const navigate = useNavigate();
 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
     const handleSendOtp = async () => {
-        try {
-            await forgotPassword(email);
-            setStep(2);
-        } catch (e) {
-            alert('Failed to send OTP');
-        }
-    };
-    
-    const handleReset = async () => {
-        if (newPassword !== confirmPassword) {
-            alert('Passwords do not match');
+        if (!email.trim()) {
+            notifyError('Enter your registered email address.');
             return;
         }
+        setIsSubmitting(true);
         try {
-            await resetPassword(email, otp, newPassword);
-            alert('Password Reset Successfully!');
+            await forgotPassword(email.trim());
+            setStep(2);
+        } catch (e) {
+            notifyError(errorMessage(e, 'Could not send the reset code. Please try again.'));
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleReset = async () => {
+        if (newPassword !== confirmPassword) {
+            notifyError('Passwords do not match.');
+            return;
+        }
+        setIsSubmitting(true);
+        try {
+            await resetPassword(email.trim(), otp.trim(), newPassword);
+            notifySuccess('Password reset. Please sign in with your new password.');
             navigate('/login');
         } catch (e) {
-            alert('Failed to reset password');
+            notifyError(errorMessage(e, 'Could not reset the password. Check the code and try again.'));
+        } finally {
+            setIsSubmitting(false);
         }
     };
     
@@ -53,7 +66,7 @@ const ForgotPassword = () => {
                     {step === 1 ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <Input label="Registered Email" placeholder="Enter your email address" value={email} onChange={(e) => setEmail(e.target.value)} />
-                            <Button onClick={handleSendOtp}>Send Reset OTP</Button>
+                            <Button onClick={handleSendOtp} isLoading={isSubmitting} disabled={isSubmitting}>Send Reset OTP</Button>
                             <Link to="/login" style={{ textAlign: 'center', fontSize: '0.9rem', color: 'var(--text-secondary-light)', marginTop: '1rem' }}>Back to Login</Link>
                         </div>
                     ) : step === 2 ? (
@@ -66,7 +79,7 @@ const ForgotPassword = () => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <Input type="password" label="New Password" placeholder="Enter new password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
                             <Input type="password" label="Confirm Password" placeholder="Confirm new password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
-                            <Button onClick={handleReset} className="mt-2">Reset Password</Button>
+                            <Button onClick={handleReset} isLoading={isSubmitting} disabled={isSubmitting} className="mt-2">Reset Password</Button>
                         </div>
                     )}
                 </Card>

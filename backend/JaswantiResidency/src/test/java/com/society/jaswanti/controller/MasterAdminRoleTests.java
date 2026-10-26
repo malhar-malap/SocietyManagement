@@ -23,6 +23,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class MasterAdminRoleTests {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.society.jaswanti.support.TestDatabase testDatabase;
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -38,6 +41,7 @@ class MasterAdminRoleTests {
 
     @BeforeEach
     void setUp() {
+        testDatabase.wipe();
         admin = findOrCreate("role-test-admin@jaswanti.com", "Role Test Admin", Role.ADMIN);
         masterAdmin = findOrCreate("role-test-master@jaswanti.com", "Role Test Master", Role.MASTER_ADMIN);
         target = findOrCreate("role-test-target@jaswanti.com", "Role Test Target", Role.RESIDENT);

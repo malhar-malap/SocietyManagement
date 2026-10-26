@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.society.jaswanti.dto.*;
 import com.society.jaswanti.entity.*;
 import com.society.jaswanti.repository.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,8 @@ import java.util.stream.Collectors;
 @Service
 public class PaymentSubmissionService {
 
+    private static final Logger logger = LoggerFactory.getLogger(PaymentSubmissionService.class);
+
     private final ResidentPaymentSubmissionRepository submissionRepository;
     private final RoomRepository roomRepository;
     private final RoomResidentRepository roomResidentRepository;
@@ -32,6 +36,8 @@ public class PaymentSubmissionService {
     private final UserRepository userRepository;
     private final PaymentRecordingService paymentRecordingService;
     private final ActivityLogService activityLogService;
+    private final FileValidationService fileValidationService;
+    private final SystemNotificationService notificationService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public PaymentSubmissionService(ResidentPaymentSubmissionRepository submissionRepository,
@@ -41,7 +47,9 @@ public class PaymentSubmissionService {
                                     SocietyBankAccountRepository bankAccountRepository,
                                     UserRepository userRepository,
                                     PaymentRecordingService paymentRecordingService,
-                                    ActivityLogService activityLogService) {
+                                    ActivityLogService activityLogService,
+                                    FileValidationService fileValidationService,
+                                    SystemNotificationService notificationService) {
         this.submissionRepository = submissionRepository;
         this.roomRepository = roomRepository;
         this.roomResidentRepository = roomResidentRepository;
@@ -50,6 +58,8 @@ public class PaymentSubmissionService {
         this.userRepository = userRepository;
         this.paymentRecordingService = paymentRecordingService;
         this.activityLogService = activityLogService;
+        this.fileValidationService = fileValidationService;
+        this.notificationService = notificationService;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -70,27 +80,35 @@ public class PaymentSubmissionService {
             throw new AccessDeniedException("You are not an authorized active resident of room " + room.getRoomNumber());
         }
 
+        if (request.getAmount() == null || request.getAmount().signum() <= 0) {
+            throw new IllegalArgumentException("Payment amount must be greater than zero");
+        }
         BigDecimal normalizedAmount = request.getAmount().setScale(2, RoundingMode.HALF_UP);
+        PaymentMode paymentMode = parsePaymentMode(request.getPaymentMode() != null ? request.getPaymentMode() : "UPI_MANUAL");
+        List<Long> selectedBillIds = request.getSelectedBillIds() != null
+                ? request.getSelectedBillIds().stream().distinct().toList() : List.of();
+        validateSelectedBills(selectedBillIds, room, true);
 
         ResidentPaymentSubmission submission = new ResidentPaymentSubmission();
         submission.setRoom(room);
         submission.setSubmittedByUser(resident);
         submission.setAmount(normalizedAmount);
-        submission.setPaymentMode(request.getPaymentMode() != null ? request.getPaymentMode() : "UPI_MANUAL");
+        submission.setPaymentMode(paymentMode.name());
         submission.setReferenceNumber(request.getReferenceNumber() != null ? request.getReferenceNumber().trim() : null);
         submission.setResidentDescription(request.getResidentDescription() != null ? request.getResidentDescription().trim() : null);
         submission.setAdvanceMonthsCount(Math.max(0, request.getAdvanceMonthsCount()));
         submission.setStatus("PENDING");
         submission.setCreatedAt(LocalDateTime.now());
 
-        if (request.getSelectedBillIds() != null && !request.getSelectedBillIds().isEmpty()) {
-            submission.setSelectedBillIdsJson(objectMapper.writeValueAsString(request.getSelectedBillIds()));
+        if (!selectedBillIds.isEmpty()) {
+            submission.setSelectedBillIdsJson(objectMapper.writeValueAsString(selectedBillIds));
         }
 
         if (screenshot != null && !screenshot.isEmpty()) {
+            String detectedType = fileValidationService.validateImageOrPdf(screenshot);
             submission.setScreenshotData(screenshot.getBytes());
             submission.setScreenshotFilename(screenshot.getOriginalFilename());
-            submission.setScreenshotContentType(screenshot.getContentType());
+            submission.setScreenshotContentType(detectedType);
         }
 
         submission = submissionRepository.save(submission);
@@ -99,6 +117,22 @@ public class PaymentSubmissionService {
                 String.format("Resident %s submitted payment of ₹%s for Room %s (Mode: %s, Ref: %s)",
                         resident.getName(), normalizedAmount.toPlainString(), room.getRoomNumber(),
                         submission.getPaymentMode(), submission.getReferenceNumber()));
+
+        try {
+            List<User> activeAdmins = userRepository.findAll().stream()
+                    .filter(u -> (u.getRole() == Role.ADMIN || u.getRole() == Role.MASTER_ADMIN)
+                            && u.isActive()
+                            && u.getStatus() == UserStatus.ACTIVE)
+                    .toList();
+            String title = "New payment proof";
+            String message = String.format("%s submitted ₹%s (%s) for review.",
+                    room.getRoomNumber(), normalizedAmount.toPlainString(), submission.getPaymentMode());
+            for (User adminUser : activeAdmins) {
+                notificationService.createNotification(adminUser, title, message, "/admin/billing");
+            }
+        } catch (RuntimeException e) {
+            logger.warn("Could not create notification for payment submission: {}", e.getMessage());
+        }
 
         return toDto(submission);
     }
@@ -118,7 +152,34 @@ public class PaymentSubmissionService {
 
     public ResidentPaymentSubmission getSubmissionEntity(Long id) {
         return submissionRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Submission not found with ID: " + id));
+                .orElseThrow(() -> new com.society.jaswanti.exception.ResourceNotFoundException("Submission not found with ID: " + id));
+    }
+
+    public ResidentPaymentSubmission getAuthorizedSubmissionForScreenshot(Long id, Authentication auth) {
+        ResidentPaymentSubmission submission = submissionRepository.findById(id)
+                .orElseThrow(() -> new com.society.jaswanti.exception.ResourceNotFoundException("Submission not found with ID: " + id));
+
+        User actor = resolveAuthenticatedUser(auth);
+        if (actor.getRole() == Role.ADMIN || actor.getRole() == Role.MASTER_ADMIN) {
+            return submission;
+        }
+
+        if (submission.getSubmittedByUser() != null && submission.getSubmittedByUser().getId().equals(actor.getId())) {
+            return submission;
+        }
+
+        Room room = submission.getRoom();
+        if (room != null) {
+            boolean isRoomResident = roomResidentRepository.existsByRoomIdAndResidentIdAndIsActiveTrue(room.getId(), actor.getId());
+            if (!isRoomResident && !roomResidentRepository.existsByRoomId(room.getId())) {
+                isRoomResident = (room.getResident() != null && room.getResident().getId().equals(actor.getId()));
+            }
+            if (isRoomResident) {
+                return submission;
+            }
+        }
+
+        throw new AccessDeniedException("You are not authorized to access this payment screenshot");
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -143,24 +204,23 @@ public class PaymentSubmissionService {
             throw new IllegalArgumentException("Selected bank account is inactive");
         }
 
-        PaymentMode mode = PaymentMode.CASH;
-        try {
-            mode = PaymentMode.valueOf(submission.getPaymentMode());
-        } catch (Exception ignored) {
-            if ("BANK_TRANSFER".equalsIgnoreCase(submission.getPaymentMode())) mode = PaymentMode.BANK_TRANSFER;
-            else if ("UPI_MANUAL".equalsIgnoreCase(submission.getPaymentMode())) mode = PaymentMode.UPI_MANUAL;
-        }
+        // An unknown mode used to fall back to CASH silently, recording the money in the cash ledger
+        PaymentMode mode = parsePaymentMode(submission.getPaymentMode());
 
         List<Long> billIds = new ArrayList<>();
         if (submission.getSelectedBillIdsJson() != null && !submission.getSelectedBillIdsJson().isBlank()) {
             try {
                 billIds = objectMapper.readValue(submission.getSelectedBillIdsJson(), new TypeReference<List<Long>>() {});
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                // Falling back to "settle any pending bills" would apply the money somewhere the resident didn't choose
+                throw new IllegalArgumentException("Submission #" + submission.getId() + " has an unreadable bill selection; reject it and ask the resident to resubmit");
+            }
         }
 
         List<MaintenanceBill> billsToSettle = new ArrayList<>();
         if (!billIds.isEmpty()) {
-            billsToSettle = billRepository.findAllById(billIds);
+            // Re-checked at approval: the selection must still belong to this room (bills may have been paid since)
+            billsToSettle = validateSelectedBills(billIds, submission.getRoom(), false);
         } else {
             // Settle existing pending bills for this room
             billsToSettle = billRepository.findByRoomId(submission.getRoom().getId()).stream()
@@ -277,6 +337,30 @@ public class PaymentSubmissionService {
         } else if (lastReceiptNumber != null) {
             resDto.setReceiptNumber(lastReceiptNumber);
         }
+
+        if (submission.getSubmittedByUser() != null) {
+            try {
+                String amountStr = submission.getAmount() != null
+                        ? submission.getAmount().setScale(2, RoundingMode.HALF_UP).toPlainString()
+                        : "0.00";
+                String roomNum = submission.getRoom() != null ? submission.getRoom().getRoomNumber() : "";
+                StringBuilder msg = new StringBuilder();
+                msg.append(String.format("Your payment of ₹%s for room %s was approved.", amountStr, roomNum));
+                String receiptNo = resDto.getReceiptNumber();
+                if (receiptNo != null && !receiptNo.isBlank()) {
+                    msg.append(" Receipt ").append(receiptNo.trim()).append(".");
+                }
+                notificationService.createNotification(
+                        submission.getSubmittedByUser(),
+                        "Payment approved",
+                        msg.toString(),
+                        "/resident/invoices"
+                );
+            } catch (RuntimeException e) {
+                logger.warn("Could not create approval notification: {}", e.getMessage());
+            }
+        }
+
         return resDto;
     }
 
@@ -304,6 +388,26 @@ public class PaymentSubmissionService {
         activityLogService.logActivity(admin, "REJECT_PAYMENT_SUBMISSION", "LEDGER",
                 String.format("Rejected payment submission #%d for Room %s. Remarks: %s",
                         submission.getId(), submission.getRoom().getRoomNumber(), request.getAdminRemarks().trim()));
+
+        if (submission.getSubmittedByUser() != null) {
+            try {
+                String amountStr = submission.getAmount() != null
+                        ? submission.getAmount().setScale(2, RoundingMode.HALF_UP).toPlainString()
+                        : "0.00";
+                String roomNum = submission.getRoom() != null ? submission.getRoom().getRoomNumber() : "";
+                String reason = request.getReason() != null ? request.getReason().trim() : "";
+                String msg = String.format("Your payment proof of ₹%s for room %s was rejected: %s",
+                        amountStr, roomNum, reason);
+                notificationService.createNotification(
+                        submission.getSubmittedByUser(),
+                        "Payment proof rejected",
+                        msg,
+                        "/resident/invoices"
+                );
+            } catch (RuntimeException e) {
+                logger.warn("Could not create rejection notification: {}", e.getMessage());
+            }
+        }
 
         return toDto(submission);
     }
@@ -356,5 +460,38 @@ public class PaymentSubmissionService {
         dto.setCreatedAt(s.getCreatedAt());
         dto.setReviewedAt(s.getReviewedAt());
         return dto;
+    }
+
+    private static PaymentMode parsePaymentMode(String value) {
+        try {
+            return PaymentMode.valueOf(value.trim().toUpperCase());
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("Unknown payment mode '" + value + "'. Allowed: "
+                    + java.util.Arrays.toString(PaymentMode.values()));
+        }
+    }
+
+    /**
+     * Every selected bill must exist and belong to the submission's room. Without this, a resident could select
+     * another flat's bills and an approval would mark those paid with this resident's money.
+     */
+    private List<MaintenanceBill> validateSelectedBills(List<Long> billIds, Room room, boolean requirePayable) {
+        if (billIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<MaintenanceBill> bills = new ArrayList<>(billRepository.findAllById(billIds));
+        if (bills.size() != new java.util.HashSet<>(billIds).size()) {
+            throw new IllegalArgumentException("One or more selected bills do not exist");
+        }
+        for (MaintenanceBill bill : bills) {
+            if (bill.getRoom() == null || !bill.getRoom().getId().equals(room.getId())) {
+                throw new IllegalArgumentException("Bill #" + bill.getId() + " does not belong to room " + room.getRoomNumber());
+            }
+            if (requirePayable && bill.getStatus() != BillStatus.PENDING && bill.getStatus() != BillStatus.PARTIALLY_PAID) {
+                throw new IllegalArgumentException("Bill #" + bill.getId() + " is already settled (" + bill.getStatus() + ")");
+            }
+        }
+        bills.sort(Comparator.comparing(MaintenanceBill::getBillingMonth));
+        return bills;
     }
 }

@@ -1,5 +1,7 @@
 package com.society.jaswanti.entity;
 
+import org.hibernate.Length;
+
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -41,7 +43,7 @@ public class Complaint {
     private String imageUrl;
 
     @Lob
-    @Column(name = "image_data")
+    @Column(name = "image_data", length = Length.LONG32) // maps to LONGBLOB on MySQL, not the 255-byte TINYBLOB default
     private byte[] imageData;
 
     @Column(name = "image_filename")

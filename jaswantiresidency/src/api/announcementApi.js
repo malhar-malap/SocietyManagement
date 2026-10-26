@@ -5,11 +5,6 @@ export const getAnnouncements = async () => {
   return response.data;
 };
 
-export const getAnnouncementById = async (id) => {
-  const response = await api.get(`/announcements/${id}`);
-  return response.data;
-};
-
 export const createAnnouncement = async (data) => {
   const response = await api.post('/announcements', data);
   return response.data;

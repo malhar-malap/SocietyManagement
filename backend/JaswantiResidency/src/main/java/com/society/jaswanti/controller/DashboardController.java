@@ -23,7 +23,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/resident/dashboard")
-@CrossOrigin(origins = "*")
 public class DashboardController {
 
     private final AnnouncementService announcementService;

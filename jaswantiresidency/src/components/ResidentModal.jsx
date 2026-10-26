@@ -119,7 +119,7 @@ const ResidentModal = ({ isOpen, onClose, onSave, initialData }) => {
 
                     {!isEditMode && (
                         <div className="input-group-modern">
-                            <label className="input-label">Temporary Password</label>
+                            <label className="input-label">Initial Password (optional)</label>
                             <div className="modern-input-wrapper">
                                 <Hash size={18} className="modern-input-icon" />
                                 <input
@@ -128,10 +128,13 @@ const ResidentModal = ({ isOpen, onClose, onSave, initialData }) => {
                                     className="modern-input"
                                     value={formData.password}
                                     onChange={handleChange}
-                                    placeholder="Set initial password"
-                                    required
+                                    placeholder="Leave blank to generate one"
+                                    autoComplete="new-password"
                                 />
                             </div>
+                            <small style={{ color: 'var(--text-secondary-light)', fontSize: '0.78rem' }}>
+                                At least 8 characters with a letter and a digit. The resident must change it at first sign-in.
+                            </small>
                         </div>
                     )}
 

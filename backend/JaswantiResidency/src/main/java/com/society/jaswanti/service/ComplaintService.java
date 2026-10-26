@@ -6,6 +6,8 @@ import com.society.jaswanti.entity.ComplaintStatus;
 import com.society.jaswanti.entity.User;
 import com.society.jaswanti.repository.ComplaintRepository;
 import com.society.jaswanti.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -17,16 +19,24 @@ import java.util.stream.Collectors;
 
 @Service
 public class ComplaintService {
+    private static final Logger logger = LoggerFactory.getLogger(ComplaintService.class);
+
     private final ComplaintRepository complaintRepository;
     private final UserRepository userRepository;
     private final com.society.jaswanti.repository.RoomRepository roomRepository;
+    private final FileValidationService fileValidationService;
+    private final SystemNotificationService notificationService;
 
     public ComplaintService(ComplaintRepository complaintRepository,
                             UserRepository userRepository,
-                            com.society.jaswanti.repository.RoomRepository roomRepository) {
+                            com.society.jaswanti.repository.RoomRepository roomRepository,
+                            FileValidationService fileValidationService,
+                            SystemNotificationService notificationService) {
         this.complaintRepository = complaintRepository;
         this.userRepository = userRepository;
         this.roomRepository = roomRepository;
+        this.fileValidationService = fileValidationService;
+        this.notificationService = notificationService;
     }
 
     public ComplaintDto createComplaint(Long residentId, String category, String description, MultipartFile file) throws IOException {
@@ -51,12 +61,10 @@ public class ComplaintService {
         complaint.setStatus(ComplaintStatus.OPEN);
 
         if (file != null && !file.isEmpty()) {
-            if (file.getSize() > 10 * 1024 * 1024) {
-                throw new RuntimeException("File size exceeds 10MB limit");
-            }
+            String detectedType = fileValidationService.validateImageOrPdf(file);
             complaint.setImageData(file.getBytes());
             complaint.setImageFilename(file.getOriginalFilename());
-            complaint.setImageContentType(file.getContentType());
+            complaint.setImageContentType(detectedType);
         }
 
         Complaint saved = complaintRepository.save(complaint);
@@ -94,25 +102,51 @@ public class ComplaintService {
 
     public Optional<ComplaintDto> updateComplaintStatus(Long id, String status) {
         return complaintRepository.findById(id).map(complaint -> {
-            try {
-                complaint.setStatus(ComplaintStatus.valueOf(status.toUpperCase()));
-            } catch (IllegalArgumentException ignored) {}
-            return convertToDto(complaintRepository.save(complaint));
+            complaint.setStatus(parseStatus(status));
+            Complaint saved = complaintRepository.save(complaint);
+            notifyResidentOfComplaintUpdate(saved, saved.getAdminResponse());
+            return convertToDto(saved);
         });
     }
 
     public Optional<ComplaintDto> respondToSubmission(Long id, String status, String adminResponse) {
         return complaintRepository.findById(id).map(complaint -> {
             if (status != null && !status.isBlank()) {
-                try {
-                    complaint.setStatus(ComplaintStatus.valueOf(status.toUpperCase()));
-                } catch (IllegalArgumentException ignored) {}
+                complaint.setStatus(parseStatus(status));
             }
             if (adminResponse != null) {
                 complaint.setAdminResponse(adminResponse);
             }
-            return convertToDto(complaintRepository.save(complaint));
+            Complaint saved = complaintRepository.save(complaint);
+            notifyResidentOfComplaintUpdate(saved, adminResponse);
+            return convertToDto(saved);
         });
+    }
+
+    private void notifyResidentOfComplaintUpdate(Complaint complaint, String adminResponse) {
+        if (complaint == null || complaint.getResident() == null) {
+            return;
+        }
+        try {
+            String type = (complaint.getSubmissionType() != null && !complaint.getSubmissionType().isBlank())
+                    ? complaint.getSubmissionType().trim().toLowerCase()
+                    : "complaint";
+            String title = "Update on your " + type;
+            StringBuilder msg = new StringBuilder("Status: ").append(complaint.getStatus()).append(".");
+            if (adminResponse != null && !adminResponse.isBlank()) {
+                String trimmed = adminResponse.trim();
+                String excerpt = trimmed.length() > 140 ? trimmed.substring(0, 140) : trimmed;
+                msg.append(" Response: ").append(excerpt);
+            }
+            notificationService.createNotification(
+                    complaint.getResident(),
+                    title,
+                    msg.toString(),
+                    "/resident/complaints"
+            );
+        } catch (RuntimeException e) {
+            logger.warn("Could not create notification: {}", e.getMessage());
+        }
     }
 
     public Optional<Complaint> getComplaintEntity(Long id) {
@@ -120,7 +154,20 @@ public class ComplaintService {
     }
 
     public void deleteComplaint(Long id) {
+        if (!complaintRepository.existsById(id)) {
+            throw new com.society.jaswanti.exception.ResourceNotFoundException("Submission not found with ID: " + id);
+        }
         complaintRepository.deleteById(id);
+    }
+
+    /** Rejects unknown statuses with a 400 instead of silently leaving the status unchanged. */
+    private static ComplaintStatus parseStatus(String status) {
+        try {
+            return ComplaintStatus.valueOf(status == null ? "" : status.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid status '" + status + "'. Allowed: "
+                    + java.util.Arrays.toString(ComplaintStatus.values()));
+        }
     }
 
     public ComplaintDto convertToDto(Complaint complaint) {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { notifySuccess, notifyError, errorMessage } from '../utils/notify';
 import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -63,7 +64,7 @@ const ResidentProfile = () => {
     const handleProfileSave = async (e) => {
         e.preventDefault();
         if (!editName.trim()) {
-            alert('Name cannot be empty');
+            notifyError('Name cannot be empty.');
             return;
         }
         setIsSavingProfile(true);
@@ -93,7 +94,7 @@ const ResidentProfile = () => {
             setTimeout(() => setProfileSuccessMsg(''), 4000);
         } catch (err) {
             console.error('Failed to update profile', err);
-            alert('Failed to update profile: ' + (err.response?.data?.message || err.message));
+            notifyError(errorMessage(err, 'Failed to update profile.'));
         } finally {
             setIsSavingProfile(false);
         }
@@ -102,20 +103,24 @@ const ResidentProfile = () => {
     const handlePasswordChange = async (e) => {
         e.preventDefault();
         if (newPassword !== confirmPassword) {
-            alert('New passwords do not match');
+            notifyError('New passwords do not match.');
             return;
         }
         try {
             setIsChangingPassword(true);
             const { changePassword } = await import('../api/residentApi');
-            await changePassword(user.userId, { oldPassword, newPassword });
-            alert('Password successfully updated');
+            const res = await changePassword(user.userId, { oldPassword, newPassword });
+            // Changing the password revokes old tokens; keep this session alive with the fresh pair
+            if (res && res.accessToken) {
+                login(res);
+            }
+            notifySuccess('Password updated.');
             setOldPassword('');
             setNewPassword('');
             setConfirmPassword('');
         } catch (error) {
             console.error(error);
-            alert('Failed to change password. Ensure old password is correct.');
+            notifyError(errorMessage(error, 'Failed to change password. Make sure your current password is correct.'));
         } finally {
             setIsChangingPassword(false);
         }

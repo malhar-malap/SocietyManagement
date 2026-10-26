@@ -25,6 +25,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class CommercialUnitsAndShareCertificateTests {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.society.jaswanti.support.TestDatabase testDatabase;
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -53,6 +56,9 @@ class CommercialUnitsAndShareCertificateTests {
     private ActivityLogRepository activityLogRepository;
 
     @Autowired
+    private com.society.jaswanti.repository.SystemNotificationRepository notificationRepository;
+
+    @Autowired
     private JwtService jwtService;
 
     private User masterAdmin;
@@ -69,6 +75,8 @@ class CommercialUnitsAndShareCertificateTests {
 
     @BeforeEach
     void setUp() {
+        testDatabase.wipe();
+        notificationRepository.deleteAll();
         submissionRepository.deleteAll();
         transactionRepository.deleteAll();
         paymentAttemptRepository.deleteAll();
@@ -234,7 +242,7 @@ class CommercialUnitsAndShareCertificateTests {
                 "file",
                 "cert_resRoom.pdf",
                 "application/pdf",
-                "PDF_SECRET_CERTIFICATE_BYTES".getBytes()
+                "%PDF-1.4 PDF_SECRET_CERTIFICATE_BYTES".getBytes()
         );
 
         mockMvc.perform(multipart("/api/rooms/" + resRoom.getId() + "/share-certificate")
@@ -253,7 +261,7 @@ class CommercialUnitsAndShareCertificateTests {
         mockMvc.perform(get("/api/rooms/" + resRoom.getId() + "/share-certificate/download")
                         .header("Authorization", "Bearer " + resident1Token))
                 .andExpect(status().isOk())
-                .andExpect(content().bytes("PDF_SECRET_CERTIFICATE_BYTES".getBytes()));
+                .andExpect(content().bytes("%PDF-1.4 PDF_SECRET_CERTIFICATE_BYTES".getBytes()));
     }
 
     @Test
@@ -264,7 +272,7 @@ class CommercialUnitsAndShareCertificateTests {
                 "file",
                 "cert.pdf",
                 "application/pdf",
-                "PDF_SECRET".getBytes()
+                "%PDF-1.4 PDF_SECRET".getBytes()
         );
 
         mockMvc.perform(multipart("/api/rooms/" + resRoom.getId() + "/share-certificate")

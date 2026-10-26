@@ -32,6 +32,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class BillingPeriodValidationTests {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.society.jaswanti.support.TestDatabase testDatabase;
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -67,6 +70,7 @@ class BillingPeriodValidationTests {
 
     @BeforeEach
     void setUp() {
+        testDatabase.wipe();
         paymentAttemptRepository.deleteAll();
         transactionRepository.deleteAll();
         billRepository.deleteAll();

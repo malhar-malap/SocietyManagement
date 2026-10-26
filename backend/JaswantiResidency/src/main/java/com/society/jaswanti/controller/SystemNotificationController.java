@@ -1,5 +1,7 @@
 package com.society.jaswanti.controller;
 
+import com.society.jaswanti.audit.AuditExempt;
+
 import com.society.jaswanti.dto.SystemNotificationDto;
 import com.society.jaswanti.service.SystemNotificationService;
 import org.springframework.http.ResponseEntity;
@@ -11,7 +13,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/notifications")
-@CrossOrigin(origins = "*")
 public class SystemNotificationController {
 
     private final SystemNotificationService notificationService;
@@ -29,8 +30,10 @@ public class SystemNotificationController {
 
     @PutMapping("/{id}/read")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
-    public ResponseEntity<Void> markAsRead(@PathVariable Long id) {
-        notificationService.markAsRead(id);
+    @AuditExempt(reason = "Marking one's own notification as read is a personal UI action with no effect on society records")
+    public ResponseEntity<Void> markAsRead(@PathVariable Long id, Authentication auth) {
+        com.society.jaswanti.entity.User user = (com.society.jaswanti.entity.User) auth.getPrincipal();
+        notificationService.markAsRead(id, user.getId());
         return ResponseEntity.ok().build();
     }
 }

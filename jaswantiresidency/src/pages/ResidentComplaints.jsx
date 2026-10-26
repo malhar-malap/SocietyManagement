@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { notifyError, errorMessage } from '../utils/notify';
 import PageHeader from '../components/ui/PageHeader';
 import DataTable from '../components/ui/DataTable';
 import StatusChip from '../components/ui/StatusChip';
@@ -128,7 +129,7 @@ const ResidentComplaints = () => {
             reset();
         } catch (err) {
             console.error("Failed to submit request", err);
-            alert(err?.response?.data?.message || "Failed to submit request. Please try again.");
+            notifyError(errorMessage(err, "Failed to submit request. Please try again."));
         } finally {
             setIsSubmitting(false);
         }

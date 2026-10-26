@@ -4,7 +4,8 @@ import DataTable from '../components/ui/DataTable';
 import StatusChip from '../components/ui/StatusChip';
 import Button from '../components/ui/Button';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
-import { Plus, Edit, Trash2, Ban, CheckCircle2, ShieldAlert, CheckCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Ban, CheckCircle2, ShieldAlert, CheckCircle, KeyRound } from 'lucide-react';
+import TemporaryPasswordDialog from '../components/TemporaryPasswordDialog';
 import ResidentModal from '../components/ResidentModal';
 import { useAuth } from '../context/AuthContext';
 
@@ -20,6 +21,7 @@ const AdminResidents = () => {
 
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
+    const [temporaryPassword, setTemporaryPassword] = useState(null);
 
     const [confirmDialog, setConfirmDialog] = useState({
         isOpen: false,
@@ -57,8 +59,11 @@ const AdminResidents = () => {
                 await updateResident(selectedResident.id, formData);
                 setSuccessMessage("Resident updated successfully.");
             } else {
-                await addResident(formData);
+                const created = await addResident(formData);
                 setSuccessMessage("Resident added successfully.");
+                if (created?.temporaryPassword) {
+                    setTemporaryPassword({ name: created.fullName || formData.name, password: created.temporaryPassword });
+                }
             }
             await fetchResidents();
         } catch (err) {
@@ -122,13 +127,46 @@ const AdminResidents = () => {
                 setIsProcessing(true);
                 try {
                     const { updateResidentStatus } = await import('../api/adminApi');
-                    await updateResidentStatus(row.id, newStatus);
+                    const updated = await updateResidentStatus(row.id, newStatus);
                     setSuccessMessage(`Account ${actionLabel.toLowerCase()}d successfully for "${targetName}".`);
+                    // Accounts that never finished first sign-in get a fresh temporary password on reactivation
+                    if (updated?.temporaryPassword) {
+                        setTemporaryPassword({ name: targetName, password: updated.temporaryPassword });
+                    }
                     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
                     await fetchResidents();
                 } catch (err) {
                     console.error("Failed to update status", err);
                     const msg = err.response?.data?.message || err.response?.data?.error || err.message || `Failed to ${actionLabel.toLowerCase()} account.`;
+                    setErrorMessage(msg);
+                    setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                } finally {
+                    setIsProcessing(false);
+                }
+            }
+        });
+    };
+
+    const handleResetPasswordPrompt = (row) => {
+        setErrorMessage('');
+        setSuccessMessage('');
+        const targetName = row.fullName || row.name || row.email;
+        setConfirmDialog({
+            isOpen: true,
+            title: 'Reset Password',
+            message: `Issue a new temporary password for "${targetName}"? Their current password stops working and they will be signed out everywhere.`,
+            confirmText: 'Reset Password',
+            confirmVariant: 'danger',
+            onConfirm: async () => {
+                setIsProcessing(true);
+                try {
+                    const { resetUserPassword } = await import('../api/adminApi');
+                    const result = await resetUserPassword(row.id);
+                    setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                    setSuccessMessage(`Temporary password issued for "${targetName}".`);
+                    setTemporaryPassword({ name: targetName, password: result.temporaryPassword });
+                } catch (err) {
+                    const msg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to reset password.";
                     setErrorMessage(msg);
                     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
                 } finally {
@@ -273,6 +311,19 @@ const AdminResidents = () => {
                         <Edit size={16} />
                     </Button>
 
+                    {/* Admins may reset residents; a Master Admin may reset anyone */}
+                    {(isMasterAdmin || (row.role || 'RESIDENT') === 'RESIDENT') && String(row.id) !== String(user?.userId) && (
+                        <Button
+                            variant="secondary"
+                            title="Reset password"
+                            aria-label="Reset password"
+                            style={{ padding: '0.4rem 0.6rem' }}
+                            onClick={() => handleResetPasswordPrompt(row)}
+                        >
+                            <KeyRound size={16} />
+                        </Button>
+                    )}
+
                     {isMasterAdmin && (
                         <>
                             {/* Block / Reactivate Status Button */}
@@ -416,6 +467,8 @@ const AdminResidents = () => {
                 onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
                 isLoading={isProcessing}
             />
+
+            <TemporaryPasswordDialog info={temporaryPassword} onClose={() => setTemporaryPassword(null)} />
         </div>
     );
 };

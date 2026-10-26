@@ -1,5 +1,7 @@
 package com.society.jaswanti.entity;
 
+import org.hibernate.Length;
+
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -41,7 +43,7 @@ public class Room {
     private LocalDate shareCertificateIssuedDate;
 
     @Lob
-    @Column(name = "share_certificate_data")
+    @Column(name = "share_certificate_data", length = Length.LONG32) // maps to LONGBLOB on MySQL, not the 255-byte TINYBLOB default
     private byte[] shareCertificateData;
 
     @Column(name = "share_certificate_filename")

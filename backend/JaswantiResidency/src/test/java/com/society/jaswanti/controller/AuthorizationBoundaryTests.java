@@ -1,8 +1,6 @@
 package com.society.jaswanti.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.society.jaswanti.dto.PaymentRequestDto;
-import com.society.jaswanti.dto.PaymentVerifyDto;
 import com.society.jaswanti.entity.BillStatus;
 import com.society.jaswanti.entity.MaintenanceBill;
 import com.society.jaswanti.entity.Role;
@@ -57,16 +55,10 @@ public class AuthorizationBoundaryTests {
     private com.society.jaswanti.repository.PaymentAttemptRepository paymentAttemptRepository;
 
     @Autowired
-    private com.society.jaswanti.service.PaymentService paymentService;
-
-    @Autowired
     private com.society.jaswanti.service.MaintenanceBillService billService;
 
     @Autowired
     private javax.sql.DataSource dataSource;
-
-    @org.springframework.beans.factory.annotation.Value("${razorpay.api.secret}")
-    private String razorpaySecret;
 
     @Autowired
     private JwtService jwtService;
@@ -324,52 +316,27 @@ public class AuthorizationBoundaryTests {
     }
 
     // ==========================================
-    // 6. Payment Verification & Order Creation
+    // 6. Removed Legacy Razorpay Endpoints Return 404
     // ==========================================
 
     @Test
-    @DisplayName("POST /api/payments/verify rejects missing billId with 400 Bad Request")
-    void testPaymentVerifyRejectsMissingBillId() throws Exception {
-        PaymentVerifyDto dto = new PaymentVerifyDto();
-        dto.setRazorpayOrderId("order_test_123");
-        dto.setRazorpayPaymentId("pay_test_123");
-        dto.setRazorpaySignature("signature_123");
-        dto.setBillId(null);
-
-        mockMvc.perform(post("/api/payments/verify")
-                        .header("Authorization", resident101Token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    @DisplayName("POST /api/payments/verify rejects unauthorized billId with 403 Forbidden")
-    void testPaymentVerifyRejectsUnauthorizedBillId() throws Exception {
-        PaymentVerifyDto dto = new PaymentVerifyDto();
-        dto.setRazorpayOrderId("order_test_123");
-        dto.setRazorpayPaymentId("pay_test_123");
-        dto.setRazorpaySignature("signature_123");
-        dto.setBillId(bill102Id); // belongs to resident 102
-
-        mockMvc.perform(post("/api/payments/verify")
-                        .header("Authorization", resident101Token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    @DisplayName("POST /api/payments/create-order rejects unauthorized billId with 403 Forbidden")
-    void testPaymentCreateOrderRejectsUnauthorizedBillId() throws Exception {
-        PaymentRequestDto dto = new PaymentRequestDto();
-        dto.setBillId(bill102Id); // belongs to resident 102
-
+    @DisplayName("POST /api/payments/create-order is removed and returns 404")
+    void testCreateOrderEndpointRemoved() throws Exception {
         mockMvc.perform(post("/api/payments/create-order")
                         .header("Authorization", resident101Token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isForbidden());
+                        .content("{\"billId\":1}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("POST /api/payments/verify is removed and returns 404")
+    void testVerifyEndpointRemoved() throws Exception {
+        mockMvc.perform(post("/api/payments/verify")
+                        .header("Authorization", resident101Token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"billId\":1}"))
+                .andExpect(status().isNotFound());
     }
 
     // ==========================================
@@ -421,87 +388,6 @@ public class AuthorizationBoundaryTests {
     // 9. Cash Payment Boundary & Idempotency Tests
     // ==========================================
 
-    private String calculateSignature(String orderId, String paymentId) throws Exception {
-        String payload = orderId + "|" + paymentId;
-        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
-        mac.init(new javax.crypto.spec.SecretKeySpec(razorpaySecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
-        byte[] hash = mac.doFinal(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        StringBuilder hexString = new StringBuilder();
-        for (byte b : hash) {
-            String hex = Integer.toHexString(0xff & b);
-            if (hex.length() == 1) hexString.append('0');
-            hexString.append(hex);
-        }
-        return hexString.toString();
-    }
-
-    @Test
-    @DisplayName("Online payment verification must NOT change a cash-settled bill (PAID_CASH) or create duplicate transaction")
-    void testPaymentVerifyRejectsCashPaidBill() throws Exception {
-        MaintenanceBill cashBill = new MaintenanceBill(
-                roomRepository.findById(room101Id).orElseThrow(),
-                "September 2026",
-                3500.0,
-                LocalDate.now().plusDays(5)
-        );
-        cashBill.setStatus(BillStatus.PAID_CASH);
-        cashBill = billRepository.save(cashBill);
-
-        Transaction cashTx = new Transaction(cashBill, 3500.0, "SUCCESS", "CASH");
-        cashTx.setGatewayPaymentId("CASH_TEST_123");
-        transactionRepository.save(cashTx);
-
-        String orderId = "order_cash_test_999";
-        String paymentId = "pay_cash_test_999";
-        com.society.jaswanti.entity.PaymentAttempt attempt = new com.society.jaswanti.entity.PaymentAttempt(cashBill, orderId, 3500.0);
-        paymentAttemptRepository.save(attempt);
-
-        String signature = calculateSignature(orderId, paymentId);
-
-        PaymentVerifyDto verifyDto = new PaymentVerifyDto();
-        verifyDto.setRazorpayOrderId(orderId);
-        verifyDto.setRazorpayPaymentId(paymentId);
-        verifyDto.setRazorpaySignature(signature);
-        verifyDto.setBillId(cashBill.getId());
-
-        mockMvc.perform(post("/api/payments/verify")
-                        .header("Authorization", resident101Token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(verifyDto)))
-                .andExpect(status().isBadRequest());
-
-        // Verify bill status is unchanged
-        MaintenanceBill reloadedBill = billRepository.findById(cashBill.getId()).orElseThrow();
-        org.junit.jupiter.api.Assertions.assertEquals(BillStatus.PAID_CASH, reloadedBill.getStatus());
-
-        // Verify only 1 cash transaction exists
-        List<Transaction> transactions = transactionRepository.findByBillId(cashBill.getId());
-        org.junit.jupiter.api.Assertions.assertEquals(1, transactions.size());
-        org.junit.jupiter.api.Assertions.assertEquals("CASH", transactions.get(0).getPaymentMode());
-    }
-
-    @Test
-    @DisplayName("Online order creation must reject a cash-settled bill (PAID_CASH)")
-    void testCreateOrderRejectsCashPaidBill() throws Exception {
-        MaintenanceBill cashBill = new MaintenanceBill(
-                roomRepository.findById(room101Id).orElseThrow(),
-                "August 2026",
-                3500.0,
-                LocalDate.now().plusDays(5)
-        );
-        cashBill.setStatus(BillStatus.PAID_CASH);
-        cashBill = billRepository.save(cashBill);
-
-        PaymentRequestDto dto = new PaymentRequestDto();
-        dto.setBillId(cashBill.getId());
-
-        mockMvc.perform(post("/api/payments/create-order")
-                        .header("Authorization", resident101Token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isBadRequest());
-    }
-
     @Test
     @DisplayName("Admin marking bill paid cash sets PAID_CASH status and is idempotent")
     void testAdminMarkPaidCashSetsStatusAndIsIdempotent() throws Exception {
@@ -533,116 +419,6 @@ public class AuthorizationBoundaryTests {
     }
 
     @Test
-    @DisplayName("Repeated verification for the same recorded payment succeeds without duplicate transactions")
-    void testRepeatedSamePaymentVerificationSucceedsWithoutDuplicate() throws Exception {
-        MaintenanceBill bill = new MaintenanceBill(
-                roomRepository.findById(room101Id).orElseThrow(),
-                "November 2026",
-                3500.0,
-                LocalDate.now().plusDays(10)
-        );
-        bill.setStatus(BillStatus.PENDING);
-        bill = billRepository.save(bill);
-
-        String orderId = "order_repeat_111";
-        String paymentId = "pay_repeat_111";
-        com.society.jaswanti.entity.PaymentAttempt attempt = new com.society.jaswanti.entity.PaymentAttempt(bill, orderId, 3500.0);
-        paymentAttemptRepository.save(attempt);
-
-        String signature = calculateSignature(orderId, paymentId);
-
-        PaymentVerifyDto verifyDto = new PaymentVerifyDto();
-        verifyDto.setRazorpayOrderId(orderId);
-        verifyDto.setRazorpayPaymentId(paymentId);
-        verifyDto.setRazorpaySignature(signature);
-        verifyDto.setBillId(bill.getId());
-
-        // First verification: should succeed
-        mockMvc.perform(post("/api/payments/verify")
-                        .header("Authorization", resident101Token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(verifyDto)))
-                .andExpect(status().isOk());
-
-        MaintenanceBill afterFirst = billRepository.findById(bill.getId()).orElseThrow();
-        org.junit.jupiter.api.Assertions.assertEquals(BillStatus.PAID, afterFirst.getStatus());
-        List<Transaction> txsAfterFirst = transactionRepository.findByBillId(bill.getId());
-        org.junit.jupiter.api.Assertions.assertEquals(1, txsAfterFirst.size());
-        org.junit.jupiter.api.Assertions.assertEquals(paymentId, txsAfterFirst.get(0).getGatewayPaymentId());
-
-        // Second verification with exact same payment: should succeed idempotently
-        mockMvc.perform(post("/api/payments/verify")
-                        .header("Authorization", resident101Token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(verifyDto)))
-                .andExpect(status().isOk());
-
-        // Verify still exactly 1 transaction
-        List<Transaction> txsAfterSecond = transactionRepository.findByBillId(bill.getId());
-        org.junit.jupiter.api.Assertions.assertEquals(1, txsAfterSecond.size());
-    }
-
-    @Test
-    @DisplayName("A different payment attempt against an already-paid bill must not be reported as successful")
-    void testDifferentPaymentAgainstPaidBillRejected() throws Exception {
-        MaintenanceBill bill = new MaintenanceBill(
-                roomRepository.findById(room101Id).orElseThrow(),
-                "December 2026",
-                3500.0,
-                LocalDate.now().plusDays(10)
-        );
-        bill.setStatus(BillStatus.PENDING);
-        bill = billRepository.save(bill);
-
-        String orderId1 = "order_diff_1";
-        String paymentId1 = "pay_diff_1";
-        com.society.jaswanti.entity.PaymentAttempt attempt1 = new com.society.jaswanti.entity.PaymentAttempt(bill, orderId1, 3500.0);
-        paymentAttemptRepository.save(attempt1);
-
-        String signature1 = calculateSignature(orderId1, paymentId1);
-
-        PaymentVerifyDto verifyDto1 = new PaymentVerifyDto();
-        verifyDto1.setRazorpayOrderId(orderId1);
-        verifyDto1.setRazorpayPaymentId(paymentId1);
-        verifyDto1.setRazorpaySignature(signature1);
-        verifyDto1.setBillId(bill.getId());
-
-        // First payment succeeds
-        mockMvc.perform(post("/api/payments/verify")
-                        .header("Authorization", resident101Token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(verifyDto1)))
-                .andExpect(status().isOk());
-
-        // Create second attempt for the same bill
-        String orderId2 = "order_diff_2";
-        String paymentId2 = "pay_diff_2";
-        com.society.jaswanti.entity.PaymentAttempt attempt2 = new com.society.jaswanti.entity.PaymentAttempt(bill, orderId2, 3500.0);
-        paymentAttemptRepository.save(attempt2);
-
-        String signature2 = calculateSignature(orderId2, paymentId2);
-
-        PaymentVerifyDto verifyDto2 = new PaymentVerifyDto();
-        verifyDto2.setRazorpayOrderId(orderId2);
-        verifyDto2.setRazorpayPaymentId(paymentId2);
-        verifyDto2.setRazorpaySignature(signature2);
-        verifyDto2.setBillId(bill.getId());
-
-        // Second DIFFERENT payment attempt against the already-paid bill must fail (400 Bad Request)
-        mockMvc.perform(post("/api/payments/verify")
-                        .header("Authorization", resident101Token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(verifyDto2)))
-                .andExpect(status().isBadRequest());
-
-        // Assert only transaction 1 is recorded, paymentId2 is never recorded
-        List<Transaction> txs = transactionRepository.findByBillId(bill.getId());
-        org.junit.jupiter.api.Assertions.assertEquals(1, txs.size());
-        org.junit.jupiter.api.Assertions.assertEquals(paymentId1, txs.get(0).getGatewayPaymentId());
-        org.junit.jupiter.api.Assertions.assertTrue(transactionRepository.findByGatewayPaymentId(paymentId2).isEmpty());
-    }
-
-    @Test
     @DisplayName("Rollback/Atomicity: If transaction persistence fails, cash bill settlement rolls back")
     void testCashSettlementRollsBackOnTransactionFailure() {
         MaintenanceBill bill = new MaintenanceBill(
@@ -665,46 +441,6 @@ public class AuthorizationBoundaryTests {
         } catch (Exception expected) {
             // Expected rollback
         }
-
-        // Verify that bill status rolled back and remains PENDING
-        MaintenanceBill reloaded = billRepository.findById(targetBillId).orElseThrow();
-        org.junit.jupiter.api.Assertions.assertEquals(BillStatus.PENDING, reloaded.getStatus());
-        org.junit.jupiter.api.Assertions.assertEquals(0, transactionRepository.findByBillId(targetBillId).size());
-    }
-
-    @Test
-    @DisplayName("Rollback/Atomicity: If transaction persistence fails, online bill settlement rolls back")
-    void testOnlineSettlementRollsBackOnTransactionFailure() throws Exception {
-        MaintenanceBill bill = new MaintenanceBill(
-                roomRepository.findById(room101Id).orElseThrow(),
-                "March 2027",
-                3500.0,
-                LocalDate.now().plusDays(10)
-        );
-        bill.setStatus(BillStatus.PENDING);
-        MaintenanceBill savedBill = billRepository.save(bill);
-        final Long targetBillId = savedBill.getId();
-
-        String orderId = "order_rollback_1";
-        String paymentId = "pay_rollback_1";
-        com.society.jaswanti.entity.PaymentAttempt attempt = new com.society.jaswanti.entity.PaymentAttempt(savedBill, orderId, 3500.0);
-        paymentAttemptRepository.save(attempt);
-
-        String signature = calculateSignature(orderId, paymentId);
-
-        PaymentVerifyDto verifyDto = new PaymentVerifyDto();
-        verifyDto.setRazorpayOrderId(orderId);
-        verifyDto.setRazorpayPaymentId(paymentId);
-        verifyDto.setRazorpaySignature(signature);
-        verifyDto.setBillId(targetBillId);
-
-        org.mockito.Mockito.doThrow(new RuntimeException("Simulated DB failure during online transaction save"))
-                .when(transactionRepository).save(org.mockito.ArgumentMatchers.argThat(t ->
-                        t != null && t.getBill() != null && targetBillId.equals(t.getBill().getId())
-                ));
-
-        boolean result = paymentService.verifyPayment(verifyDto);
-        org.junit.jupiter.api.Assertions.assertFalse(result);
 
         // Verify that bill status rolled back and remains PENDING
         MaintenanceBill reloaded = billRepository.findById(targetBillId).orElseThrow();

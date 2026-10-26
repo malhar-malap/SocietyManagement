@@ -1,5 +1,9 @@
 package com.society.jaswanti.controller;
 
+import com.society.jaswanti.audit.AuditTrail;
+import com.society.jaswanti.audit.AuditedAction;
+import com.society.jaswanti.audit.AuditTargetResolver;
+
 import com.society.jaswanti.dto.AssignResidentRequest;
 import com.society.jaswanti.dto.CorrectOccupancyDatesRequest;
 import com.society.jaswanti.dto.RoomResidentDto;
@@ -20,7 +24,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/rooms")
-@CrossOrigin(origins = "*")
 public class RoomController {
 
     private final RoomService roomService;
@@ -55,8 +58,11 @@ public class RoomController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
-    public ResponseEntity<Room> createRoom(@RequestBody Room room) {
-        return ResponseEntity.ok(roomService.saveRoom(room));
+    @AuditedAction(action = "CREATE_ROOM", module = "ROOMS", summary = "Created a room/unit", target = AuditTargetResolver.ROOM)
+    public ResponseEntity<Room> createRoom(@RequestBody com.society.jaswanti.dto.RoomRequest room) {
+        Room saved = roomService.createRoom(room);
+        AuditTrail.target(AuditTargetResolver.ROOM, saved.getId());
+        return ResponseEntity.ok(saved);
     }
 
     @GetMapping
@@ -100,12 +106,14 @@ public class RoomController {
 
     @PostMapping("/{id}/occupants")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "ASSIGN_OCCUPANT", module = "REGISTRY", summary = "Assigned an occupant to a room", target = AuditTargetResolver.ROOM)
     public ResponseEntity<RoomResidentDto> assignOccupant(@PathVariable Long id, @RequestBody AssignResidentRequest request) {
         return ResponseEntity.ok(roomService.assignResidentToRoom(id, request));
     }
 
     @PutMapping("/occupants/{occupantId}/end")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "END_OCCUPANCY", module = "REGISTRY", summary = "Ended an occupancy", target = AuditTargetResolver.OCCUPANCY)
     public ResponseEntity<RoomResidentDto> endOccupancy(
             @PathVariable Long occupantId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
@@ -114,6 +122,7 @@ public class RoomController {
 
     @PutMapping("/occupants/{occupantId}/correct-dates")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "OCCUPANCY_DATE_CORRECTION", module = "REGISTRY", summary = "Corrected occupancy dates", target = AuditTargetResolver.OCCUPANCY)
     public ResponseEntity<RoomResidentDto> correctOccupancyDates(
             @PathVariable Long occupantId,
             @RequestBody CorrectOccupancyDatesRequest request,
@@ -123,12 +132,14 @@ public class RoomController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
-    public ResponseEntity<Room> updateRoom(@PathVariable Long id, @RequestBody Room room, Authentication auth) {
+    @AuditedAction(action = "UPDATE_ROOM", module = "ROOMS", summary = "Edited a room/unit", target = AuditTargetResolver.ROOM)
+    public ResponseEntity<Room> updateRoom(@PathVariable Long id, @RequestBody com.society.jaswanti.dto.RoomRequest room, Authentication auth) {
         return ResponseEntity.ok(roomService.updateRoom(id, room, auth));
     }
 
     @PostMapping(value = "/{id}/share-certificate", consumes = {org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE})
     @PreAuthorize("hasRole('MASTER_ADMIN')")
+    @AuditedAction(action = "UPLOAD_SHARE_CERTIFICATE", module = "ROOMS", summary = "Uploaded a share certificate", target = AuditTargetResolver.ROOM)
     public ResponseEntity<com.society.jaswanti.dto.ShareCertificateDto> uploadShareCertificate(
             @PathVariable Long id,
             @RequestParam(value = "certificateNumber", required = false) String certificateNumber,
@@ -167,7 +178,9 @@ public class RoomController {
 
         return ResponseEntity.ok()
                 .contentType(mediaType)
-                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        // Uploaded names are user input: the builder quotes/encodes them so they cannot break the header
+                        org.springframework.http.ContentDisposition.attachment().filename(filename, java.nio.charset.StandardCharsets.UTF_8).build().toString())
                 .body(room.getShareCertificateData());
     }
 }

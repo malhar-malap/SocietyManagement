@@ -38,6 +38,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class ManualPaymentRecordingTests {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.society.jaswanti.support.TestDatabase testDatabase;
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -88,6 +91,7 @@ class ManualPaymentRecordingTests {
 
     @BeforeEach
     void setUp() {
+        testDatabase.wipe();
         paymentAttemptRepository.deleteAll();
         transactionRepository.deleteAll();
         activityLogRepository.deleteAll();

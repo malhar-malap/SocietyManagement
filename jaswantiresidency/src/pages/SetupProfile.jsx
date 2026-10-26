@@ -4,11 +4,13 @@ import { useAuth } from '../context/AuthContext';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, LogOut } from 'lucide-react';
+import logo from '../assets/logo.png';
+import { PASSWORD_HINT, passwordPolicyError } from '../utils/passwordPolicy';
 import api from '../api/axiosConfig';
 
 const SetupProfile = () => {
-    const { user, login } = useAuth();
+    const { user, login, logout } = useAuth();
     const navigate = useNavigate();
     const [formData, setFormData] = useState({
         name: user?.name || '',
@@ -52,8 +54,9 @@ const SetupProfile = () => {
             return;
         }
 
-        if (formData.newPassword.length < 6) {
-            setError("New password must be at least 6 characters long.");
+        const policyError = passwordPolicyError(formData.newPassword);
+        if (policyError) {
+            setError(policyError);
             return;
         }
 
@@ -67,7 +70,7 @@ const SetupProfile = () => {
                 newPassword: formData.newPassword
             });
 
-            setSuccessMessage(`A 4-digit verification code has been sent to ${formData.personalEmail}. Please enter it below.`);
+            setSuccessMessage(`A 6-digit verification code has been sent to ${formData.personalEmail}. Please enter it below.`);
             setVerificationStep(true);
         } catch (err) {
             const msg = err?.response?.data || err?.message || "Failed to initiate profile setup";
@@ -88,7 +91,7 @@ const SetupProfile = () => {
                 personalEmail: formData.personalEmail.trim().toLowerCase(),
                 newPassword: formData.newPassword
             });
-            setSuccessMessage(`A fresh 4-digit verification code has been sent to ${formData.personalEmail}.`);
+            setSuccessMessage(`A fresh 6-digit verification code has been sent to ${formData.personalEmail}.`);
         } catch (err) {
             const msg = err?.response?.data || err?.message || "Failed to resend code";
             setError(typeof msg === 'string' ? msg : JSON.stringify(msg));
@@ -144,7 +147,19 @@ const SetupProfile = () => {
 
     return (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: 'var(--background-color)', padding: '1rem' }}>
-            <Card style={{ maxWidth: '500px', width: '100%' }} title="Complete Your Profile">
+            <div style={{ maxWidth: '500px', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontWeight: 700, color: 'var(--primary-color)' }}>
+                    <img src={logo} alt="" style={{ height: 32 }} />
+                    Jaswanti Residency
+                </div>
+                {/* Someone signed into the wrong account must be able to leave this screen */}
+                <button type="button" className="logout-btn" onClick={() => { logout(); navigate('/login', { replace: true }); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'none', border: 'none', color: 'var(--primary-color)', fontWeight: 600, cursor: 'pointer' }}>
+                    <LogOut size={16} /> Sign out
+                </button>
+            </div>
+            <Card style={{ width: '100%' }} title="Complete Your Profile">
                 {!verificationStep ? (
                     <form onSubmit={handleSetupSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <p style={{ color: 'var(--text-light)', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
@@ -184,7 +199,7 @@ const SetupProfile = () => {
                                 name="newPassword"
                                 value={formData.newPassword}
                                 onChange={handleChange}
-                                placeholder="Minimum 6 characters"
+                                placeholder={PASSWORD_HINT}
                                 required
                             />
                             <button
@@ -243,7 +258,7 @@ const SetupProfile = () => {
                         {error && <div className="alert alert-error">{error}</div>}
 
                         <p style={{ color: 'var(--text-light)', fontSize: '0.9rem' }}>
-                            A 4-digit verification code was sent to <strong>{formData.personalEmail}</strong>. Enter it below to complete your setup.
+                            A 6-digit verification code was sent to <strong>{formData.personalEmail}</strong>. Enter it below to complete your setup.
                         </p>
 
                         <div>
@@ -281,6 +296,7 @@ const SetupProfile = () => {
                     </form>
                 )}
             </Card>
+            </div>
         </div>
     );
 };

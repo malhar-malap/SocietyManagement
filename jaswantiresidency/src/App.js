@@ -1,5 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -9,7 +11,6 @@ import AdminLayout from './layouts/AdminLayout';
 
 // Public Pages
 import Login from './pages/Login';
-import VerifyEmail from './pages/VerifyEmail';
 import ForgotPassword from './pages/ForgotPassword';
 import SetupProfile from './pages/SetupProfile';
 
@@ -27,7 +28,7 @@ import AdminBilling from './pages/AdminBilling';
 import AdminTransactions from './pages/AdminTransactions';
 import AdminComplaints from './pages/AdminComplaints';
 import AdminAnnouncements from './pages/AdminAnnouncements';
-import AdminActivityLogs from './pages/AdminActivityLogs';
+import SystemLogs from './pages/SystemLogs';
 
 const RootRedirect = () => {
     const { user, loading } = useAuth();
@@ -65,7 +66,8 @@ function App() {
                     {/* Public Routes */}
                     <Route path="/" element={<RootRedirect />} />
                     <Route path="/login" element={<Login />} />
-                    <Route path="/verify-email" element={<VerifyEmail />} />
+                    {/* Email verification happens inside the first-login setup flow */}
+                    <Route path="/verify-email" element={<Navigate to="/setup" replace />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
                     <Route path="/setup" element={<ProtectedRoute><SetupProfile /></ProtectedRoute>} />
 
@@ -89,7 +91,8 @@ function App() {
                         <Route path="transactions" element={<AdminTransactions />} />
                         <Route path="complaints" element={<AdminComplaints />} />
                         <Route path="announcements" element={<AdminAnnouncements />} />
-                        <Route path="activity-logs" element={<AdminActivityLogs />} />
+                        <Route path="system-logs" element={<ProtectedRoute allowedRoles={['MASTER_ADMIN']}><SystemLogs /></ProtectedRoute>} />
+                        <Route path="activity-logs" element={<Navigate to="/admin/system-logs" replace />} />
                     </Route>
 
                     {/* Error Pages */}
@@ -97,6 +100,7 @@ function App() {
                     <Route path="*" element={<ErrorPage code="404" message="Page Not Found" />} />
                 </Routes>
             </BrowserRouter>
+            <ToastContainer position="top-right" autoClose={4000} newestOnTop pauseOnFocusLoss={false} />
         </AuthProvider>
     );
 }

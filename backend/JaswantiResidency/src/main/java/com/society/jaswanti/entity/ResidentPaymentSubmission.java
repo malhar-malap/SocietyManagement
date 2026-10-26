@@ -1,5 +1,7 @@
 package com.society.jaswanti.entity;
 
+import org.hibernate.Length;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import jakarta.persistence.*;
@@ -34,7 +36,7 @@ public class ResidentPaymentSubmission {
 
     @Lob
     @Basic(fetch = FetchType.LAZY)
-    @Column(name = "screenshot_data")
+    @Column(name = "screenshot_data", length = Length.LONG32) // maps to LONGBLOB on MySQL, not the 255-byte TINYBLOB default
     private byte[] screenshotData;
 
     @Column(name = "screenshot_filename")

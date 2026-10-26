@@ -30,6 +30,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class ExcelImportExportAndReceiptTests {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.society.jaswanti.support.TestDatabase testDatabase;
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -61,6 +64,9 @@ class ExcelImportExportAndReceiptTests {
     private ActivityLogRepository activityLogRepository;
 
     @Autowired
+    private com.society.jaswanti.repository.SystemNotificationRepository notificationRepository;
+
+    @Autowired
     private JwtService jwtService;
 
     private User admin;
@@ -74,6 +80,8 @@ class ExcelImportExportAndReceiptTests {
 
     @BeforeEach
     void setUp() {
+        testDatabase.wipe();
+        notificationRepository.deleteAll();
         submissionRepository.deleteAll();
         transactionRepository.deleteAll();
         paymentAttemptRepository.deleteAll();

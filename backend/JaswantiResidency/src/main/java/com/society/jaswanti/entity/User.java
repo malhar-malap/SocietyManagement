@@ -11,6 +11,13 @@ import java.util.List;
 
 @Entity
 @Table(name = "users")
+// Internal security state must never reach API clients when a User is serialised (e.g. nested in a Room or Transaction)
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties(value = {
+        "pendingEmail", "emailVerificationExpiry", "emailVerificationAttempts",
+        "passwordResetOtpExpiry", "passwordResetOtpAttempts", "passwordResetOtpLastSentAt",
+        "tokenVersion", "authorities", "username", "accountNonExpired", "accountNonLocked",
+        "credentialsNonExpired", "enabled", "hibernateLazyInitializer", "handler"
+}, ignoreUnknown = true)
 public class User implements UserDetails {
 
     @Id
@@ -59,6 +66,9 @@ public class User implements UserDetails {
     @Column(name = "email_verification_expiry")
     private LocalDateTime emailVerificationExpiry;
 
+    @Column(name = "email_verification_attempts", nullable = false)
+    private int emailVerificationAttempts = 0;
+
     @Column(name = "password_reset_otp_hash")
     @com.fasterxml.jackson.annotation.JsonIgnore
     private String passwordResetOtpHash;
@@ -71,6 +81,15 @@ public class User implements UserDetails {
 
     @Column(name = "password_reset_otp_last_sent_at")
     private LocalDateTime passwordResetOtpLastSentAt;
+
+    @Column(name = "token_version", nullable = false)
+    private int tokenVersion = 0;
+
+    // A temporary password generated during the current request, so the controller can show it to the admin once.
+    // Never persisted and never serialised.
+    @Transient
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private String issuedTemporaryPassword;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -174,4 +193,13 @@ public class User implements UserDetails {
 
     public LocalDateTime getPasswordResetOtpLastSentAt() { return passwordResetOtpLastSentAt; }
     public void setPasswordResetOtpLastSentAt(LocalDateTime passwordResetOtpLastSentAt) { this.passwordResetOtpLastSentAt = passwordResetOtpLastSentAt; }
+
+    public int getEmailVerificationAttempts() { return emailVerificationAttempts; }
+    public void setEmailVerificationAttempts(int emailVerificationAttempts) { this.emailVerificationAttempts = emailVerificationAttempts; }
+
+    public String getIssuedTemporaryPassword() { return issuedTemporaryPassword; }
+    public void setIssuedTemporaryPassword(String issuedTemporaryPassword) { this.issuedTemporaryPassword = issuedTemporaryPassword; }
+
+    public int getTokenVersion() { return tokenVersion; }
+    public void setTokenVersion(int tokenVersion) { this.tokenVersion = tokenVersion; }
 }

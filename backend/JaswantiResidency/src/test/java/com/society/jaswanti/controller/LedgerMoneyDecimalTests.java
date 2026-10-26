@@ -27,6 +27,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 class LedgerMoneyDecimalTests {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.society.jaswanti.support.TestDatabase testDatabase;
+
     @Autowired
     private MaintenanceBillRepository billRepository;
 
@@ -49,6 +52,7 @@ class LedgerMoneyDecimalTests {
 
     @BeforeEach
     void setUp() {
+        testDatabase.wipe();
         transactionRepository.deleteAll();
         billRepository.deleteAll();
 
@@ -204,13 +208,20 @@ class LedgerMoneyDecimalTests {
     @WithMockUser(roles = "ADMIN")
     @DisplayName("Admin dashboard calculates exact collection and pending sums using BigDecimal")
     void testAdminDashboardPrecision() {
-        MaintenanceBill paid1 = new MaintenanceBill(testRoom, "Paid-Month-1", new BigDecimal("1000.10"), LocalDate.now());
-        paid1.setStatus(BillStatus.PAID);
-        billRepository.save(paid1);
-
-        MaintenanceBill paid2 = new MaintenanceBill(testRoom, "Paid-Month-2", new BigDecimal("2000.20"), LocalDate.now());
-        paid2.setStatus(BillStatus.PAID);
-        billRepository.save(paid2);
+        // "Collected this month" is money actually received: successful credit transactions dated this month
+        for (String amount : new String[] {"1000.10", "2000.20"}) {
+            Transaction received = new Transaction();
+            received.setAmount(new BigDecimal(amount));
+            received.setEntryDirection("CREDIT");
+            received.setStatus("SUCCESS");
+            received.setPaymentMode("CASH");
+            received.setPaymentDate(LocalDate.now());
+            transactionRepository.save(received);
+        }
+        MaintenanceBill paid = new MaintenanceBill(testRoom, "Paid-Month-1", new BigDecimal("3000.30"), LocalDate.now());
+        paid.setPaidAmount(new BigDecimal("3000.30"));
+        paid.setStatus(BillStatus.PAID);
+        billRepository.save(paid);
 
         MaintenanceBill pending = new MaintenanceBill(testRoom, "Pending-Month", new BigDecimal("500.10"), LocalDate.now());
         pending.setLateFee(new BigDecimal("0.20"));

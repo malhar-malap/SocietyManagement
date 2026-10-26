@@ -3,7 +3,7 @@ import Button from './ui/Button';
 import { CheckCircle2, XCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { getPaymentSubmissions, approvePaymentSubmission, rejectPaymentSubmission } from '../api/billingApi';
 import { getBankAccounts } from '../api/adminApi';
-import { viewAuthenticatedFile, getAuthenticatedMediaUrl } from '../api/fileUtils';
+import { viewAuthenticatedFile, useAuthenticatedMedia } from '../api/fileUtils';
 import './ui/shared.css';
 
 const PendingPaymentApprovalsModal = ({ isOpen, onClose, onActionSuccess }) => {
@@ -17,6 +17,8 @@ const PendingPaymentApprovalsModal = ({ isOpen, onClose, onActionSuccess }) => {
     const [rejectionReason, setRejectionReason] = useState('');
     const [isRejecting, setIsRejecting] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+    const screenshotUrl = selectedSub?.hasScreenshot ? `/payments/submissions/${selectedSub.id}/screenshot` : null;
+    const screenshot = useAuthenticatedMedia(screenshotUrl);
     const [error, setError] = useState('');
 
     const loadData = useCallback(async () => {
@@ -232,20 +234,23 @@ const PendingPaymentApprovalsModal = ({ isOpen, onClose, onActionSuccess }) => {
                                         Attached Screenshot / Proof:
                                     </label>
                                     <div style={{ border: '1px solid var(--border-light)', borderRadius: 6, overflow: 'hidden', textAlign: 'center', background: '#f1f5f9', padding: '0.5rem' }}>
-                                        <img
-                                            src={getAuthenticatedMediaUrl(`/payments/submissions/${selectedSub.id}/screenshot`)}
-                                            alt="Payment Proof Screenshot"
-                                            style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', cursor: 'pointer' }}
-                                            onClick={() => viewAuthenticatedFile(`/payments/submissions/${selectedSub.id}/screenshot`)}
-                                            onError={(e) => {
-                                                e.target.onerror = null;
-                                                e.target.style.display = 'none';
-                                                e.target.parentNode.innerHTML = '<span style="font-size:0.8rem;color:#64748b;padding:1rem;display:block;">No screenshot available or unable to load</span>';
-                                            }}
-                                        />
-                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary-light)', marginTop: '0.2rem' }}>
-                                            (Click to open full resolution in new tab)
-                                        </div>
+                                        {screenshot.src ? (
+                                            <>
+                                                <img
+                                                    src={screenshot.src}
+                                                    alt="Payment proof screenshot"
+                                                    style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', cursor: 'pointer' }}
+                                                    onClick={() => viewAuthenticatedFile(screenshotUrl)}
+                                                />
+                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary-light)', marginTop: '0.2rem' }}>
+                                                    (Click to open full resolution in new tab)
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary-light)', padding: '1rem', display: 'block' }}>
+                                                {screenshot.loading ? 'Loading screenshot…' : 'No screenshot available or unable to load'}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
 

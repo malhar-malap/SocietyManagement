@@ -5,11 +5,6 @@ export const getComplaints = async () => {
   return response.data;
 };
 
-export const getComplaintById = async (id) => {
-  const response = await api.get(`/complaints/${id}`);
-  return response.data;
-};
-
 export const getComplaintsByResident = async (residentId) => {
   const response = await api.get(`/complaints/resident/${residentId}`);
   return response.data;
@@ -21,11 +16,6 @@ export const createComplaint = async (formData) => {
       'Content-Type': 'multipart/form-data'
     }
   });
-  return response.data;
-};
-
-export const updateComplaintStatus = async (id, status) => {
-  const response = await api.patch(`/complaints/${id}/status`, { status });
   return response.data;
 };
 

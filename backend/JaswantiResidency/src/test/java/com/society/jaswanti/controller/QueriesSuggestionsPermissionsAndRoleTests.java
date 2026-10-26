@@ -25,6 +25,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class QueriesSuggestionsPermissionsAndRoleTests {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.society.jaswanti.support.TestDatabase testDatabase;
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -59,6 +62,9 @@ class QueriesSuggestionsPermissionsAndRoleTests {
     private ActivityLogRepository activityLogRepository;
 
     @Autowired
+    private com.society.jaswanti.repository.SystemNotificationRepository notificationRepository;
+
+    @Autowired
     private JwtService jwtService;
 
     private User masterAdmin;
@@ -73,6 +79,8 @@ class QueriesSuggestionsPermissionsAndRoleTests {
 
     @BeforeEach
     void setUp() {
+        testDatabase.wipe();
+        notificationRepository.deleteAll();
         announcementRepository.deleteAll();
         complaintRepository.deleteAll();
         submissionRepository.deleteAll();
@@ -244,7 +252,7 @@ class QueriesSuggestionsPermissionsAndRoleTests {
         mockMvc.perform(get("/api/complaints/" + complaint.getId() + "/attachment")
                         .header("Authorization", "Bearer " + resident1Token))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Content-Disposition", "inline; filename=\"permit.pdf\""))
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.startsWith("inline; filename=\"permit.pdf\"")))
                 .andExpect(content().bytes(new byte[]{1, 2, 3, 4, 5}));
 
         // Admin gets 200

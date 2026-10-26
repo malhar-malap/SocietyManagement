@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { notifySuccess, notifyError, errorMessage } from '../utils/notify';
 import PageHeader from '../components/ui/PageHeader';
 import DataTable from '../components/ui/DataTable';
 import StatusChip from '../components/ui/StatusChip';
@@ -203,7 +204,7 @@ const AdminTransactions = () => {
             await resolveAmendmentRequest(reqId, action, `Resolved via Admin Portal`);
             await fetchData();
         } catch (err) {
-            alert('Failed to resolve amendment request: ' + (err?.response?.data?.message || err.message));
+            notifyError(errorMessage(err, 'Failed to resolve the amendment request.'));
         }
     };
 
@@ -326,9 +327,9 @@ const AdminTransactions = () => {
                 const handleSendEmail = async () => {
                     try {
                         const res = await emailReceipt(row.id);
-                        alert(`Receipt emailed successfully to ${res.sentTo}`);
+                        notifySuccess(`Receipt emailed to ${res.sentTo}`);
                     } catch (err) {
-                        alert(err?.response?.data?.error || err?.response?.data?.message || 'Failed to email receipt.');
+                        notifyError(errorMessage(err, 'Failed to email the receipt.'));
                     }
                 };
 

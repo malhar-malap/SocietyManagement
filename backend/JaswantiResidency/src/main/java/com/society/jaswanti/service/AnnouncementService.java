@@ -3,7 +3,9 @@ package com.society.jaswanti.service;
 import com.society.jaswanti.dto.AnnouncementDto;
 import com.society.jaswanti.entity.Announcement;
 import com.society.jaswanti.repository.AnnouncementRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.society.jaswanti.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -13,11 +15,19 @@ import java.util.stream.Collectors;
 @Service
 public class AnnouncementService {
 
-    @Autowired
-    private AnnouncementRepository announcementRepository;
+    private static final Logger logger = LoggerFactory.getLogger(AnnouncementService.class);
 
-    @Autowired
-    private com.society.jaswanti.repository.UserRepository userRepository;
+    private final AnnouncementRepository announcementRepository;
+    private final UserRepository userRepository;
+    private final SystemNotificationService notificationService;
+
+    public AnnouncementService(AnnouncementRepository announcementRepository,
+                               UserRepository userRepository,
+                               SystemNotificationService notificationService) {
+        this.announcementRepository = announcementRepository;
+        this.userRepository = userRepository;
+        this.notificationService = notificationService;
+    }
 
     public List<AnnouncementDto> getAllActiveAnnouncements() {
         return announcementRepository.findAll().stream()
@@ -39,7 +49,13 @@ public class AnnouncementService {
         if (announcement.getCreatedDate() == null) {
             announcement.setCreatedDate(LocalDateTime.now());
         }
-        return convertToDto(announcementRepository.save(announcement));
+        Announcement saved = announcementRepository.save(announcement);
+        try {
+            notificationService.createBroadcast("New announcement", saved.getTitle(), null);
+        } catch (RuntimeException e) {
+            logger.warn("Could not create notification: {}", e.getMessage());
+        }
+        return convertToDto(saved);
     }
 
     public java.util.Optional<AnnouncementDto> updateAnnouncement(Long id, Announcement updatedAnnouncement) {

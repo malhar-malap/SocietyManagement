@@ -1,3 +1,4 @@
+import { notifyError } from '../utils/notify';
 import React, { useState, useEffect } from 'react';
 import PageHeader from '../components/ui/PageHeader';
 import DataTable from '../components/ui/DataTable';
@@ -26,12 +27,8 @@ const AdminAnnouncements = () => {
             setAnnouncements(data);
         } catch (err) {
             console.error("Failed to fetch announcements", err);
-            // Fallback to stub if API fails
-            setAnnouncements([
-                { id: 1, title: 'Scheduled Power Outage', description: 'Power will be cut for maintenance from 10 AM to 2 PM.', createdDate: '2026-07-15T10:00:00', expiryDate: '2026-07-15T14:00:00', status: 'Active' },
-                { id: 2, title: 'Society Meeting', description: 'Annual general body meeting in clubhouse.', createdDate: '2026-07-20T11:00:00', expiryDate: '2026-07-20T13:00:00', status: 'Active' },
-                { id: 3, title: 'Lift Maintenance', description: 'A-wing lift under repair.', createdDate: '2026-07-01T09:00:00', expiryDate: '2026-07-01T18:00:00', status: 'Expired' }
-            ]);
+            notifyError('Could not load announcements. Please try again.');
+            setAnnouncements([]);
         } finally {
             setIsLoading(false);
         }
@@ -46,7 +43,7 @@ const AdminAnnouncements = () => {
         if (selectedAnnouncement) {
             await updateAnnouncement(selectedAnnouncement.id, formData);
         } else {
-            await createAnnouncement(formData, user?.userId);
+            await createAnnouncement(formData);
         }
         await fetchAnnouncements();
         setIsModalOpen(false);

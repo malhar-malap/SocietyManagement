@@ -1,5 +1,9 @@
 package com.society.jaswanti.controller;
 
+import com.society.jaswanti.audit.AuditTrail;
+import com.society.jaswanti.audit.AuditedAction;
+import com.society.jaswanti.audit.AuditTargetResolver;
+
 import com.society.jaswanti.dto.ChangePasswordDto;
 import com.society.jaswanti.dto.UserDto;
 import com.society.jaswanti.entity.User;
@@ -20,7 +24,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin(origins = "*")
 public class UserController {
 
     private final UserService userService;
@@ -54,28 +57,70 @@ public class UserController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "CREATE_USER", module = "USERS", summary = "Created a user account", target = AuditTargetResolver.USER)
+    public ResponseEntity<UserDto> createUser(@RequestBody com.society.jaswanti.dto.CreateUserRequest request,
+                                              org.springframework.security.core.Authentication auth) {
+        User created = userService.createUser(request, auth);
+        AuditTrail.target(AuditTargetResolver.USER, created.getId());
+        AuditTrail.describe("Created " + created.getRole() + " account for " + created.getName()
+                + (created.getIssuedTemporaryPassword() != null ? " with a generated temporary password" : " with an admin-set initial password"));
+        UserDto dto = convertToDto(created);
+        dto.setTemporaryPassword(created.getIssuedTemporaryPassword());
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(dto);
+    }
+
+    @PostMapping("/{id}/reset-password")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @AuditedAction(action = "RESET_USER_PASSWORD", module = "USERS", summary = "Issued a temporary password (admin reset)", target = AuditTargetResolver.USER)
+    public ResponseEntity<UserDto> resetPassword(@PathVariable Long id, org.springframework.security.core.Authentication auth) {
+        return userService.resetPasswordByAdmin(id, auth)
+                .map(user -> {
+                    UserDto dto = convertToDto(user);
+                    dto.setTemporaryPassword(user.getIssuedTemporaryPassword());
+                    return ResponseEntity.ok(dto);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
-    public ResponseEntity<UserDto> updateUser(@PathVariable Long id, @RequestBody User user) {
-        return userService.updateUser(id, user)
+    @AuditedAction(action = "UPDATE_USER", module = "USERS", summary = "Edited a user's details", target = AuditTargetResolver.USER)
+    public ResponseEntity<UserDto> updateUser(@PathVariable Long id, @RequestBody User user,
+                                              org.springframework.security.core.Authentication auth) {
+        return userService.updateUser(id, user, auth)
                 .map(updated -> ResponseEntity.ok(convertToDto(updated)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PutMapping("/{id}/status")
     @PreAuthorize("hasRole('MASTER_ADMIN')")
+    @AuditedAction(action = "UPDATE_USER_STATUS", module = "USERS", summary = "Changed a user's status", target = AuditTargetResolver.USER)
     public ResponseEntity<UserDto> updateUserStatus(@PathVariable Long id, @RequestParam String status, org.springframework.security.core.Authentication authentication) {
+        String previous = userService.findById(id).map(u -> String.valueOf(u.getStatus())).orElse(null);
         return userService.updateUserStatus(id, status, authentication)
-                .map(updated -> ResponseEntity.ok(convertToDto(updated)))
+                .map(updated -> {
+                    AuditTrail.describe("Changed status of " + updated.getName() + " from " + previous + " to " + updated.getStatus()
+                            + (updated.getIssuedTemporaryPassword() != null ? "; issued a new temporary password" : ""));
+                    UserDto dto = convertToDto(updated);
+                    dto.setTemporaryPassword(updated.getIssuedTemporaryPassword());
+                    return ResponseEntity.ok(dto);
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PutMapping("/{id}/role")
     @PreAuthorize("hasRole('MASTER_ADMIN')")
+    @AuditedAction(action = "UPDATE_USER_ROLE", module = "USERS", summary = "Changed a user's role", target = AuditTargetResolver.USER)
     public ResponseEntity<UserDto> updateUserRole(@PathVariable Long id, @RequestParam String role,
                                                    org.springframework.security.core.Authentication authentication) {
+        String previous = userService.findById(id).map(u -> String.valueOf(u.getRole())).orElse(null);
         return userService.updateUserRole(id, role, authentication)
-                .map(updated -> ResponseEntity.ok(convertToDto(updated)))
+                .map(updated -> {
+                    AuditTrail.describe("Changed role of " + updated.getName() + " from " + previous + " to " + updated.getRole());
+                    return ResponseEntity.ok(convertToDto(updated));
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
     
@@ -89,6 +134,7 @@ public class UserController {
 
     @PutMapping("/profile/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN') or #id == authentication.principal.id")
+    @AuditedAction(action = "UPDATE_PROFILE", module = "USERS", summary = "Updated a profile", target = AuditTargetResolver.USER)
     public ResponseEntity<UserDto> updateProfile(@PathVariable Long id, @RequestBody com.society.jaswanti.dto.UpdateProfileRequest request, org.springframework.security.core.Authentication auth) {
         return userService.updateProfile(id, request, auth)
                 .map(user -> ResponseEntity.ok(convertToDto(user)))
@@ -97,17 +143,21 @@ public class UserController {
 
     @PostMapping("/{id}/change-password")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN') or #id == authentication.principal.id")
-    public ResponseEntity<String> changePassword(@PathVariable Long id, @RequestBody ChangePasswordDto dto) {
-        boolean success = userService.changePassword(id, dto.getOldPassword(), dto.getNewPassword());
-        if (success) {
-            return ResponseEntity.ok("Password changed successfully");
-        } else {
-            return ResponseEntity.badRequest().body("Failed to change password");
-        }
+    @AuditedAction(action = "CHANGE_PASSWORD", module = "USERS", summary = "Changed a password", target = AuditTargetResolver.USER)
+    public ResponseEntity<?> changePassword(@PathVariable Long id, @RequestBody ChangePasswordDto dto,
+                                            org.springframework.security.core.Authentication auth) {
+        return userService.changePassword(id, dto.getOldPassword(), dto.getNewPassword())
+                .<ResponseEntity<?>>map(tokens -> {
+                    // Changing the password revokes all sessions; hand fresh tokens back only to the account owner
+                    boolean self = auth != null && auth.getPrincipal() instanceof User principal && principal.getId().equals(id);
+                    return self ? ResponseEntity.ok(tokens) : ResponseEntity.ok("Password changed successfully");
+                })
+                .orElseGet(() -> ResponseEntity.badRequest().body("Failed to change password"));
     }
     
     @PostMapping("/{id}/setup")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN') or #id == authentication.principal.id")
+    @AuditedAction(action = "SETUP_PROFILE", module = "USERS", summary = "Started first-login profile setup", target = AuditTargetResolver.USER)
     public ResponseEntity<String> setupProfile(@PathVariable Long id, @RequestBody com.society.jaswanti.dto.ProfileSetupDto dto) {
         try {
             boolean success = userService.setupProfile(id, dto);
@@ -123,6 +173,7 @@ public class UserController {
 
     @PostMapping("/{id}/verify-setup")
     @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN') or #id == authentication.principal.id")
+    @AuditedAction(action = "VERIFY_SETUP_EMAIL", module = "USERS", summary = "Verified email and completed profile setup", target = AuditTargetResolver.USER)
     public ResponseEntity<?> verifySetupEmail(@PathVariable Long id, @RequestParam String token) {
         return userService.verifySetupEmail(id, token)
                 .<ResponseEntity<?>>map(ResponseEntity::ok)
@@ -131,6 +182,7 @@ public class UserController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('MASTER_ADMIN')")
+    @AuditedAction(action = "DEACTIVATE_USER", module = "USERS", summary = "Deactivated (soft-deleted) a user", target = AuditTargetResolver.USER)
     public ResponseEntity<Void> deleteUser(@PathVariable Long id, org.springframework.security.core.Authentication authentication) {
         userService.deleteUser(id, authentication);
         return ResponseEntity.ok().build();
