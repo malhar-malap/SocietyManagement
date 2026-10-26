@@ -25,6 +25,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class QueriesSuggestionsPermissionsAndRoleTests {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.society.jaswanti.support.TestDatabase testDatabase;
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -76,6 +79,7 @@ class QueriesSuggestionsPermissionsAndRoleTests {
 
     @BeforeEach
     void setUp() {
+        testDatabase.wipe();
         notificationRepository.deleteAll();
         announcementRepository.deleteAll();
         complaintRepository.deleteAll();

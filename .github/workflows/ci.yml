@@ -57,7 +57,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # Same Node/npm major as development: an older npm rejects the lock file written by a newer one
+          node-version-file: jaswantiresidency/.nvmrc
           cache: npm
           cache-dependency-path: jaswantiresidency/package-lock.json
       - run: npm ci

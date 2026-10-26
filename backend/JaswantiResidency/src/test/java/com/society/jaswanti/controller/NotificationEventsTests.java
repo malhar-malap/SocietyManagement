@@ -29,6 +29,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class NotificationEventsTests {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.society.jaswanti.support.TestDatabase testDatabase;
+
     @Autowired private MockMvc mockMvc;
     @Autowired private JwtService jwtService;
     @Autowired private UserRepository userRepository;
@@ -55,6 +58,7 @@ class NotificationEventsTests {
 
     @BeforeEach
     void setUp() {
+        testDatabase.wipe();
         activityLogRepository.deleteAll();
         notificationRepository.deleteAll();
         amendmentRequestRepository.deleteAll();

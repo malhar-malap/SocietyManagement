@@ -26,6 +26,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class ProfileSetupEmailVerificationTests {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.society.jaswanti.support.TestDatabase testDatabase;
+
     @Autowired
     private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
@@ -74,6 +77,7 @@ class ProfileSetupEmailVerificationTests {
 
     @BeforeEach
     void setUp() {
+        testDatabase.wipe();
         notificationRepository.deleteAll();
         announcementRepository.deleteAll();
         complaintRepository.deleteAll();

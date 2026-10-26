@@ -37,6 +37,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class SystemLogTests {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.society.jaswanti.support.TestDatabase testDatabase;
+
     @Autowired private MockMvc mockMvc;
     @Autowired private UserRepository userRepository;
     @Autowired private ActivityLogRepository activityLogRepository;
@@ -51,6 +54,7 @@ class SystemLogTests {
 
     @BeforeEach
     void setUp() {
+        testDatabase.wipe();
         activityLogRepository.deleteAll();
         String run = UUID.randomUUID().toString().substring(0, 8);
         masterAdmin = user("syslog-master-" + run + "@example.test", Role.MASTER_ADMIN, "Sys Master");

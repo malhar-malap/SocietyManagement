@@ -27,6 +27,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 class LedgerMoneyDecimalTests {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.society.jaswanti.support.TestDatabase testDatabase;
+
     @Autowired
     private MaintenanceBillRepository billRepository;
 
@@ -49,6 +52,7 @@ class LedgerMoneyDecimalTests {
 
     @BeforeEach
     void setUp() {
+        testDatabase.wipe();
         transactionRepository.deleteAll();
         billRepository.deleteAll();
 
