@@ -269,8 +269,14 @@
 .skeleton {
   display: block; border-radius: var(--radius-xs);
   background: linear-gradient(90deg, #EFEDE8 25%, #F7F6F3 50%, #EFEDE8 75%);
-  background-size: 200% 100%; animation: shimmer 1.4s ease-in-out infinite;
-  height: 14px;
+  background-size: 200% 100%; height: 14px;
+  /* Stay invisible for the first 300 ms so fast loads never flash grey blocks, then fade in and shimmer */
+  opacity: 0;
+  animation: skeleton-appear 160ms ease-out 300ms forwards, shimmer 1.4s ease-in-out 300ms infinite;
+}
+@keyframes skeleton-appear { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: skeleton-appear 1ms linear 300ms forwards !important; }
 }
 
 /* ---------- Modal ---------- */
@@ -310,8 +316,8 @@
 .modal-footer .footer-start { margin-right: auto; display: flex; align-items: center; gap: 0.5rem; font-size: var(--text-sm); color: var(--text-muted); }
 @media (max-width: 560px) {
   .modal-backdrop { align-items: flex-end; padding: 0; }
-  .modal { max-width: 100%; max-height: 92vh; border-radius: var(--radius-modal) var(--radius-modal) 0 0; animation-name: sheet-in; }
-  .modal-footer { border-radius: 0; padding-bottom: calc(0.9rem + env(safe-area-inset-bottom)); }
+  .modal { max-width: 100%; max-height: calc(92vh - var(--safe-top)); border-radius: var(--radius-modal) var(--radius-modal) 0 0; animation-name: sheet-in; }
+  .modal-footer { border-radius: 0; padding-bottom: calc(0.9rem + var(--safe-bottom)); }
   .modal-footer > .btn { flex: 1 1 auto; }
 }
 @keyframes sheet-in { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -475,3 +481,24 @@
   .table-stack .row-actions { width: 100%; justify-content: flex-end; }
   .table-scroll { overflow-x: visible; }
 }
+
+/* ---------- Touch targets: on touch screens every control is at least 44 × 44 px (Apple HIG; Android asks 48 dp) ---------- */
+@media (pointer: coarse) {
+  .btn, .btn-sm { --btn-h: 44px; }
+  .btn-lg { --btn-h: 48px; }
+  .btn-link { min-height: 44px; display: inline-flex; align-items: center; }
+  .icon-btn, .icon-btn-sm, .pager-btn { width: 44px; height: 44px; }
+  .control { min-height: 46px; }
+  .control .control-action { width: 40px; height: 40px; }
+  .table-search input { height: 44px; }
+  .segmented button { min-height: 44px; padding: 0 0.9rem; }
+  .tab { min-height: 44px; }
+  .menu-item { min-height: 44px; }
+  .check { min-height: 44px; }
+  .choice { min-height: 48px; }
+  .card-link, .auth-forgot, .auth-back { min-height: 44px; display: inline-flex; align-items: center; }
+  .user-menu-trigger { min-height: 44px; min-width: 44px; justify-content: center; }
+  .row-actions { gap: 0.5rem; }
+}
+.undo-toast { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; }
+.undo-toast span { font-weight: 500; }

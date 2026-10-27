@@ -2,13 +2,13 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { MessageSquare, MessageSquareReply, Search, Trash2 } from 'lucide-react';
 import { notifyError, notifySuccess, errorMessage } from '../utils/notify';
 import UpdateComplaintModal from '../components/UpdateComplaintModal';
-import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
 import TicketCard, { TYPE_LABELS } from '../components/helpdesk/TicketCard';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 import Menu from '../components/ui/Menu';
 import { EmptyState, Segmented, Skeleton, Tabs } from '../components/ui/Feedback';
 import { getComplaints, respondToComplaint, deleteComplaint } from '../api/adminApi';
+import { deleteWithUndo } from '../utils/undo';
 
 const OPEN_STATES = ['OPEN', 'IN_PROGRESS'];
 
@@ -19,9 +19,7 @@ const AdminComplaints = () => {
     const [query, setQuery] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [selectedComplaint, setSelectedComplaint] = useState(null);
-    const [isProcessing, setIsProcessing] = useState(false);
 
     const fetchComplaints = useCallback(async () => {
         setIsLoading(true);
@@ -49,19 +47,16 @@ const AdminComplaints = () => {
         }
     };
 
-    const handleDelete = async () => {
-        if (!selectedComplaint) return;
-        setIsProcessing(true);
-        try {
-            await deleteComplaint(selectedComplaint.id);
-            notifySuccess(`Request #${selectedComplaint.id} deleted`);
-            await fetchComplaints();
-            setIsDeleteModalOpen(false);
-        } catch (e) {
-            notifyError(errorMessage(e, 'We could not delete this request.'));
-        } finally {
-            setIsProcessing(false);
-        }
+    // No confirm dialog: the request disappears straight away and the toast offers Undo for a few seconds
+    const handleDelete = (complaint) => {
+        deleteWithUndo({
+            message: `Request #${complaint.id} deleted`,
+            hide: () => setComplaints((list) => list.filter((c) => c.id !== complaint.id)),
+            restore: () => setComplaints((list) => (list.some((c) => c.id === complaint.id) ? list
+                : [...list, complaint].sort((a, b) => new Date(b.createdDate || 0) - new Date(a.createdDate || 0)))),
+            commit: () => deleteComplaint(complaint.id),
+            onError: (e) => notifyError(errorMessage(e, `We could not delete request #${complaint.id}, so it is back in the list.`)),
+        });
     };
 
     const byType = useMemo(() => complaints.filter((c) => selectedType === 'ALL' || c.submissionType === selectedType), [complaints, selectedType]);
@@ -126,7 +121,7 @@ const AdminComplaints = () => {
                                         {c.adminResponse ? 'Update reply' : 'Reply'}
                                     </Button>
                                     <Menu label={`More actions for request ${c.id}`} items={[
-                                        { label: 'Delete request', icon: Trash2, danger: true, onClick: () => { setSelectedComplaint(c); setIsDeleteModalOpen(true); } },
+                                        { label: 'Delete request', icon: Trash2, danger: true, onClick: () => handleDelete(c) },
                                     ]} />
                                 </>
                             )}
@@ -142,14 +137,6 @@ const AdminComplaints = () => {
                 complaintDetails={selectedComplaint}
             />
 
-            <DeleteConfirmationDialog
-                isOpen={isDeleteModalOpen}
-                title="Delete request"
-                itemName={`request #${selectedComplaint?.id}`}
-                onClose={() => setIsDeleteModalOpen(false)}
-                onConfirm={handleDelete}
-                isDeleting={isProcessing}
-            />
         </div>
     );
 };

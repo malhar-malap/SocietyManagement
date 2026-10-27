@@ -15,8 +15,11 @@ body {
   font-feature-settings: 'cv11', 'ss01';
 }
 
-h1, h2, h3, h4 { color: var(--text); font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; }
-p { color: inherit; }
+h1, h2, h3, h4 { color: var(--text); font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; text-wrap: balance; }
+p { color: inherit; text-wrap: pretty; }
+/* Short titles balance their lines; running text avoids one-word last lines (ignored by older browsers) */
+.modal-title, .card-title, .page-description, .modal-description, .card-subtitle, .alert-title, .stat-label, .eyebrow { text-wrap: balance; }
+.ticket-body, .notice-card p, .notice p, .auth-note, .alert, .field-hint { text-wrap: pretty; }
 a { color: var(--brand); text-decoration: none; }
 a:hover { text-decoration: underline; text-underline-offset: 2px; }
 img { display: block; max-width: 100%; }
@@ -31,7 +34,10 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
 
 ::selection { background: var(--brand-soft); color: var(--brand-active); }
 
-.num, .tabular { font-variant-numeric: tabular-nums; }
+/* Digits line up in columns and do not jitter as values change: tables, money, counters, timers and dates */
+.num, .tabular, .table, .kv, .detail-list, .chip, .tab-count, .count-pill, .notification-badge, .stepper-dot,
+.auth-resend, .stat-foot, .legend-list, .funds-list, .flow-rows, .recon-grid, .copy-value, .notice-date, .ticket-meta,
+.notification-time, .table-footer, .pay-total, .due-amount, .balance-meta, .unit-badge, .Toastify__toast { font-variant-numeric: tabular-nums; }
 .display { font-family: var(--font-display); font-weight: 500; letter-spacing: -0.02em; }
 
 .visually-hidden, .sr-only {
@@ -86,4 +92,16 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+}
+
+/* Continuous (squircle) corners on rounded surfaces. Chromium draws them; other browsers keep plain border-radius.
+   Pills and circles are left out on purpose: a squircle pill looks pinched. */
+@supports (corner-shape: squircle) {
+  .card, .table-card, .modal, .menu, .notification-panel, .setup-card, .auth-panel,
+  .btn, .control, .table-search input, .segmented, .segmented button, .choice, .pick, .dropzone,
+  .summary-box, .inset-panel, .alert, .ticket, .notice, .notice-card, .quick-link, .balance-card, .due-banner,
+  .pay-total, .copy-list, .secret-box, .recon, .unit-card, .unit-badge, .occupant-list > li,
+  .stat-icon, .modal-header-icon, .auth-heading-icon, .empty-state .empty-icon, .tx-icon, .otp input, .tag, .icon-btn, .pager-btn {
+    corner-shape: squircle;
+  }
 }

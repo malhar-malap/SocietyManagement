@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Banknote, Building2, CheckCircle2, CreditCard, Smartphone, Wallet } from 'lucide-react';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
 import { TextInput, Textarea } from './ui/Field';
 import { Alert } from './ui/Feedback';
 import { formatDate, formatMoney, monthLabel } from '../utils/format';
+import { newIdempotencyKey } from '../utils/idempotency';
 
 const PAYMENT_MODES = [
     { value: 'CASH',          label: 'Cash',          icon: Banknote,   requiresRef: false },
@@ -24,6 +25,7 @@ const RecordPaymentModal = ({ isOpen, onClose, bill, onSuccess }) => {
     const [errors, setErrors]           = useState({});
     const [isLoading, setIsLoading]     = useState(false);
     const [receipt, setReceipt]         = useState(null);   // success state
+    const idempotencyKey = useRef(null);
 
     // Reset form whenever bill changes or modal opens
     useEffect(() => {
@@ -36,6 +38,8 @@ const RecordPaymentModal = ({ isOpen, onClose, bill, onSuccess }) => {
             setNotes('');
             setErrors({});
             setReceipt(null);
+            // A fresh key each time the dialog opens for a bill; retries inside it reuse this one
+            idempotencyKey.current = newIdempotencyKey(`pay-${bill.id}`);
         }
     }, [isOpen, bill]);
 
@@ -88,13 +92,14 @@ const RecordPaymentModal = ({ isOpen, onClose, bill, onSuccess }) => {
                 paymentDate,
                 notes: notes.trim() || undefined,
             };
-            const idempotencyKey = `UI-${bill.id}-${Date.now()}`;
-            const result = await recordPayment(bill.id, payload, idempotencyKey);
+            const result = await recordPayment(bill.id, payload, idempotencyKey.current);
             setReceipt(result);
             if (onSuccess) onSuccess(result);
         } catch (err) {
             const data = err?.response?.data;
-            const msg = (typeof data === 'string' && data) || data?.message || 'We could not record this payment. Please try again.';
+            const msg = (typeof data === 'string' && data) || data?.message || (err?.response
+                ? 'We could not record this payment. Please try again.'
+                : 'No response from the server. Try again — it will not be recorded twice.');
             setErrors({ submit: String(msg) });
         } finally {
             setIsLoading(false);

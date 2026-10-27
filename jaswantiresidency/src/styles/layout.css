@@ -102,3 +102,20 @@
 @media (max-width: 560px) {
   .user-menu-trigger .chevron { display: none; }
 }
+
+/* ---------- Safe areas: with viewport-fit=cover the page runs under the notch and home indicator ---------- */
+.sidebar { padding-top: var(--safe-top); padding-bottom: var(--safe-bottom); padding-left: var(--safe-left); width: calc(var(--sidebar-w) + var(--safe-left)); }
+.main { margin-left: calc(var(--sidebar-w) + var(--safe-left)); }
+.topbar { height: calc(var(--topbar-h) + var(--safe-top)); padding-top: var(--safe-top); padding-right: calc(2rem + var(--safe-right)); }
+.page { padding-bottom: calc(3rem + var(--safe-bottom)); padding-right: calc(2rem + var(--safe-right)); }
+.notification-panel { max-height: min(520px, calc(75vh - var(--safe-top))); }
+.Toastify__toast-container--top-right, .Toastify__toast-container--top-center { top: calc(1em + var(--safe-top)) !important; right: calc(1em + var(--safe-right)) !important; }
+@media (max-width: 960px) {
+  .main { margin-left: 0; }
+  .topbar { padding-left: calc(0.5rem + var(--safe-left)); padding-right: calc(0.75rem + var(--safe-right)); }
+  .page { padding-left: calc(1rem + var(--safe-left)); padding-right: calc(1rem + var(--safe-right)); padding-bottom: calc(2.5rem + var(--safe-bottom)); }
+}
+@media (max-width: 480px) {
+  .Toastify__toast-container--top-right { top: var(--safe-top) !important; right: 0 !important; }
+}
+@media (pointer: coarse) { .nav-link { height: 46px; } }

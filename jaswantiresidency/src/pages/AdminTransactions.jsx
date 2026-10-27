@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { notifySuccess, notifyError, errorMessage } from '../utils/notify';
 import PageHeader from '../components/ui/PageHeader';
 import DataTable from '../components/ui/DataTable';
@@ -13,6 +13,7 @@ import {
     MinusCircle, RefreshCw, RotateCcw, Scale, ShieldAlert, Unlock, XCircle,
 } from 'lucide-react';
 import { formatDate, formatMoney } from '../utils/format';
+import { newIdempotencyKey } from '../utils/idempotency';
 import { emailReceipt, reconcileBankAccounts } from '../api/adminApi';
 import { downloadAuthenticatedFile } from '../api/fileUtils';
 
@@ -61,6 +62,8 @@ const AdminTransactions = () => {
     });
     const [expenseErrors, setExpenseErrors] = useState({});
     const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
+    const expenseKey = useRef(null);
+    const expenseOutcomeUnknown = useRef(false);
 
     const [reverseReason, setReverseReason] = useState('');
     const [reverseError, setReverseError] = useState('');
@@ -107,6 +110,8 @@ const AdminTransactions = () => {
             payeeName: '',
             notes: ''
         });
+        expenseKey.current = newIdempotencyKey('exp');
+        expenseOutcomeUnknown.current = false;
         setIsExpenseModalOpen(true);
     };
 
@@ -146,14 +151,25 @@ const AdminTransactions = () => {
                 referenceNumber: expenseForm.paymentMode !== 'CASH' ? expenseForm.referenceNumber.trim() : null,
                 paymentDate: expenseForm.paymentDate,
                 payeeName: expenseForm.payeeName.trim() || null,
-                notes: expenseForm.notes.trim() || null
+                notes: expenseForm.notes.trim() || null,
+                idempotencyKey: expenseKey.current
             };
             await recordExpense(payload);
             notifySuccess(`Expense of ${formatMoney(payload.amount, 2)} recorded`);
             setIsExpenseModalOpen(false);
             await fetchData();
         } catch (err) {
-            const msg = err?.response?.data?.message || 'We could not record this expense. Please try again.';
+            // The server rejects a reused key. If the previous try never got an answer, that means it was saved.
+            if (err?.response?.status === 409 && expenseOutcomeUnknown.current) {
+                notifySuccess('This expense was already recorded');
+                setIsExpenseModalOpen(false);
+                await fetchData();
+                return;
+            }
+            if (!err?.response) expenseOutcomeUnknown.current = true;
+            const msg = err?.response?.data?.message || (err?.response
+                ? 'We could not record this expense. Please try again.'
+                : 'No response from the server. Try again — it will not be recorded twice.');
             setExpenseErrors({ submit: msg });
         } finally {
             setIsSubmittingExpense(false);

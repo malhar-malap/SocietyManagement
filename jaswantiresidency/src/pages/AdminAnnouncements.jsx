@@ -6,10 +6,10 @@ import StatusChip from '../components/ui/StatusChip';
 import Button from '../components/ui/Button';
 import { EmptyState, Skeleton, Tabs } from '../components/ui/Feedback';
 import AnnouncementModal from '../components/AnnouncementModal';
-import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
 import { useAuth } from '../context/AuthContext';
 import { getAllAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement } from '../api/adminApi';
 import { formatDate } from '../utils/format';
+import { deleteWithUndo } from '../utils/undo';
 
 const isExpired = (a) => a.expiryDate && new Date(a.expiryDate) < new Date();
 
@@ -20,9 +20,7 @@ const AdminAnnouncements = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [tab, setTab] = useState('active');
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
-    const [isProcessing, setIsProcessing] = useState(false);
 
     const fetchAnnouncements = useCallback(async () => {
         setIsLoading(true);
@@ -51,19 +49,16 @@ const AdminAnnouncements = () => {
         setIsModalOpen(false);
     };
 
-    const handleDelete = async () => {
-        if (!selectedAnnouncement) return;
-        setIsProcessing(true);
-        try {
-            await deleteAnnouncement(selectedAnnouncement.id);
-            notifySuccess('Notice deleted');
-            await fetchAnnouncements();
-            setIsDeleteModalOpen(false);
-        } catch (e) {
-            notifyError(errorMessage(e, 'We could not delete this notice.'));
-        } finally {
-            setIsProcessing(false);
-        }
+    // No confirm dialog: the notice disappears straight away and the toast offers Undo for a few seconds
+    const handleDelete = (notice) => {
+        deleteWithUndo({
+            message: `“${notice.title}” deleted`,
+            hide: () => setAnnouncements((list) => list.filter((a) => a.id !== notice.id)),
+            restore: () => setAnnouncements((list) => (list.some((a) => a.id === notice.id) ? list
+                : [...list, notice].sort((a, b) => new Date(b.createdDate || 0) - new Date(a.createdDate || 0)))),
+            commit: () => deleteAnnouncement(notice.id),
+            onError: (e) => notifyError(errorMessage(e, 'We could not delete this notice, so it is back on the board.')),
+        });
     };
 
     const active = useMemo(() => announcements.filter((a) => !isExpired(a)), [announcements]);
@@ -117,7 +112,7 @@ const AdminAnnouncements = () => {
                                         <Button variant="ghost" size="sm" iconOnly icon={Pencil} aria-label={`Edit ${a.title}`} title="Edit"
                                             onClick={() => { setSelectedAnnouncement(a); setIsModalOpen(true); }} />
                                         <Button variant="danger-ghost" size="sm" iconOnly icon={Trash2} aria-label={`Delete ${a.title}`} title="Delete"
-                                            onClick={() => { setSelectedAnnouncement(a); setIsDeleteModalOpen(true); }} />
+                                            onClick={() => handleDelete(a)} />
                                     </span>
                                 )}
                             </footer>
@@ -133,14 +128,6 @@ const AdminAnnouncements = () => {
                 initialData={selectedAnnouncement}
             />
 
-            <DeleteConfirmationDialog
-                isOpen={isDeleteModalOpen}
-                title="Delete notice"
-                itemName={selectedAnnouncement?.title}
-                onClose={() => setIsDeleteModalOpen(false)}
-                onConfirm={handleDelete}
-                isDeleting={isProcessing}
-            />
         </div>
     );
 };
