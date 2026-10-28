@@ -155,7 +155,7 @@ class MySqlMigrationIntegrationTests {
                 "--BOOTSTRAP_MASTER_ADMIN_NAME=IT Master",
                 "--BOOTSTRAP_MASTER_ADMIN_PASSWORD=ItMasterPass123");
 
-        assertThat(appliedVersions()).startsWith("1", "1.1", "2").endsWith("15", "16", "17", "18", "19", "20");
+        assertThat(appliedVersions()).startsWith("1", "1.1", "2").endsWith("16", "17", "18", "19", "20", "21");
 
         // No account is usable with a committed default credential, and no seeded row was deleted
         assertThat(activeAccountsWithDefaultCredentials()).isZero();
@@ -168,18 +168,20 @@ class MySqlMigrationIntegrationTests {
                 .isEqualTo(1);
         assertThat(login("it-master@example.test", "ItMasterPass123")).isEqualTo(200);
 
-        // System log (V17) works on MySQL: the bootstrap and both sign-in attempts were recorded
+        // System log (V17) works on MySQL: the bootstrap and the failed sign-in were recorded, the successful one was not
         assertThat(jdbc.queryForList("SELECT action FROM activity_logs ORDER BY id", String.class))
-                .containsSubsequence("BOOTSTRAP_MASTER_ADMIN", "LOGIN", "LOGIN");
+                .containsSubsequence("BOOTSTRAP_MASTER_ADMIN", "LOGIN");
         assertThat(jdbc.queryForMap("SELECT user_id, actor_email, outcome FROM activity_logs WHERE action = 'LOGIN' ORDER BY id LIMIT 1"))
                 .containsEntry("user_id", null).containsEntry("actor_email", "admin@jaswanti.com").containsEntry("outcome", "DENIED");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM activity_logs WHERE action = 'LOGIN' AND outcome = 'SUCCESS' AND actor_role = 'MASTER_ADMIN'", Integer.class))
-                .isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM activity_logs WHERE action = 'LOGIN' AND outcome = 'SUCCESS'", Integer.class))
+                .isZero();
 
         // V16 shape
         assertThat(columnType("resident_payment_submissions", "screenshot_data")).isEqualTo("longblob");
         assertThat(columnType("complaints", "status")).contains("'APPROVED'").contains("'REJECTED'");
         assertThat(columnType("users", "pending_email")).isEqualTo("varchar(255)");
+        // V21: the office assistant role can be stored
+        assertThat(columnType("users", "role")).contains("'OFFICE_ASSISTANT'");
         // V20 leaves fresh databases' VARCHAR columns alone
         assertThat(columnType("maintenance_bills", "charge_type")).isEqualTo("varchar(32)");
     }
@@ -201,7 +203,7 @@ class MySqlMigrationIntegrationTests {
 
         startApp();
 
-        assertThat(appliedVersions()).containsExactly("14", "15", "16", "17", "18", "19", "20");
+        assertThat(appliedVersions()).containsExactly("14", "15", "16", "17", "18", "19", "20", "21");
 
         assertThat(user("admin@jaswanti.com")).containsEntry("status", "INACTIVE").containsEntry("token_version", 1);
         assertThat(user("resident602@jaswanti.com")).containsEntry("status", "INACTIVE").containsEntry("token_version", 1);
@@ -222,7 +224,7 @@ class MySqlMigrationIntegrationTests {
         assertThat(columnType("activity_logs", "outcome")).isEqualTo("varchar(16)");
         // V19/V20: frozen enum columns are widened to the current Java enums (NOC bills, Master Admin role)
         assertThat(columnType("maintenance_bills", "charge_type")).contains("'NOC'");
-        assertThat(columnType("users", "role")).contains("'MASTER_ADMIN'");
+        assertThat(columnType("users", "role")).contains("'MASTER_ADMIN'").contains("'OFFICE_ASSISTANT'");
         assertThat(jdbc.queryForObject("SELECT is_nullable FROM information_schema.columns WHERE table_schema = DATABASE() "
                 + "AND table_name = 'users' AND column_name = 'role'", String.class)).isEqualTo("NO");
         // V18: setup-code attempt counter exists on a Hibernate-built schema too

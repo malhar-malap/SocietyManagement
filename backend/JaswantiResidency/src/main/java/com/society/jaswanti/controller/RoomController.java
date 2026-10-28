@@ -53,11 +53,11 @@ public class RoomController {
 
     private boolean isAdminOrMaster(Authentication auth) {
         return auth != null && auth.getAuthorities().stream().anyMatch(a ->
-                "ROLE_ADMIN".equals(a.getAuthority()) || "ROLE_MASTER_ADMIN".equals(a.getAuthority()));
+                "ROLE_ADMIN".equals(a.getAuthority()) || "ROLE_MASTER_ADMIN".equals(a.getAuthority()) || "ROLE_OFFICE_ASSISTANT".equals(a.getAuthority()));
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @AuditedAction(action = "CREATE_ROOM", module = "ROOMS", summary = "Created a room/unit", target = AuditTargetResolver.ROOM)
     public ResponseEntity<Room> createRoom(@RequestBody com.society.jaswanti.dto.RoomRequest room) {
         Room saved = roomService.createRoom(room);
@@ -66,13 +66,13 @@ public class RoomController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     public ResponseEntity<List<Room>> getAllRooms() {
         return ResponseEntity.ok(roomService.getAllRooms());
     }
 
     @GetMapping("/my-rooms")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT', 'RESIDENT')")
     public ResponseEntity<List<Room>> getMyRooms(Authentication auth) {
         Long userId = getAuthenticatedUserId(auth);
         if (userId == null) return ResponseEntity.status(403).build();
@@ -80,7 +80,7 @@ public class RoomController {
     }
 
     @GetMapping("/resident/{residentId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT', 'RESIDENT')")
     public ResponseEntity<List<Room>> getRoomsByResident(@PathVariable Long residentId, Authentication auth) {
         if (!isAdminOrMaster(auth)) {
             Long userId = getAuthenticatedUserId(auth);
@@ -92,7 +92,7 @@ public class RoomController {
     }
 
     @GetMapping("/{id}/occupants")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT', 'RESIDENT')")
     public ResponseEntity<List<RoomResidentDto>> getRoomOccupants(@PathVariable Long id, Authentication auth) {
         if (!isAdminOrMaster(auth)) {
             Long userId = getAuthenticatedUserId(auth);
@@ -105,14 +105,14 @@ public class RoomController {
     }
 
     @PostMapping("/{id}/occupants")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @AuditedAction(action = "ASSIGN_OCCUPANT", module = "REGISTRY", summary = "Assigned an occupant to a room", target = AuditTargetResolver.ROOM)
     public ResponseEntity<RoomResidentDto> assignOccupant(@PathVariable Long id, @RequestBody AssignResidentRequest request) {
         return ResponseEntity.ok(roomService.assignResidentToRoom(id, request));
     }
 
     @PutMapping("/occupants/{occupantId}/end")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @AuditedAction(action = "END_OCCUPANCY", module = "REGISTRY", summary = "Ended an occupancy", target = AuditTargetResolver.OCCUPANCY)
     public ResponseEntity<RoomResidentDto> endOccupancy(
             @PathVariable Long occupantId,
@@ -121,7 +121,7 @@ public class RoomController {
     }
 
     @PutMapping("/occupants/{occupantId}/correct-dates")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @AuditedAction(action = "OCCUPANCY_DATE_CORRECTION", module = "REGISTRY", summary = "Corrected occupancy dates", target = AuditTargetResolver.OCCUPANCY)
     public ResponseEntity<RoomResidentDto> correctOccupancyDates(
             @PathVariable Long occupantId,
@@ -131,7 +131,7 @@ public class RoomController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @AuditedAction(action = "UPDATE_ROOM", module = "ROOMS", summary = "Edited a room/unit", target = AuditTargetResolver.ROOM)
     public ResponseEntity<Room> updateRoom(@PathVariable Long id, @RequestBody com.society.jaswanti.dto.RoomRequest room, Authentication auth) {
         return ResponseEntity.ok(roomService.updateRoom(id, room, auth));
@@ -150,7 +150,7 @@ public class RoomController {
     }
 
     @GetMapping("/{id}/share-certificate")
-    @PreAuthorize("hasAnyRole('MASTER_ADMIN', 'ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('MASTER_ADMIN', 'ADMIN', 'OFFICE_ASSISTANT', 'RESIDENT')")
     public ResponseEntity<com.society.jaswanti.dto.ShareCertificateDto> getShareCertificate(
             @PathVariable Long id,
             Authentication auth) {
@@ -158,7 +158,7 @@ public class RoomController {
     }
 
     @GetMapping("/{id}/share-certificate/download")
-    @PreAuthorize("hasAnyRole('MASTER_ADMIN', 'ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('MASTER_ADMIN', 'ADMIN', 'OFFICE_ASSISTANT', 'RESIDENT')")
     public ResponseEntity<byte[]> downloadShareCertificate(
             @PathVariable Long id,
             Authentication auth) {

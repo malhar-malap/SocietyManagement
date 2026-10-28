@@ -12,12 +12,13 @@ import ShareCertificateModal from '../components/ShareCertificateModal';
 import { useAuth } from '../context/AuthContext';
 import { notifyError } from '../utils/notify';
 import { formatMoney } from '../utils/format';
+import { isStaff } from '../utils/roles';
 
 const CATEGORY_LABELS = { RESIDENTIAL: 'Residential', COMMERCIAL: 'Commercial', OFFICE: 'Office', SHOP: 'Shop' };
 
 const AdminRooms = () => {
     const { user } = useAuth();
-    const isAdminOrMaster = user?.role === 'ADMIN' || user?.role === 'MASTER_ADMIN';
+    const isAdminOrMaster = isStaff(user?.role);
 
     const [rooms, setRooms] = useState([]);
     const [isLoading, setIsLoading] = useState(true);

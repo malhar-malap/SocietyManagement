@@ -94,8 +94,8 @@ public class UserService {
         if (role == Role.MASTER_ADMIN) {
             throw new org.springframework.security.access.AccessDeniedException("Master Admin accounts cannot be created through the API");
         }
-        if (role == Role.ADMIN && !isMasterAdmin(actor)) {
-            throw new org.springframework.security.access.AccessDeniedException("Only a Master Admin can create administrator accounts");
+        if (role.isStaff() && !isMasterAdmin(actor)) {
+            throw new org.springframework.security.access.AccessDeniedException("Only a Master Admin can create staff accounts");
         }
         String name = request.getName() != null ? request.getName().trim() : "";
         if (name.isEmpty()) {
@@ -164,7 +164,7 @@ public class UserService {
         return userRepository.findById(id).map(user -> {
             boolean actorIsMaster = actor != null && actor.getAuthorities().stream()
                     .anyMatch(a -> "ROLE_MASTER_ADMIN".equals(a.getAuthority()));
-            if ((user.getRole() == Role.ADMIN || user.getRole() == Role.MASTER_ADMIN) && !actorIsMaster) {
+            if (user.getRole().isStaff() && !actorIsMaster) {
                 throw new org.springframework.security.access.AccessDeniedException("Only a Master Admin can edit administrator accounts");
             }
             if (updatedUser.getName() != null && !updatedUser.getName().isBlank()) user.setName(updatedUser.getName().trim());

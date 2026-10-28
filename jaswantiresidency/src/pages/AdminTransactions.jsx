@@ -8,6 +8,8 @@ import Modal from '../components/ui/Modal';
 import Menu from '../components/ui/Menu';
 import { Select, TextInput, Textarea } from '../components/ui/Field';
 import { Alert, EmptyState, Segmented, Skeleton } from '../components/ui/Feedback';
+import DateRangeFilter from '../components/ui/DateRangeFilter';
+import { ALL_DATES, inDateRange, isRangeActive } from '../utils/dateRange';
 import {
     ArrowDownRight, ArrowLeftRight, ArrowUpRight, Banknote, Building2, CheckCircle2, Download, Lock, Mail,
     MinusCircle, RefreshCw, RotateCcw, Scale, ShieldAlert, Unlock, XCircle,
@@ -70,6 +72,7 @@ const AdminTransactions = () => {
     const [isSubmittingReverse, setIsSubmittingReverse] = useState(false);
     const [reversalNotification, setReversalNotification] = useState(null);
     const [direction, setDirection] = useState('all');
+    const [dateRange, setDateRange] = useState(ALL_DATES);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -254,18 +257,22 @@ const AdminTransactions = () => {
         }
     };
 
-    const totals = useMemo(() => transactions.reduce((acc, t) => {
+    const inRange = useMemo(
+        () => transactions.filter((t) => inDateRange(t.paymentDate || t.timestamp, dateRange)),
+        [transactions, dateRange]);
+
+    const totals = useMemo(() => inRange.reduce((acc, t) => {
         if (t.status !== 'SUCCESS') return acc;
         if (t.entryDirection === 'DEBIT') acc.out += Number(t.amount || 0);
         else acc.in += Number(t.amount || 0);
         return acc;
-    }, { in: 0, out: 0 }), [transactions]);
+    }, { in: 0, out: 0 }), [inRange]);
 
     const visible = useMemo(() => {
-        if (direction === 'in') return transactions.filter((t) => t.entryDirection !== 'DEBIT');
-        if (direction === 'out') return transactions.filter((t) => t.entryDirection === 'DEBIT');
-        return transactions;
-    }, [transactions, direction]);
+        if (direction === 'in') return inRange.filter((t) => t.entryDirection !== 'DEBIT');
+        if (direction === 'out') return inRange.filter((t) => t.entryDirection === 'DEBIT');
+        return inRange;
+    }, [inRange, direction]);
 
     const payeeOf = (row) => (row.roomNumber && row.roomNumber !== 'Unassigned'
         ? `${row.roomNumber}${row.residentName && row.residentName !== 'Unknown' ? ` · ${row.residentName}` : ''}`
@@ -338,12 +345,15 @@ const AdminTransactions = () => {
     ];
 
     const toolbar = (
-        <Segmented
-            label="Filter by direction"
-            value={direction}
-            onChange={setDirection}
-            options={[{ value: 'all', label: 'All' }, { value: 'in', label: 'Money in' }, { value: 'out', label: 'Money out' }]}
-        />
+        <>
+            <Segmented
+                label="Filter by direction"
+                value={direction}
+                onChange={setDirection}
+                options={[{ value: 'all', label: 'All' }, { value: 'in', label: 'Money in' }, { value: 'out', label: 'Money out' }]}
+            />
+            <DateRangeFilter value={dateRange} onChange={setDateRange} label="Filter entries by date" />
+        </>
     );
 
     const setField = (key) => (e) => setExpenseForm({ ...expenseForm, [key]: e.target.value });
@@ -384,7 +394,7 @@ const AdminTransactions = () => {
                             );
                         })}
                         <div className="card stat flow-card">
-                            <div className="stat-top"><span className="stat-label">Ledger totals</span>
+                            <div className="stat-top"><span className="stat-label">{isRangeActive(dateRange) ? 'Totals for selected dates' : 'Ledger totals'}</span>
                                 <Button variant="ghost" size="sm" iconOnly icon={RefreshCw} aria-label="Refresh balances" onClick={fetchData} /></div>
                             <div className="flow-rows">
                                 <span>In</span><strong className="num text-success">+{formatMoney(totals.in)}</strong>

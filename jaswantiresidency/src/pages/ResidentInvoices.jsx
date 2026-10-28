@@ -10,10 +10,9 @@ import { getMyBills, getMyPaymentSubmissions } from '../api/billingApi';
 import { downloadAuthenticatedFile } from '../api/fileUtils';
 import { notifyError } from '../utils/notify';
 import { formatDate, formatDateTime, formatMoney, monthLabel } from '../utils/format';
+import { isOpen, isOverdue } from '../utils/billing';
 
-const UNPAID = ['PENDING', 'PARTIALLY_PAID'];
 const outstandingOf = (row) => Math.max(0, (parseFloat(row.amount) || 0) + (parseFloat(row.lateFee) || 0) - (parseFloat(row.paidAmount) || 0));
-const isOverdue = (row) => UNPAID.includes(row.status) && row.dueDate && new Date(row.dueDate) < new Date(new Date().toDateString());
 
 const ResidentInvoices = () => {
     const [activeTab, setActiveTab] = useState('invoices');
@@ -37,7 +36,7 @@ const ResidentInvoices = () => {
 
     useEffect(() => { loadData(); }, [loadData]);
 
-    const unpaid = useMemo(() => invoices.filter((b) => UNPAID.includes(b.status) && outstandingOf(b) > 0), [invoices]);
+    const unpaid = useMemo(() => invoices.filter((b) => isOpen(b) && outstandingOf(b) > 0), [invoices]);
     const totalDue = unpaid.reduce((sum, b) => sum + outstandingOf(b), 0);
     const pendingSubmissions = submissions.filter((s) => s.status === 'PENDING').length;
 
@@ -75,7 +74,7 @@ const ResidentInvoices = () => {
             header: <span className="visually-hidden">Actions</span>,
             render: (row) => (
                 <div className="row-actions">
-                    {UNPAID.includes(row.status) && outstandingOf(row) > 0 && <Button size="sm" icon={CreditCard} onClick={() => payBills([row])}>Pay</Button>}
+                    {isOpen(row) && outstandingOf(row) > 0 && <Button size="sm" icon={CreditCard} onClick={() => payBills([row])}>Pay</Button>}
                     <Button variant="ghost" size="sm" iconOnly icon={Download} title="Download bill" aria-label={`Download bill ${row.id}`}
                         onClick={() => downloadAuthenticatedFile(`/bills/${row.id}/invoice-pdf`, `invoice_${row.billingMonth || row.id}.pdf`)} />
                 </div>

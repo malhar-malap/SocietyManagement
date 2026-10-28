@@ -76,7 +76,7 @@ public class PaymentSubmissionService {
         if (!isAuthorized && !roomResidentRepository.existsByRoomId(room.getId())) {
             isAuthorized = (room.getResident() != null && room.getResident().getId().equals(resident.getId()));
         }
-        if (!isAuthorized && resident.getRole() != Role.ADMIN && resident.getRole() != Role.MASTER_ADMIN) {
+        if (!isAuthorized && !resident.getRole().isStaff()) {
             throw new AccessDeniedException("You are not an authorized active resident of room " + room.getRoomNumber());
         }
 
@@ -120,7 +120,7 @@ public class PaymentSubmissionService {
 
         try {
             List<User> activeAdmins = userRepository.findAll().stream()
-                    .filter(u -> (u.getRole() == Role.ADMIN || u.getRole() == Role.MASTER_ADMIN)
+                    .filter(u -> u.getRole().isStaff()
                             && u.isActive()
                             && u.getStatus() == UserStatus.ACTIVE)
                     .toList();
@@ -160,7 +160,7 @@ public class PaymentSubmissionService {
                 .orElseThrow(() -> new com.society.jaswanti.exception.ResourceNotFoundException("Submission not found with ID: " + id));
 
         User actor = resolveAuthenticatedUser(auth);
-        if (actor.getRole() == Role.ADMIN || actor.getRole() == Role.MASTER_ADMIN) {
+        if (actor.getRole().isStaff()) {
             return submission;
         }
 
@@ -422,7 +422,7 @@ public class PaymentSubmissionService {
 
     private User resolveAdminActor(Authentication auth) {
         User user = resolveAuthenticatedUser(auth);
-        if (user.getRole() != Role.ADMIN && user.getRole() != Role.MASTER_ADMIN) {
+        if (!user.getRole().isStaff()) {
             throw new AccessDeniedException("Only Admin or Master Admin can review payment submissions");
         }
         return user;

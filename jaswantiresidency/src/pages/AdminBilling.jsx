@@ -10,6 +10,7 @@ import { Segmented, StatCard } from '../components/ui/Feedback';
 import { AlertTriangle, Banknote, ClipboardCheck, Download, FileSpreadsheet, FileText, IndianRupee, Plus, Receipt, Upload, Wallet } from 'lucide-react';
 import { getPaymentSubmissions } from '../api/billingApi';
 import { formatDate, formatMoney, monthLabel } from '../utils/format';
+import { isOpen, isOverdue, isPaid, isUnpaid } from '../utils/billing';
 import GenerateBillsDialog from '../components/GenerateBillsDialog';
 import RecordPaymentModal from '../components/RecordPaymentModal';
 import PendingPaymentApprovalsModal from '../components/PendingPaymentApprovalsModal';
@@ -97,11 +98,9 @@ const AdminBilling = () => {
         await fetchBills();
     };
 
-    const canPay = (row) =>
-        ['PENDING', 'PARTIALLY_PAID'].includes(row.status);
+    const canPay = isOpen;
 
     const outstandingOf = (row) => Math.max(0, (parseFloat(row.amount) || 0) + (parseFloat(row.lateFee) || 0) - (parseFloat(row.paidAmount) || 0));
-    const isOverdue = (row) => canPay(row) && row.dueDate && new Date(row.dueDate) < new Date(new Date().toDateString());
 
     const summary = useMemo(() => bills.reduce((acc, b) => {
         acc.billed += (parseFloat(b.amount) || 0) + (parseFloat(b.lateFee) || 0);
@@ -112,9 +111,9 @@ const AdminBilling = () => {
     }, { billed: 0, collected: 0, outstanding: 0, overdue: 0 }), [bills]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const visible = useMemo(() => {
-        if (statusFilter === 'unpaid') return bills.filter(canPay);
-        if (statusFilter === 'overdue') return bills.filter(isOverdue);
-        if (statusFilter === 'paid') return bills.filter((b) => b.status === 'PAID');
+        if (statusFilter === 'unpaid') return bills.filter((b) => isUnpaid(b));
+        if (statusFilter === 'overdue') return bills.filter((b) => isOverdue(b));
+        if (statusFilter === 'paid') return bills.filter(isPaid);
         return bills;
     }, [bills, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -228,7 +227,7 @@ const AdminBilling = () => {
                 <StatCard label="Collected" value={formatMoney(summary.collected)} icon={IndianRupee} tone="success" loading={isLoading}
                     foot={summary.billed ? `${Math.round((summary.collected / summary.billed) * 100)}% of billed` : '—'} />
                 <StatCard label="Outstanding" value={formatMoney(summary.outstanding)} icon={Wallet} tone="warning" loading={isLoading} onClick={() => setStatusFilter('unpaid')} />
-                <StatCard label="Overdue bills" value={summary.overdue} icon={AlertTriangle} tone="danger" loading={isLoading} onClick={() => setStatusFilter('overdue')} foot="Past their due date" />
+                <StatCard label="Overdue bills" value={summary.overdue} icon={AlertTriangle} tone="danger" loading={isLoading} onClick={() => setStatusFilter('overdue')} foot="Unpaid after their billing month" />
             </div>
 
             <DataTable

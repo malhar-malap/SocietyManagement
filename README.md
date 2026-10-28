@@ -101,4 +101,5 @@ The application uses [Flyway](https://flywaydb.org/) to manage database schema v
 |---|---|---|
 | Master Admin | Configured via bootstrap | No default seeded password; created via one-time bootstrap variables above |
 | Admin | Created by Master Admin | Master Admin promotes users to Admin role via the dashboard |
+| Office Assistant | Created by Master Admin | Same as Admin for rooms, residents, billing and transactions; no Helpdesk or Announcements. Only a Master Admin can assign this role |
 | Resident | Onboarded by Admin | Admin creates room assignments; residents complete profile setup on first login |

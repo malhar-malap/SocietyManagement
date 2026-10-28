@@ -150,7 +150,7 @@ public class ExcelBillingService {
             sampleRow.createCell(0).setCellValue("101");
             sampleRow.createCell(1).setCellValue("2026-07");
             sampleRow.createCell(2).setCellValue("MAINTENANCE");
-            sampleRow.createCell(3).setCellValue(3500.00);
+            sampleRow.createCell(3).setCellValue(2000.00);
             sampleRow.createCell(4).setCellValue("2026-07-15");
 
             Row sampleRow2 = sheet.createRow(2);

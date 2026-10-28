@@ -58,7 +58,7 @@ const PaymentModal = ({ amount, bills, onClose, onSuccess }) => {
     const [error, setError] = useState('');
     const [submittedData, setSubmittedData] = useState(null);
 
-    const baseAmount = parseFloat(amount) || (bills && bills.length > 0 ? parseFloat(bills[0].amount || 0) : 3500);
+    const baseAmount = parseFloat(amount) || (bills && bills.length > 0 ? parseFloat(bills[0].amount || 0) : 2000);
     const totalAmount = (baseAmount * (1 + parseInt(advanceMonths || 0, 10))).toFixed(2);
     const roomId = bills && bills.length > 0 ? bills[0].roomId : (user?.roomId || 1);
     const months = (bills || []).map((b) => monthLabel(b.billingMonth, 'short')).filter(Boolean);

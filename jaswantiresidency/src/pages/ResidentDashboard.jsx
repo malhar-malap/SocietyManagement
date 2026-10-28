@@ -10,13 +10,13 @@ import { useAuth } from '../context/AuthContext';
 import { getResidentDashboard } from '../api/residentApi';
 import { getMyTransactions } from '../api/billingApi';
 import { firstName, formatDate, formatMoney, greeting, monthLabel } from '../utils/format';
+import { isOverdue } from '../utils/billing';
 
 const UNPAID = ['PENDING', 'PARTIALLY_PAID'];
 
 // What is still owed on a bill: its balance (amount + late fee - already paid), never just the face amount
 const remaining = (bill) => Number(bill.balance ?? (Number(bill.amount || 0) + Number(bill.lateFee || 0) - Number(bill.paidAmount || 0)));
 
-const isOverdue = (bill) => bill.dueDate && new Date(bill.dueDate) < new Date(new Date().toDateString());
 
 const ResidentDashboard = () => {
     const { user } = useAuth();
@@ -84,7 +84,7 @@ const ResidentDashboard = () => {
 
     const { outstandingAmount, unpaidBills, lastPayment, announcements, nextDueDate } = dashboardData;
     const hasDues = outstandingAmount > 0;
-    const overdue = unpaidBills.some(isOverdue);
+    const overdue = unpaidBills.some((b) => isOverdue(b));
 
     return (
         <div className="stack stack-lg">
@@ -99,7 +99,7 @@ const ResidentDashboard = () => {
                 <section className={`balance-card ${hasDues ? '' : 'is-clear'}`} aria-label="Amount due">
                     <div className="balance-top">
                         <span className="balance-label">{hasDues ? 'Amount due' : 'Your account'}</span>
-                        {hasDues && <StatusChip tone={overdue ? 'danger' : 'warning'} label={overdue ? 'Overdue' : 'Due soon'} />}
+                        {hasDues && <StatusChip tone={overdue ? 'danger' : 'warning'} label={overdue ? 'Overdue' : 'Unpaid'} />}
                     </div>
                     {hasDues ? (
                         <>

@@ -54,7 +54,7 @@ public class PaymentController {
 
     private boolean isAuthorizedForBill(Authentication auth, Long billId) {
         if (billId == null) return false;
-        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MASTER_ADMIN"))) return true;
+        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MASTER_ADMIN") || a.getAuthority().equals("ROLE_OFFICE_ASSISTANT"))) return true;
         Long userId = getAuthenticatedUserId(auth);
         if (userId == null) return false;
         return billService.getBillById(billId).map(bill -> {
@@ -77,7 +77,7 @@ public class PaymentController {
     // ==========================================
 
     @PostMapping(value = "/submissions", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
-    @PreAuthorize("hasAnyRole('RESIDENT', 'ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('RESIDENT', 'ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @AuditedAction(action = "SUBMIT_PAYMENT", module = "RESIDENT_PAYMENT", summary = "Submitted a payment for review", target = AuditTargetResolver.PAYMENT_SUBMISSION)
     public ResponseEntity<ResidentPaymentSubmissionDto> submitPaymentMultipart(
             @RequestParam("roomId") Long roomId,
@@ -101,7 +101,7 @@ public class PaymentController {
     }
 
     @PostMapping(value = "/submissions", consumes = {MediaType.APPLICATION_JSON_VALUE})
-    @PreAuthorize("hasAnyRole('RESIDENT', 'ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('RESIDENT', 'ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @AuditedAction(action = "SUBMIT_PAYMENT", module = "RESIDENT_PAYMENT", summary = "Submitted a payment for review", target = AuditTargetResolver.PAYMENT_SUBMISSION)
     public ResponseEntity<ResidentPaymentSubmissionDto> submitPaymentJson(
             @Valid @RequestBody CreatePaymentSubmissionRequest request,
@@ -110,19 +110,19 @@ public class PaymentController {
     }
 
     @GetMapping("/submissions/my-submissions")
-    @PreAuthorize("hasAnyRole('RESIDENT', 'ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('RESIDENT', 'ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     public ResponseEntity<List<ResidentPaymentSubmissionDto>> getMySubmissions(Authentication auth) {
         return ResponseEntity.ok(paymentSubmissionService.getMySubmissions(auth));
     }
 
     @GetMapping("/submissions")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     public ResponseEntity<List<ResidentPaymentSubmissionDto>> getAllSubmissions() {
         return ResponseEntity.ok(paymentSubmissionService.getAllSubmissions());
     }
 
     @GetMapping("/submissions/{id}/screenshot")
-    @PreAuthorize("hasAnyRole('RESIDENT', 'ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('RESIDENT', 'ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     public ResponseEntity<byte[]> getScreenshot(@PathVariable Long id, Authentication auth) {
         ResidentPaymentSubmission submission = paymentSubmissionService.getAuthorizedSubmissionForScreenshot(id, auth);
         if (submission.getScreenshotData() == null || submission.getScreenshotData().length == 0) {
@@ -140,7 +140,7 @@ public class PaymentController {
     }
 
     @PostMapping("/submissions/{id}/approve")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @AuditedAction(action = "APPROVE_PAYMENT_SUBMISSION", module = "LEDGER", summary = "Approved a resident payment submission", target = AuditTargetResolver.PAYMENT_SUBMISSION)
     public ResponseEntity<ResidentPaymentSubmissionDto> approveSubmission(
             @PathVariable Long id,
@@ -150,7 +150,7 @@ public class PaymentController {
     }
 
     @PostMapping("/submissions/{id}/reject")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @AuditedAction(action = "REJECT_PAYMENT_SUBMISSION", module = "LEDGER", summary = "Rejected a resident payment submission", target = AuditTargetResolver.PAYMENT_SUBMISSION)
     public ResponseEntity<ResidentPaymentSubmissionDto> rejectSubmission(
             @PathVariable Long id,

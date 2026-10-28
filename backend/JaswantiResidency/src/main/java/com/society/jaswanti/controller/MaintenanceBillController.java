@@ -73,7 +73,7 @@ public class MaintenanceBillController {
 
     private boolean isAuthorizedForBill(Authentication auth, Long billId) {
         if (auth == null || billId == null) return false;
-        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MASTER_ADMIN"))) {
+        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MASTER_ADMIN") || a.getAuthority().equals("ROLE_OFFICE_ASSISTANT"))) {
             return true;
         }
         return billService.getBillById(billId)
@@ -83,7 +83,7 @@ public class MaintenanceBillController {
 
     private boolean isAuthorizedForRoom(Authentication auth, Long roomId) {
         if (auth == null || roomId == null) return false;
-        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MASTER_ADMIN"))) {
+        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MASTER_ADMIN") || a.getAuthority().equals("ROLE_OFFICE_ASSISTANT"))) {
             return true;
         }
         Long userId = getAuthenticatedUserId(auth);
@@ -121,7 +121,7 @@ public class MaintenanceBillController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @AuditedAction(action = "CREATE_BILL", module = "BILLING", summary = "Created a bill", target = AuditTargetResolver.BILL)
     public ResponseEntity<MaintenanceBillDto> createBill(@RequestBody MaintenanceBill bill) {
         MaintenanceBillDto created = billService.createBill(bill);
@@ -130,7 +130,7 @@ public class MaintenanceBillController {
     }
 
     @PostMapping("/generate-monthly")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @AuditedAction(action = "GENERATE_MONTHLY_BILLS", module = "BILLING", summary = "Generated monthly bills")
     public ResponseEntity<List<MaintenanceBillDto>> generateMonthlyBills(
             @RequestParam String billingMonth,
@@ -144,7 +144,7 @@ public class MaintenanceBillController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @AuditedAction(action = "UPDATE_BILL", module = "BILLING", summary = "Edited a bill", target = AuditTargetResolver.BILL)
     public ResponseEntity<MaintenanceBillDto> updateBill(@PathVariable Long id, @RequestBody com.society.jaswanti.dto.BillUpdateRequest bill) {
         return billService.updateBill(id, bill)
@@ -153,7 +153,7 @@ public class MaintenanceBillController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT', 'RESIDENT')")
     public ResponseEntity<MaintenanceBillDto> getBill(@PathVariable Long id, Authentication auth) {
         if (!isAuthorizedForBill(auth, id)) return ResponseEntity.status(403).build();
         return billService.getBillById(id)
@@ -162,13 +162,13 @@ public class MaintenanceBillController {
     }
 
     @GetMapping("/{id}/pdf")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT', 'RESIDENT')")
     public ResponseEntity<byte[]> downloadInvoicePdf(@PathVariable Long id, Authentication auth) {
         return streamInvoicePdf(id, auth);
     }
 
     @GetMapping("/{id}/invoice-pdf")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT', 'RESIDENT')")
     public ResponseEntity<byte[]> downloadInvoicePdfAlias(@PathVariable Long id, Authentication auth) {
         return streamInvoicePdf(id, auth);
     }
@@ -189,7 +189,7 @@ public class MaintenanceBillController {
 
     @Deprecated
     @PutMapping("/{id}/mark-paid-cash")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @AuditedAction(action = "MARK_BILL_PAID_CASH", module = "LEDGER", summary = "Marked a bill as paid in cash", target = AuditTargetResolver.BILL)
     public ResponseEntity<MaintenanceBillDto> markPaidCash(@PathVariable Long id, Authentication auth) {
         return billService.markPaidCash(id, auth)
@@ -201,7 +201,7 @@ public class MaintenanceBillController {
     }
 
     @PostMapping("/{billId}/record-payment")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @AuditedAction(action = "RECORD_PAYMENT", module = "LEDGER", summary = "Recorded a payment against a bill", target = AuditTargetResolver.BILL, targetParam = "billId")
     public ResponseEntity<com.society.jaswanti.dto.RecordPaymentResponse> recordPayment(
             @PathVariable Long billId,
@@ -212,7 +212,7 @@ public class MaintenanceBillController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     public ResponseEntity<List<MaintenanceBillDto>> getAllBills(
             @RequestParam(required = false) String financialYear,
             @RequestParam(required = false) String fromMonth,
@@ -226,7 +226,7 @@ public class MaintenanceBillController {
     }
 
     @GetMapping("/export-excel")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     public ResponseEntity<byte[]> exportBillsExcel(
             @RequestParam(required = false) String financialYear,
             @RequestParam(required = false) String fromMonth,
@@ -247,7 +247,7 @@ public class MaintenanceBillController {
     }
 
     @GetMapping("/import-template")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     public ResponseEntity<byte[]> downloadImportTemplate() {
         byte[] templateBytes = excelBillingService.generateImportTemplate();
         return ResponseEntity.ok()
@@ -257,7 +257,7 @@ public class MaintenanceBillController {
     }
 
     @PostMapping(value = "/import-excel", consumes = {org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE})
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @AuditedAction(action = "IMPORT_BILLS_EXCEL", module = "BILLING", summary = "Imported bills from an Excel file")
     public ResponseEntity<com.society.jaswanti.dto.ImportBillsResponse> importBillsExcel(
             @RequestPart("file") org.springframework.web.multipart.MultipartFile file) throws java.io.IOException {
@@ -293,7 +293,7 @@ public class MaintenanceBillController {
     }
 
     @GetMapping("/my-bills")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT', 'RESIDENT')")
     public ResponseEntity<List<MaintenanceBillDto>> getMyBills(Authentication auth) {
         Long userId = getAuthenticatedUserId(auth);
         if (userId == null) return ResponseEntity.status(403).build();
@@ -306,7 +306,7 @@ public class MaintenanceBillController {
     }
 
     @GetMapping("/room/{roomId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT', 'RESIDENT')")
     public ResponseEntity<List<MaintenanceBillDto>> getBillsByRoom(@PathVariable Long roomId, Authentication auth) {
         if (!isAuthorizedForRoom(auth, roomId)) return ResponseEntity.status(403).build();
         return ResponseEntity.ok(billService.getBillsByRoom(roomId));

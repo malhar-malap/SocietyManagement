@@ -10,6 +10,8 @@ import { useAuth } from '../context/AuthContext';
 import { getAllAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement } from '../api/adminApi';
 import { formatDate } from '../utils/format';
 import { deleteWithUndo } from '../utils/undo';
+import DateRangeFilter from '../components/ui/DateRangeFilter';
+import { ALL_DATES, inDateRange, isRangeActive } from '../utils/dateRange';
 
 const isExpired = (a) => a.expiryDate && new Date(a.expiryDate) < new Date();
 
@@ -19,6 +21,7 @@ const AdminAnnouncements = () => {
     const [announcements, setAnnouncements] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [tab, setTab] = useState('active');
+    const [dateRange, setDateRange] = useState(ALL_DATES);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
 
@@ -61,8 +64,9 @@ const AdminAnnouncements = () => {
         });
     };
 
-    const active = useMemo(() => announcements.filter((a) => !isExpired(a)), [announcements]);
-    const expired = useMemo(() => announcements.filter(isExpired), [announcements]);
+    const dated = useMemo(() => announcements.filter((a) => inDateRange(a.createdDate, dateRange)), [announcements, dateRange]);
+    const active = useMemo(() => dated.filter((a) => !isExpired(a)), [dated]);
+    const expired = useMemo(() => dated.filter(isExpired), [dated]);
     const list = tab === 'active' ? active : expired;
 
     const openNew = () => { setSelectedAnnouncement(null); setIsModalOpen(true); };
@@ -84,13 +88,17 @@ const AdminAnnouncements = () => {
                 label="Notice status"
             />
 
+            <div className="row row-wrap mb-4">
+                <DateRangeFilter value={dateRange} onChange={setDateRange} label="Filter notices by date posted" />
+            </div>
+
             {isLoading ? (
                 <div className="notice-cards">{[0, 1, 2].map((i) => <Skeleton key={i} height={180} style={{ borderRadius: 14 }} />)}</div>
             ) : list.length === 0 ? (
                 <div className="card">
-                    <EmptyState icon={Megaphone} title={tab === 'active' ? 'No live notices' : 'Nothing has expired yet'}
+                    <EmptyState icon={Megaphone} title={isRangeActive(dateRange) ? 'No notices in these dates' : tab === 'active' ? 'No live notices' : 'Nothing has expired yet'}
                         action={tab === 'active' && isMasterAdmin && <Button size="sm" icon={Plus} onClick={openNew}>Post a notice</Button>}>
-                        {tab === 'active' ? 'Post a notice to tell residents about maintenance, meetings or events.' : 'Notices move here after their end date.'}
+                        {isRangeActive(dateRange) ? 'Try a different date range.' : tab === 'active' ? 'Post a notice to tell residents about maintenance, meetings or events.' : 'Notices move here after their end date.'}
                     </EmptyState>
                 </div>
             ) : (

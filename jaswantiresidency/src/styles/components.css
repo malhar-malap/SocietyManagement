@@ -502,3 +502,17 @@
 }
 .undo-toast { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; }
 .undo-toast span { font-weight: 500; }
+
+/* Date range filter (admin list toolbars) */
+.date-filter { display: inline-flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.date-filter-select { position: relative; }
+.date-filter-select svg { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); color: var(--text-subtle); pointer-events: none; }
+.date-filter select, .date-filter input[type='date'] {
+  height: 38px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface);
+  color: var(--text); font: inherit; font-size: var(--text-sm); outline: none;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.date-filter select { padding: 0 0.7rem 0 2.1rem; cursor: pointer; }
+.date-filter input[type='date'] { padding: 0 0.6rem; }
+.date-filter select:focus, .date-filter input[type='date']:focus { border-color: var(--brand); box-shadow: var(--focus-ring); }
+@media (pointer: coarse) { .date-filter select, .date-filter input[type='date'] { min-height: 44px; } }

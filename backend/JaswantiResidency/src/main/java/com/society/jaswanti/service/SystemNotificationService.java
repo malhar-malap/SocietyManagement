@@ -70,8 +70,14 @@ public class SystemNotificationService {
     }
 
     public List<SystemNotificationDto> getNotificationsForUser(Long userId) {
+        return getNotificationsForUser(userId, true);
+    }
+
+    public List<SystemNotificationDto> getNotificationsForUser(Long userId, boolean includeBroadcasts) {
         List<SystemNotification> userNotifications = notificationRepository.findByUserIdOrderByCreatedAtDesc(userId);
-        List<SystemNotification> broadcastNotifications = notificationRepository.findByUserIdIsNullOrderByCreatedAtDesc();
+        List<SystemNotification> broadcastNotifications = includeBroadcasts
+                ? notificationRepository.findByUserIdIsNullOrderByCreatedAtDesc()
+                : List.of();
         
         List<SystemNotification> all = new ArrayList<>();
         all.addAll(userNotifications);

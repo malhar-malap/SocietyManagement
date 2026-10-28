@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
     ArrowRight, ArrowUpRight, ArrowDownRight, Banknote, Building2, IndianRupee, Landmark, Megaphone,
-    MessageSquare, Receipt, RefreshCw, Users, Wallet,
+    MessageSquare, Receipt, ReceiptText, RefreshCw, Users, Wallet,
 } from 'lucide-react';
 import { XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid } from 'recharts';
 import { useAuth } from '../context/AuthContext';
@@ -11,6 +11,7 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { Alert, EmptyState, Skeleton, StatCard } from '../components/ui/Feedback';
 import { firstName, formatDate, formatMoney, formatMoneyShort, greeting, monthLabel } from '../utils/format';
+import { canAccessCommunity } from '../utils/roles';
 
 const STATUS_PARTS = [
     { key: 'PAID', name: 'Paid', tone: 'success' },
@@ -43,6 +44,7 @@ const DashboardSkeleton = () => (
 const AdminDashboard = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const showCommunity = canAccessCommunity(user?.role);
     const [stats, setStats] = useState(null);
     const [recentTransactions, setRecentTransactions] = useState([]);
     const [latestAnnouncements, setLatestAnnouncements] = useState([]);
@@ -55,7 +57,7 @@ const AdminDashboard = () => {
         try {
             // The headline figures are required; the two side lists degrade gracefully if they fail
             const [dashboard, transactions, announcements] = await Promise.allSettled([
-                getAdminDashboard(), getTransactions(), getAllAnnouncements(),
+                getAdminDashboard(), getTransactions(), showCommunity ? getAllAnnouncements() : Promise.resolve([]),
             ]);
             if (dashboard.status !== 'fulfilled') throw dashboard.reason;
             setStats(dashboard.value);
@@ -78,7 +80,7 @@ const AdminDashboard = () => {
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [showCommunity]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -136,20 +138,31 @@ const AdminDashboard = () => {
                     foot={<>{stats.unpaidResidents} home{stats.unpaidResidents === 1 ? '' : 's'} with dues</>}
                     onClick={() => navigate('/admin/billing')}
                 />
-                <StatCard
-                    label="Open requests"
-                    value={stats.openComplaints}
-                    icon={MessageSquare}
-                    tone="brand"
-                    foot={stats.openComplaints ? 'Waiting for a response' : 'Nothing waiting'}
-                    onClick={() => navigate('/admin/complaints')}
-                />
+                {showCommunity ? (
+                    <StatCard
+                        label="Open requests"
+                        value={stats.openComplaints}
+                        icon={MessageSquare}
+                        tone="brand"
+                        foot={stats.openComplaints ? 'Waiting for a response' : 'Nothing waiting'}
+                        onClick={() => navigate('/admin/complaints')}
+                    />
+                ) : (
+                    <StatCard
+                        label="Unpaid this month"
+                        value={(statusCounts.PENDING || 0) + (statusCounts.PARTIALLY_PAID || 0)}
+                        icon={ReceiptText}
+                        tone="brand"
+                        foot={<>of {(statusCounts.PENDING || 0) + (statusCounts.PARTIALLY_PAID || 0) + (statusCounts.PAID || 0)} bills for {monthLabel(stats.billingMonth)}</>}
+                        onClick={() => navigate('/admin/billing')}
+                    />
+                )}
                 <StatCard
                     label="Active residents"
                     value={stats.totalResidents}
                     icon={Users}
                     tone="info"
-                    foot={<>{stats.activeAnnouncements} active notice{stats.activeAnnouncements === 1 ? '' : 's'}</>}
+                    foot={showCommunity ? <>{stats.activeAnnouncements} active notice{stats.activeAnnouncements === 1 ? '' : 's'}</> : 'Signed up and active'}
                     onClick={() => navigate('/admin/residents')}
                 />
             </div>
@@ -274,7 +287,7 @@ const AdminDashboard = () => {
                     )}
                 </Card>
 
-                <Card className="span-all" title="Notice board" action={<Link to="/admin/announcements" className="card-link">All notices <ArrowRight size={14} /></Link>}>
+                {showCommunity && <Card className="span-all" title="Notice board" action={<Link to="/admin/announcements" className="card-link">All notices <ArrowRight size={14} /></Link>}>
                     {latestAnnouncements.length === 0 ? (
                         <EmptyState compact icon={Megaphone} title="No active notices" action={user?.role === 'MASTER_ADMIN' && <Button size="sm" variant="secondary" onClick={() => navigate('/admin/announcements')}>Post a notice</Button>}>
                             Notices you post appear on every resident’s home screen.
@@ -290,7 +303,7 @@ const AdminDashboard = () => {
                             ))}
                         </div>
                     )}
-                </Card>
+                </Card>}
             </div>
         </div>
     );

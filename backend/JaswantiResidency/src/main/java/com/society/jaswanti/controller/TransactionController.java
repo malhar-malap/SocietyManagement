@@ -72,7 +72,7 @@ public class TransactionController {
 
     private boolean isAuthorizedForRoom(Authentication auth, Long roomId) {
         if (auth == null || roomId == null) return false;
-        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MASTER_ADMIN"))) {
+        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MASTER_ADMIN") || a.getAuthority().equals("ROLE_OFFICE_ASSISTANT"))) {
             return true;
         }
         Long userId = getAuthenticatedUserId(auth);
@@ -94,7 +94,7 @@ public class TransactionController {
 
     private boolean isAuthorizedForBill(Authentication auth, Long billId) {
         if (auth == null || billId == null) return false;
-        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MASTER_ADMIN"))) {
+        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MASTER_ADMIN") || a.getAuthority().equals("ROLE_OFFICE_ASSISTANT"))) {
             return true;
         }
         return billService.getBillById(billId)
@@ -120,14 +120,14 @@ public class TransactionController {
 
 
     @GetMapping("/bill/{billId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT', 'RESIDENT')")
     public ResponseEntity<List<Transaction>> getTransactionsByBill(@PathVariable Long billId, Authentication auth) {
         if (!isAuthorizedForBill(auth, billId)) return ResponseEntity.status(403).build();
         return ResponseEntity.ok(transactionService.getTransactionsByBill(billId));
     }
 
     @GetMapping("/my-transactions")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT', 'RESIDENT')")
     public ResponseEntity<List<TransactionDto>> getMyTransactions(Authentication auth) {
         Long userId = getAuthenticatedUserId(auth);
         if (userId == null) return ResponseEntity.status(403).build();
@@ -168,7 +168,7 @@ public class TransactionController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     public ResponseEntity<List<TransactionDto>> getAllTransactions(
             @RequestParam(required = false) String financialYear,
             @RequestParam(required = false) String fromDate,
@@ -195,7 +195,7 @@ public class TransactionController {
     }
 
     @GetMapping("/{id}/receipt-pdf")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT', 'RESIDENT')")
     public ResponseEntity<byte[]> downloadReceiptPdf(@PathVariable Long id, Authentication auth) {
         Transaction tx = transactionService.getTransactionById(id)
                 .orElseThrow(() -> new com.society.jaswanti.exception.ResourceNotFoundException("Transaction not found with ID: " + id));
@@ -213,7 +213,7 @@ public class TransactionController {
     }
 
     @PostMapping("/{id}/email-receipt")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT', 'RESIDENT')")
     @AuditedAction(action = "EMAIL_RECEIPT", module = "LEDGER", summary = "Emailed a payment receipt", target = AuditTargetResolver.TRANSACTION)
     public ResponseEntity<java.util.Map<String, Object>> emailReceiptPdf(@PathVariable Long id, Authentication auth) {
         Transaction tx = transactionService.getTransactionById(id)
@@ -253,7 +253,7 @@ public class TransactionController {
 
     private boolean canAccessTransaction(Authentication auth, Transaction tx) {
         if (auth == null) return false;
-        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MASTER_ADMIN"))) {
+        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MASTER_ADMIN") || a.getAuthority().equals("ROLE_OFFICE_ASSISTANT"))) {
             return true;
         }
         Long userId = getAuthenticatedUserId(auth);
@@ -271,14 +271,14 @@ public class TransactionController {
     }
 
     @PostMapping("/expense")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @AuditedAction(action = "RECORD_EXPENSE", module = "LEDGER", summary = "Recorded an expense", target = AuditTargetResolver.TRANSACTION)
     public ResponseEntity<TransactionDto> recordExpense(@Valid @RequestBody RecordExpenseRequest request, Authentication auth) {
         return ResponseEntity.ok(transactionService.recordExpense(request, auth));
     }
 
     @PostMapping("/{id}/reverse")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @AuditedAction(action = "REVERSE_TRANSACTION", module = "LEDGER", summary = "Reversed a transaction", target = AuditTargetResolver.TRANSACTION)
     public ResponseEntity<AmendmentResult> reverseTransaction(@PathVariable Long id,
                                                               @Valid @RequestBody ReverseTransactionRequest request,
@@ -291,7 +291,7 @@ public class TransactionController {
     }
 
     @GetMapping("/amendment-requests")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     public ResponseEntity<List<TransactionAmendmentRequestDto>> getAmendmentRequests() {
         return ResponseEntity.ok(transactionService.getAmendmentRequests());
     }

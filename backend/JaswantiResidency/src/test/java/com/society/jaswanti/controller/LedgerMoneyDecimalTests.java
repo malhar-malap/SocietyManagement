@@ -228,7 +228,7 @@ class LedgerMoneyDecimalTests {
         pending.setStatus(BillStatus.PENDING);
         billRepository.save(pending);
 
-        ResponseEntity<Map<String, Object>> response = adminDashboardController.getAdminDashboard();
+        ResponseEntity<Map<String, Object>> response = adminDashboardController.getAdminDashboard(null);
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
 
         Map<String, Object> stats = response.getBody();

@@ -1,5 +1,6 @@
 package com.society.jaswanti.controller;
 
+import com.society.jaswanti.audit.AuditPolicy;
 import com.society.jaswanti.audit.AuditTrail;
 import com.society.jaswanti.audit.AuditedAction;
 import com.society.jaswanti.dto.SystemLogDto;
@@ -110,7 +111,7 @@ public class SystemLogController {
 
     static Specification<ActivityLog> filters(String q, String module, String action, String outcome, String actorRole,
                                               LocalDate from, LocalDate to) {
-        return (root, query, cb) -> {
+        Specification<ActivityLog> chosen = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (notBlank(module)) predicates.add(cb.equal(root.get("module"), module));
             if (notBlank(action)) predicates.add(cb.equal(root.get("action"), action));
@@ -129,6 +130,8 @@ public class SystemLogController {
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
+        // Older routine entries (sign-ins, account setup) predate AuditPolicy; hide them the same way
+        return chosen.and(AuditPolicy.recordedOnly());
     }
 
     /** CSV-escapes a value and neutralises spreadsheet formula injection (=, +, -, @). */

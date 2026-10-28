@@ -12,6 +12,7 @@ import com.society.jaswanti.repository.MaintenanceBillRepository;
 import com.society.jaswanti.repository.TransactionRepository;
 import com.society.jaswanti.repository.UserRepository;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -58,9 +59,9 @@ public class AdminDashboardController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     @Transactional(readOnly = true)
-    public ResponseEntity<Map<String, Object>> getAdminDashboard() {
+    public ResponseEntity<Map<String, Object>> getAdminDashboard(Authentication auth) {
         Map<String, Object> stats = new HashMap<>();
         YearMonth thisMonth = YearMonth.now();
 
@@ -129,16 +130,21 @@ public class AdminDashboardController {
         stats.put("billStatusThisMonth", statusBreakdown);
         stats.put("billingMonth", thisMonth.toString());
 
-        long openComplaints = complaintRepository.findAll().stream()
-                .filter(c -> c.getStatus() == ComplaintStatus.OPEN || c.getStatus() == ComplaintStatus.IN_PROGRESS)
-                .count();
-        stats.put("openComplaints", openComplaints);
+        // Helpdesk and notice-board figures are for staff who handle the community section (not office assistants)
+        boolean handlesCommunity = auth == null || auth.getAuthorities().stream()
+                .noneMatch(a -> "ROLE_OFFICE_ASSISTANT".equals(a.getAuthority()));
+        if (handlesCommunity) {
+            long openComplaints = complaintRepository.findAll().stream()
+                    .filter(c -> c.getStatus() == ComplaintStatus.OPEN || c.getStatus() == ComplaintStatus.IN_PROGRESS)
+                    .count();
+            stats.put("openComplaints", openComplaints);
 
-        LocalDateTime now = LocalDateTime.now();
-        long activeAnnouncements = announcementRepository.findAll().stream()
-                .filter(a -> a.getExpiryDate() == null || a.getExpiryDate().isAfter(now))
-                .count();
-        stats.put("activeAnnouncements", activeAnnouncements);
+            LocalDateTime now = LocalDateTime.now();
+            long activeAnnouncements = announcementRepository.findAll().stream()
+                    .filter(a -> a.getExpiryDate() == null || a.getExpiryDate().isAfter(now))
+                    .count();
+            stats.put("activeAnnouncements", activeAnnouncements);
+        }
 
         List<com.society.jaswanti.entity.SocietyBankAccount> accounts = bankAccountRepository.findByIsActiveTrue();
         stats.put("bankAccounts", accounts);

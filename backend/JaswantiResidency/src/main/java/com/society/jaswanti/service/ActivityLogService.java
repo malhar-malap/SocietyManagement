@@ -1,5 +1,6 @@
 package com.society.jaswanti.service;
 
+import com.society.jaswanti.audit.AuditPolicy;
 import com.society.jaswanti.audit.AuditTrail;
 import com.society.jaswanti.entity.ActivityLog;
 import com.society.jaswanti.entity.User;
@@ -39,6 +40,10 @@ public class ActivityLogService {
 
     private void save(ActivityLog log) {
         AuditTrail.applyRequestContext(log);
+        // Routine activity (sign-ins, account setup, residents' own changes) is not security-relevant; see AuditPolicy
+        if (!AuditPolicy.shouldRecord(log)) {
+            return;
+        }
         ActivityLog saved = activityLogRepository.save(log);
         AuditTrail.markRecorded(saved.getId());
     }

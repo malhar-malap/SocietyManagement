@@ -7,8 +7,8 @@ import AuthShell from '../components/auth/AuthShell';
 import Button from '../components/ui/Button';
 import { TextInput } from '../components/ui/Field';
 import { Alert } from '../components/ui/Feedback';
+import { homeFor } from '../utils/roles';
 
-const homeFor = (role) => (role === 'ADMIN' || role === 'MASTER_ADMIN' ? '/admin/dashboard' : '/resident/dashboard');
 
 const friendlyError = (err) => {
     if (!err?.response) return 'We could not reach the server. Check your connection and try again.';

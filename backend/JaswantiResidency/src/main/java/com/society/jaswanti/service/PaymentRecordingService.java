@@ -203,7 +203,7 @@ public class PaymentRecordingService {
             User actor = userRepository.findByEmail(effectiveAuth.getName())
                     .orElseThrow(() -> new AccessDeniedException("Authenticated actor not found in user directory: " + effectiveAuth.getName()));
 
-            if (actor.getRole() != Role.ADMIN && actor.getRole() != Role.MASTER_ADMIN) {
+            if (!actor.getRole().isStaff()) {
                 throw new AccessDeniedException("Only Admin or Master Admin can record payments");
             }
             return actor;
@@ -211,7 +211,7 @@ public class PaymentRecordingService {
 
         // Fallback for direct programmatic test calls where SecurityContext is unpopulated
         return userRepository.findAll().stream()
-                .filter(u -> (u.getRole() == Role.ADMIN || u.getRole() == Role.MASTER_ADMIN) && u.isActive())
+                .filter(u -> u.getRole().isStaff() && u.isActive())
                 .findFirst()
                 .orElseThrow(() -> new AccessDeniedException("Authenticated actor is required to record a payment"));
     }

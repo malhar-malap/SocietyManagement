@@ -10,7 +10,7 @@ import { formatMoney, monthLabel } from '../utils/format';
 const pad = (n) => String(n).padStart(2, '0');
 const defaults = () => {
     const d = new Date();
-    return { billingMonth: `${d.getFullYear()}-${pad(d.getMonth() + 1)}`, amount: '', dueDate: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-10` };
+    return { billingMonth: `${d.getFullYear()}-${pad(d.getMonth() + 1)}`, amount: '2000', dueDate: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-10` };
 };
 
 const GenerateBillsDialog = ({ isOpen, onClose, onConfirm }) => {
@@ -64,7 +64,7 @@ const GenerateBillsDialog = ({ isOpen, onClose, onConfirm }) => {
                     <TextInput label="Billing month" type="month" name="billingMonth" value={formData.billingMonth} onChange={handleChange} />
                     <TextInput label="Due date" type="date" name="dueDate" value={formData.dueDate} onChange={handleChange} />
                 </div>
-                <TextInput label="Maintenance per home" prefix="₹" type="number" name="amount" min="1" placeholder="3500" value={formData.amount} onChange={handleChange} />
+                <TextInput label="Maintenance per home" prefix="₹" type="number" name="amount" min="1" placeholder="2000" value={formData.amount} onChange={handleChange} />
                 {Number(formData.amount) > 0 && formData.billingMonth && (
                     <p className="text-sm text-muted">Each home will be billed <strong className="num" style={{ color: 'var(--text)' }}>{formatMoney(formData.amount)}</strong> for {monthLabel(formData.billingMonth)}. Homes already billed for this month are skipped.</p>
                 )}

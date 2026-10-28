@@ -173,8 +173,8 @@ class SystemLogTests {
     }
 
     @Test
-    @DisplayName("Sign-ins are logged; failures record the attempted identifier but never the password")
-    void signInsAreLogged() throws Exception {
+    @DisplayName("Failed sign-ins are logged without the password; successful sign-ins are not logged")
+    void onlyFailedSignInsAreLogged() throws Exception {
         loginRateLimiterService.recordSuccessfulLogin(admin.getEmail(), "127.0.0.1");
 
         mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
@@ -185,17 +185,12 @@ class SystemLogTests {
                 .andExpect(status().isOk());
 
         List<ActivityLog> entries = logs("LOGIN");
-        assertThat(entries).hasSize(2);
+        assertThat(entries).hasSize(1);
         ActivityLog failed = entries.get(0);
         assertThat(failed.getOutcome()).isEqualTo(ActivityLog.OUTCOME_DENIED);
         assertThat(failed.getUser()).isNull();
         assertThat(failed.getActorEmail()).isEqualTo(admin.getEmail());
         assertThat(failed.getDescription()).contains("Failed sign-in attempt").doesNotContain("WrongSecret999");
-
-        ActivityLog ok = entries.get(1);
-        assertThat(ok.getOutcome()).isEqualTo(ActivityLog.OUTCOME_SUCCESS);
-        assertThat(ok.getUser().getId()).isEqualTo(admin.getId());
-        assertThat(ok.getDescription()).isEqualTo("Signed in");
     }
 
     @Test
@@ -283,5 +278,32 @@ class SystemLogTests {
         assertThat(put).isGreaterThanOrEqualTo(400);
         assertThat(del).isGreaterThanOrEqualTo(400);
         assertThat(activityLogRepository.existsById(logId)).isTrue();
+    }
+
+    @Test
+    @DisplayName("Routine entries written before the policy (sign-ins, setup, residents' own edits) are hidden from the log")
+    void legacyRoutineEntriesAreHidden() throws Exception {
+        legacy("LOGIN", ActivityLog.OUTCOME_SUCCESS, "ADMIN");
+        legacy("SETUP_PROFILE", ActivityLog.OUTCOME_SUCCESS, "RESIDENT");
+        legacy("UPDATE_PROFILE", ActivityLog.OUTCOME_SUCCESS, "RESIDENT");
+        legacy("LOGIN", ActivityLog.OUTCOME_DENIED, null);
+        legacy("APPROVE_PAYMENT_SUBMISSION", ActivityLog.OUTCOME_SUCCESS, "ADMIN");
+        legacy("UPDATE_PROFILE", ActivityLog.OUTCOME_SUCCESS, "ADMIN");
+
+        String body = mockMvc.perform(get("/api/system-logs").param("size", "100").header("Authorization", bearer(masterAdmin)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode content = objectMapper.readTree(body).get("content");
+        List<String> shown = new java.util.ArrayList<>();
+        content.forEach(n -> shown.add(n.get("action").asText() + "/" + n.get("outcome").asText()));
+        assertThat(shown).containsExactlyInAnyOrder(
+                "LOGIN/DENIED", "APPROVE_PAYMENT_SUBMISSION/SUCCESS", "UPDATE_PROFILE/SUCCESS");
+    }
+
+    private void legacy(String action, String outcome, String actorRole) {
+        ActivityLog log = new ActivityLog(null, action, "TEST", "legacy " + action, null);
+        log.setOutcome(outcome);
+        log.setActorRole(actorRole);
+        activityLogRepository.save(log);
     }
 }

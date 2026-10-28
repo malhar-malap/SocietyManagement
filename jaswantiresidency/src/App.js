@@ -14,6 +14,7 @@ import AdminLayout from './layouts/AdminLayout';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import SetupProfile from './pages/SetupProfile';
+import { COMMUNITY_ROLES, STAFF_ROLES, homeFor } from './utils/roles';
 
 // Resident Pages
 const ResidentDashboard = lazy(() => import('./pages/ResidentDashboard'));
@@ -36,17 +37,14 @@ const RootRedirect = () => {
     if (loading) return null;
     if (!user) return <Navigate to="/login" replace />;
     if (user.forcePasswordChange) return <Navigate to="/setup" replace />;
-    if (user.role === 'ADMIN' || user.role === 'MASTER_ADMIN') {
-        return <Navigate to="/admin/dashboard" replace />;
-    }
-    return <Navigate to="/resident/dashboard" replace />;
+    return <Navigate to={homeFor(user.role)} replace />;
 };
 
 const ErrorPage = ({ code, title, message }) => {
     const { user } = useAuth();
     const homeTarget = !user
         ? '/login'
-        : (user.role === 'ADMIN' || user.role === 'MASTER_ADMIN' ? '/admin/dashboard' : '/resident/dashboard');
+        : homeFor(user.role);
 
     return (
         <main className="error-page">
@@ -83,7 +81,7 @@ function App() {
                     </Route>
 
                     {/* Admin Routes */}
-                    <Route path="/admin" element={<ProtectedRoute allowedRoles={['ADMIN', 'MASTER_ADMIN']}><AdminLayout /></ProtectedRoute>}>
+                    <Route path="/admin" element={<ProtectedRoute allowedRoles={STAFF_ROLES}><AdminLayout /></ProtectedRoute>}>
                         <Route index element={<Navigate to="/admin/dashboard" replace />} />
                         <Route path="dashboard" element={<AdminDashboard />} />
                         <Route path="rooms" element={<AdminRooms />} />
@@ -91,8 +89,8 @@ function App() {
                         <Route path="users" element={<AdminResidents />} />
                         <Route path="billing" element={<AdminBilling />} />
                         <Route path="transactions" element={<AdminTransactions />} />
-                        <Route path="complaints" element={<AdminComplaints />} />
-                        <Route path="announcements" element={<AdminAnnouncements />} />
+                        <Route path="complaints" element={<ProtectedRoute allowedRoles={COMMUNITY_ROLES}><AdminComplaints /></ProtectedRoute>} />
+                        <Route path="announcements" element={<ProtectedRoute allowedRoles={COMMUNITY_ROLES}><AdminAnnouncements /></ProtectedRoute>} />
                         <Route path="system-logs" element={<ProtectedRoute allowedRoles={['MASTER_ADMIN']}><SystemLogs /></ProtectedRoute>} />
                         <Route path="activity-logs" element={<Navigate to="/admin/system-logs" replace />} />
                     </Route>

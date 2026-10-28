@@ -349,14 +349,14 @@ public class TransactionService {
         if (effectiveAuth != null && effectiveAuth.getName() != null && !effectiveAuth.getName().trim().isEmpty() && !"anonymousUser".equals(effectiveAuth.getName())) {
             User user = userRepository.findByEmail(effectiveAuth.getName())
                     .orElseThrow(() -> new AccessDeniedException("User not found: " + effectiveAuth.getName()));
-            if (user.getRole() != Role.ADMIN && user.getRole() != Role.MASTER_ADMIN) {
+            if (!user.getRole().isStaff()) {
                 throw new AccessDeniedException("Only Admin or Master Admin can perform ledger actions");
             }
             return user;
         }
 
         return userRepository.findAll().stream()
-                .filter(u -> (u.getRole() == Role.ADMIN || u.getRole() == Role.MASTER_ADMIN) && u.isActive())
+                .filter(u -> u.getRole().isStaff() && u.isActive())
                 .findFirst()
                 .orElseThrow(() -> new AccessDeniedException("Authenticated Admin actor is required"));
     }

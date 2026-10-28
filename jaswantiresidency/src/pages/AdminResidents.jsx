@@ -6,15 +6,16 @@ import Button from '../components/ui/Button';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import Menu from '../components/ui/Menu';
 import { Tabs } from '../components/ui/Feedback';
-import { Ban, CheckCircle2, KeyRound, Pencil, ShieldCheck, ShieldPlus, UserMinus, UserPlus, UserRound, Users } from 'lucide-react';
+import { Ban, BriefcaseBusiness, CheckCircle2, KeyRound, Pencil, ShieldCheck, ShieldPlus, UserMinus, UserPlus, UserRound, Users } from 'lucide-react';
 import { notifyError, notifySuccess } from '../utils/notify';
 import { initials } from '../layouts/PortalLayout';
 import TemporaryPasswordDialog from '../components/TemporaryPasswordDialog';
 import ResidentModal from '../components/ResidentModal';
 import { useAuth } from '../context/AuthContext';
+import { ROLE_NAMES, isStaff } from '../utils/roles';
 
-const ROLE_LABEL = { RESIDENT: 'Resident', ADMIN: 'Admin', MASTER_ADMIN: 'Master admin' };
-const ROLE_TONE = { RESIDENT: 'neutral', ADMIN: 'info', MASTER_ADMIN: 'brand' };
+const ROLE_LABEL = ROLE_NAMES;
+const ROLE_TONE = { RESIDENT: 'neutral', ADMIN: 'info', OFFICE_ASSISTANT: 'info', MASTER_ADMIN: 'brand' };
 
 const AdminResidents = () => {
     const { user } = useAuth();
@@ -217,13 +218,13 @@ const AdminResidents = () => {
     const counts = useMemo(() => ({
         all: residents.length,
         RESIDENT: residents.filter((r) => (r.role || 'RESIDENT') === 'RESIDENT').length,
-        staff: residents.filter((r) => r.role === 'ADMIN' || r.role === 'MASTER_ADMIN').length,
+        staff: residents.filter((r) => isStaff(r.role)).length,
         inactive: residents.filter((r) => r.active === false || r.status === 'BLOCKED').length,
     }), [residents]);
 
     const visible = useMemo(() => {
         if (tab === 'RESIDENT') return residents.filter((r) => (r.role || 'RESIDENT') === 'RESIDENT');
-        if (tab === 'staff') return residents.filter((r) => r.role === 'ADMIN' || r.role === 'MASTER_ADMIN');
+        if (tab === 'staff') return residents.filter((r) => isStaff(r.role));
         if (tab === 'inactive') return residents.filter((r) => r.active === false || r.status === 'BLOCKED');
         return residents;
     }, [residents, tab]);
@@ -245,6 +246,7 @@ const AdminResidents = () => {
             ...(isMasterAdmin && !isSelf ? [
                 'separator',
                 { label: 'Make resident', icon: UserRound, onClick: () => handleRoleChangePrompt(row, 'RESIDENT'), hidden: role === 'RESIDENT' },
+                { label: 'Make office assistant', icon: BriefcaseBusiness, onClick: () => handleRoleChangePrompt(row, 'OFFICE_ASSISTANT'), hidden: role === 'OFFICE_ASSISTANT' },
                 { label: 'Make admin', icon: ShieldCheck, onClick: () => handleRoleChangePrompt(row, 'ADMIN'), hidden: role === 'ADMIN' },
                 { label: 'Make master admin', icon: ShieldPlus, onClick: () => handleRoleChangePrompt(row, 'MASTER_ADMIN'), hidden: role === 'MASTER_ADMIN' },
                 'separator',

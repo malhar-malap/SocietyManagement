@@ -27,25 +27,25 @@ public class BankAccountController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     public ResponseEntity<List<SocietyBankAccountDto>> getAllBankAccounts() {
         return ResponseEntity.ok(bankAccountService.getAllBankAccounts());
     }
 
     @GetMapping("/reconcile")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     public ResponseEntity<List<BankReconciliationDto>> reconcileAllBankAccounts() {
         return ResponseEntity.ok(bankAccountService.reconcileAllBankAccounts());
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     public ResponseEntity<SocietyBankAccountDto> getBankAccountById(@PathVariable Long id) {
         return ResponseEntity.ok(bankAccountService.getBankAccountById(id));
     }
 
     @GetMapping("/{id}/reconcile")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT')")
     public ResponseEntity<BankReconciliationDto> reconcileBankAccount(@PathVariable Long id) {
         return ResponseEntity.ok(bankAccountService.reconcileBankAccount(id));
     }

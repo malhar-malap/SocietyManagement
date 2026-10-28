@@ -22,14 +22,16 @@ public class SystemNotificationController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT', 'RESIDENT')")
     public ResponseEntity<List<SystemNotificationDto>> getMyNotifications(Authentication auth) {
         com.society.jaswanti.entity.User user = (com.society.jaswanti.entity.User) auth.getPrincipal();
-        return ResponseEntity.ok(notificationService.getNotificationsForUser(user.getId()));
+        // Broadcasts are announcements, which office assistants do not handle
+        boolean includeBroadcasts = user.getRole() != com.society.jaswanti.entity.Role.OFFICE_ASSISTANT;
+        return ResponseEntity.ok(notificationService.getNotificationsForUser(user.getId(), includeBroadcasts));
     }
 
     @PutMapping("/{id}/read")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'RESIDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT', 'RESIDENT')")
     @AuditExempt(reason = "Marking one's own notification as read is a personal UI action with no effect on society records")
     public ResponseEntity<Void> markAsRead(@PathVariable Long id, Authentication auth) {
         com.society.jaswanti.entity.User user = (com.society.jaswanti.entity.User) auth.getPrincipal();

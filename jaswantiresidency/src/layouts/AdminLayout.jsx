@@ -1,6 +1,7 @@
 import React from 'react';
 import { LayoutDashboard, Building2, Users, Receipt, ArrowLeftRight, MessageSquare, Megaphone, ScrollText } from 'lucide-react';
 import PortalLayout from './PortalLayout';
+import { COMMUNITY_ROLES } from '../utils/roles';
 
 const NAV_GROUPS = [
     { items: [{ to: '/admin/dashboard', label: 'Overview', icon: LayoutDashboard }] },
@@ -8,7 +9,7 @@ const NAV_GROUPS = [
         label: 'Society',
         items: [
             { to: '/admin/rooms', label: 'Rooms', icon: Building2 },
-            { to: '/admin/residents', label: 'Residents', icon: Users, roles: ['ADMIN'] },
+            { to: '/admin/residents', label: 'Residents', icon: Users, roles: ['ADMIN', 'OFFICE_ASSISTANT'] },
             { to: '/admin/residents', label: 'Users & roles', icon: Users, roles: ['MASTER_ADMIN'] },
         ],
     },
@@ -22,8 +23,8 @@ const NAV_GROUPS = [
     {
         label: 'Community',
         items: [
-            { to: '/admin/complaints', label: 'Helpdesk', icon: MessageSquare },
-            { to: '/admin/announcements', label: 'Announcements', icon: Megaphone },
+            { to: '/admin/complaints', label: 'Helpdesk', icon: MessageSquare, roles: COMMUNITY_ROLES },
+            { to: '/admin/announcements', label: 'Announcements', icon: Megaphone, roles: COMMUNITY_ROLES },
         ],
     },
     { label: 'Administration', items: [{ to: '/admin/system-logs', label: 'System logs', icon: ScrollText, roles: ['MASTER_ADMIN'] }] },

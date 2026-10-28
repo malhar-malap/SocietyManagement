@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import NotificationBell from '../components/NotificationBell';
 import { HibiscusMark, PageLoader } from '../components/ui/Hibiscus';
 
-const ROLE_LABELS = { MASTER_ADMIN: 'Master administrator', ADMIN: 'Administrator', RESIDENT: 'Resident' };
+const ROLE_LABELS = { MASTER_ADMIN: 'Master administrator', ADMIN: 'Administrator', OFFICE_ASSISTANT: 'Office assistant', RESIDENT: 'Resident' };
 
 export const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
 

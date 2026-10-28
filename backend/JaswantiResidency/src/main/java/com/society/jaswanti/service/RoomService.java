@@ -253,7 +253,7 @@ public class RoomService {
         User actor = userRepository.findByEmail(auth.getName())
                 .orElseThrow(() -> new AccessDeniedException("Authenticated actor not found in user directory: " + auth.getName()));
 
-        if (actor.getRole() != Role.ADMIN && actor.getRole() != Role.MASTER_ADMIN) {
+        if (!actor.getRole().isStaff()) {
             throw new AccessDeniedException("Only Admin or Master Admin can perform occupancy date corrections");
         }
 
@@ -443,7 +443,7 @@ public class RoomService {
                 .orElseThrow(() -> new com.society.jaswanti.exception.ResourceNotFoundException("Room not found with ID: " + roomId));
 
         User actor = resolveAuthenticatedUser(auth);
-        if (actor.getRole() == Role.MASTER_ADMIN || actor.getRole() == Role.ADMIN) {
+        if (actor.getRole().isStaff()) {
             return room;
         }
 

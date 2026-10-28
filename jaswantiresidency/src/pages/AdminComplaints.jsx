@@ -7,6 +7,8 @@ import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 import Menu from '../components/ui/Menu';
 import { EmptyState, Segmented, Skeleton, Tabs } from '../components/ui/Feedback';
+import DateRangeFilter from '../components/ui/DateRangeFilter';
+import { ALL_DATES, inDateRange, isRangeActive } from '../utils/dateRange';
 import { getComplaints, respondToComplaint, deleteComplaint } from '../api/adminApi';
 import { deleteWithUndo } from '../utils/undo';
 
@@ -17,6 +19,7 @@ const AdminComplaints = () => {
     const [selectedType, setSelectedType] = useState('ALL');
     const [statusFilter, setStatusFilter] = useState('open');
     const [query, setQuery] = useState('');
+    const [dateRange, setDateRange] = useState(ALL_DATES);
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
     const [selectedComplaint, setSelectedComplaint] = useState(null);
@@ -65,8 +68,9 @@ const AdminComplaints = () => {
         const term = query.trim().toLowerCase();
         return byType
             .filter((c) => (statusFilter === 'all' ? true : statusFilter === 'open' ? OPEN_STATES.includes(c.status) : !OPEN_STATES.includes(c.status)))
+            .filter((c) => inDateRange(c.createdDate, dateRange))
             .filter((c) => !term || [c.description, c.category, c.roomNumber, c.residentName, String(c.id)].join(' ').toLowerCase().includes(term));
-    }, [byType, statusFilter, query]);
+    }, [byType, statusFilter, query, dateRange]);
 
     const openCount = (type) => complaints.filter((c) => (type === 'ALL' || c.submissionType === type) && OPEN_STATES.includes(c.status)).length;
     const tabs = ['ALL', 'COMPLAINT', 'QUERY', 'SUGGESTION', 'PERMISSION'].map((t) => ({
@@ -93,6 +97,7 @@ const AdminComplaints = () => {
                     onChange={setStatusFilter}
                     options={[{ value: 'open', label: 'Needs attention' }, { value: 'closed', label: 'Closed' }, { value: 'all', label: 'All' }]}
                 />
+                <DateRangeFilter value={dateRange} onChange={setDateRange} label="Filter requests by date raised" />
                 <div className="table-search" style={{ flex: '0 1 300px' }}>
                     <Search size={16} aria-hidden="true" />
                     <input type="search" placeholder="Search requests" aria-label="Search requests" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -103,8 +108,8 @@ const AdminComplaints = () => {
                 <div className="ticket-list">{[0, 1, 2].map((i) => <Skeleton key={i} height={140} style={{ borderRadius: 14 }} />)}</div>
             ) : visible.length === 0 ? (
                 <div className="card">
-                    <EmptyState icon={MessageSquare} title={statusFilter === 'open' ? 'Nothing needs attention' : 'No requests here'}>
-                        {statusFilter === 'open' ? 'Every request has been answered. New ones will appear here.' : 'Try a different filter.'}
+                    <EmptyState icon={MessageSquare} title={statusFilter === 'open' && !isRangeActive(dateRange) ? 'Nothing needs attention' : 'No requests here'}>
+                        {statusFilter === 'open' && !isRangeActive(dateRange) ? 'Every request has been answered. New ones will appear here.' : 'Try a different filter or date range.'}
                     </EmptyState>
                 </div>
             ) : (

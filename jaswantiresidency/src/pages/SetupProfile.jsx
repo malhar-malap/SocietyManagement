@@ -10,11 +10,11 @@ import { TextInput } from '../components/ui/Field';
 import { Alert } from '../components/ui/Feedback';
 import OtpInput from '../components/ui/OtpInput';
 import PasswordChecklist from '../components/auth/PasswordChecklist';
+import { homeFor } from '../utils/roles';
 
 const STEPS = ['About you', 'Email', 'Password', 'Verify'];
 const RESEND_SECONDS = 45;
 const normalisePhone = (p) => p.replace(/[\s-]/g, '').replace(/^(\+?91|0)(?=\d{10}$)/, '');
-const homeFor = (role) => (role === 'ADMIN' || role === 'MASTER_ADMIN' ? '/admin/dashboard' : '/resident/dashboard');
 
 const messageFrom = (err, fallback) => {
     const data = err?.response?.data;

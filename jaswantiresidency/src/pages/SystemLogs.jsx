@@ -10,7 +10,7 @@ import { exportSystemLogs, getSystemLogFilters, getSystemLogs } from '../api/adm
 
 const EMPTY_FILTERS = { q: '', module: '', outcome: '', actorRole: '', from: '', to: '' };
 const PAGE_SIZES = [25, 50, 100];
-const ROLES = ['MASTER_ADMIN', 'ADMIN', 'RESIDENT'];
+const ROLES = ['MASTER_ADMIN', 'ADMIN', 'OFFICE_ASSISTANT', 'RESIDENT'];
 
 const OUTCOME_TONE = { SUCCESS: 'success', FAILED: 'warning', DENIED: 'danger' };
 
