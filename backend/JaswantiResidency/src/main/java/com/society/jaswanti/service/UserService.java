@@ -266,6 +266,13 @@ public class UserService {
         });
     }
 
+    /** First-login setup is only for accounts that still have to choose their own password and email. */
+    private static void requirePendingSetup(User user) {
+        if (!user.isForcePasswordChange()) {
+            throw new org.springframework.security.access.AccessDeniedException("This account has already been set up");
+        }
+    }
+
     private void requireMasterAdmin(Authentication actor) {
         if (actor == null || actor.getAuthorities().stream()
                 .noneMatch(authority -> "ROLE_MASTER_ADMIN".equals(authority.getAuthority()))) {
@@ -352,6 +359,7 @@ public class UserService {
         Optional<User> userOpt = userRepository.findById(userId);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
+            requirePendingSetup(user);
 
             String newEmail = dto.getPersonalEmail() != null ? dto.getPersonalEmail().trim().toLowerCase() : null;
             if (newEmail == null || newEmail.isBlank()) {
@@ -388,7 +396,7 @@ public class UserService {
 
             try {
                 String subject = "Jaswanti Residency - Email Verification Code";
-                String body = "Hello <b>" + user.getName() + "</b>,\n\n" +
+                String body = "Hello <b>" + org.springframework.web.util.HtmlUtils.htmlEscape(String.valueOf(user.getName())) + "</b>,\n\n" +
                               "Please use the following 6-digit code to verify your email address:\n\n" +
                               "<div style='text-align: center; margin: 25px 0;'>" +
                               "  <span style='font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #d32f2f; background-color: #fce4e4; padding: 12px 24px; border-radius: 8px; display: inline-block;'>" + token + "</span>" +
@@ -412,6 +420,7 @@ public class UserService {
         if (userOpt.isPresent()) {
             User user = userOpt.get();
 
+            requirePendingSetup(user);
             String cleanToken = token != null ? token.trim().replaceAll("\\s+", "") : "";
             String savedHash = user.getEmailVerificationToken();
 

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { revokeSession } from '../api/authApi';
 
 const AuthContext = createContext(null);
 
@@ -40,6 +41,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     const logout = () => {
+        revokeSession(localStorage.getItem('refreshToken'));
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('role');

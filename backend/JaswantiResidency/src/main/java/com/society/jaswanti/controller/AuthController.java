@@ -185,6 +185,33 @@ public class AuthController {
         return ResponseEntity.status(401).build();
     }
 
+    /**
+     * Signs the account out on the server: bumping the token version invalidates every access and refresh token
+     * issued so far (on all devices), so a token copied from this browser stops working too. Always answers 204, so
+     * the endpoint reveals nothing about the token it was given.
+     */
+    @PostMapping("/logout")
+    @AuditExempt(reason = "Signing out is routine account activity, like signing in, and is not recorded in the system log")
+    public ResponseEntity<Void> logout(@RequestBody(required = false) RefreshTokenRequest request) {
+        try {
+            String refreshToken = request != null ? request.getRefreshToken() : null;
+            String username = refreshToken != null ? jwtService.extractUsername(refreshToken) : null;
+            if (username != null) {
+                User user = (User) userDetailsService.loadUserByUsername(username);
+                if (jwtService.isRefreshTokenValid(refreshToken, user)) {
+                    userRepository.findById(user.getId()).ifPresent(u -> {
+                        u.setTokenVersion(u.getTokenVersion() + 1);
+                        userRepository.save(u);
+                    });
+                }
+            }
+        } catch (io.jsonwebtoken.JwtException | IllegalArgumentException
+                 | org.springframework.security.core.userdetails.UsernameNotFoundException e) {
+            // Already invalid: nothing to revoke
+        }
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/forgot-password")
     @AuditedAction(action = "REQUEST_PASSWORD_RESET", module = "AUTH", summary = "Requested a password reset code")
     public ResponseEntity<Map<String, String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest body) {

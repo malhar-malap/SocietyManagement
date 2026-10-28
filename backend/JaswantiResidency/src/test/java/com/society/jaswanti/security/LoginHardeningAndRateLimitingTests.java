@@ -120,6 +120,9 @@ class LoginHardeningAndRateLimitingTests {
         dto.setPersonalEmail("setup-test@example.com");
         dto.setName("New Name");
         dto.setNewPassword("short");
+        // Setup is only available while the account is still waiting for first sign-in
+        testUser.setForcePasswordChange(true);
+        userRepository.save(testUser);
 
         assertThatThrownBy(() -> userService.setupProfile(testUser.getId(), dto))
                 .isInstanceOf(InvalidPasswordException.class)

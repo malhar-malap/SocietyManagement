@@ -8,17 +8,11 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^13.5.0",
-    "axios": "^1.18.1",
-    "chart.js": "^4.5.1",
-    "jspdf": "^4.2.1",
+    "axios": "^1.20.0",
     "lucide-react": "^1.24.0",
-    "papaparse": "^5.5.4",
     "react": "^19.2.7",
-    "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.2.7",
-    "react-dropzone": "^17.0.0",
-    "react-hook-form": "^7.81.0",
-    "react-router-dom": "^7.18.1",
+    "react-router-dom": "^7.18.4",
     "react-scripts": "5.0.1",
     "react-toastify": "^11.1.0",
     "recharts": "^3.9.2",
@@ -52,5 +46,9 @@
     "moduleNameMapper": {
       "^react-router/dom$": "<rootDir>/node_modules/react-router/dist/development/dom-export.js"
     }
+  },
+  "overrides": {
+    "proxy-addr": "2.0.8",
+    "shell-quote": "1.11.0"
   }
 }

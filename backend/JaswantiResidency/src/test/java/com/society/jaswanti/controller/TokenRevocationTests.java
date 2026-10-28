@@ -224,6 +224,9 @@ class TokenRevocationTests {
     @DisplayName("Setup verification OTP is never written to the logs")
     void setupOtpNotLogged(CapturedOutput output) throws Exception {
         User user = createOrUpdateUser("revoke_setup@jaswanti.com", Role.RESIDENT, "password123");
+        // Setup is only available while the account is still waiting for first sign-in
+        user.setForcePasswordChange(true);
+        user = userRepository.save(user);
         String access = jwtService.generateToken(user);
 
         String setupPayload = """

@@ -156,7 +156,9 @@ public class UserController {
     }
     
     @PostMapping("/{id}/setup")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT') or #id == authentication.principal.id")
+    // Only the account owner, during first sign-in: setup sets a new password and email, so letting staff call it
+    // for someone else would let them take that account over (including a Master Admin's)
+    @PreAuthorize("isAuthenticated() and #id == authentication.principal.id")
     @AuditedAction(action = "SETUP_PROFILE", module = "USERS", summary = "Started first-login profile setup", target = AuditTargetResolver.USER)
     public ResponseEntity<String> setupProfile(@PathVariable Long id, @RequestBody com.society.jaswanti.dto.ProfileSetupDto dto) {
         try {
@@ -172,7 +174,7 @@ public class UserController {
     }
 
     @PostMapping("/{id}/verify-setup")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MASTER_ADMIN', 'OFFICE_ASSISTANT') or #id == authentication.principal.id")
+    @PreAuthorize("isAuthenticated() and #id == authentication.principal.id")
     @AuditedAction(action = "VERIFY_SETUP_EMAIL", module = "USERS", summary = "Verified email and completed profile setup", target = AuditTargetResolver.USER)
     public ResponseEntity<?> verifySetupEmail(@PathVariable Long id, @RequestParam String token) {
         return userService.verifySetupEmail(id, token)
