@@ -1,7 +1,12 @@
 import axios from 'axios';
 
-// Set REACT_APP_API_BASE_URL at build time to point a deployed frontend at its backend
-export const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080/api';
+// Where the backend is. Production builds default to "/api" on the site's own domain (the proxy forwards it to the
+// backend), so the website and the Android app, which loads the same site, never need CORS and never point at
+// localhost. REACT_APP_API_BASE_URL overrides it, e.g. for a backend on another domain.
+export const resolveApiBaseUrl = (env = process.env) =>
+  env.REACT_APP_API_BASE_URL || (env.NODE_ENV === 'production' ? '/api' : 'http://localhost:8080/api');
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,

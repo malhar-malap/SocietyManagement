@@ -6,6 +6,7 @@ import { FileInput, TextInput, Textarea } from './ui/Field';
 import { Alert } from './ui/Feedback';
 import { useAuth } from '../context/AuthContext';
 import { formatMoney, monthLabel } from '../utils/format';
+import { copyText } from '../utils/clipboard';
 
 const SOCIETY_ACCOUNT = [
     { label: 'UPI ID', value: 'jaswanti.residency@hdfcbank' },
@@ -35,7 +36,7 @@ const CopyRow = ({ label, value }) => {
             <span className="text-subtle text-xs">{label}</span>
             <span className="copy-value">{value}</span>
             <button type="button" className="icon-btn icon-btn-sm" aria-label={`Copy ${label}`}
-                onClick={async () => { try { await navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* ignore */ } }}>
+                onClick={async () => { if (await copyText(value)) { setCopied(true); setTimeout(() => setCopied(false), 1500); } }}>
                 {copied ? <Check size={15} className="text-success" /> : <Copy size={15} />}
             </button>
         </div>

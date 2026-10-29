@@ -128,9 +128,9 @@ public class AuthController {
     }
 
     /**
-     * The socket address only. X-Forwarded-For is set by the client, so trusting it would let an attacker dodge the
-     * per-IP limit or lock out someone else's address. Behind a reverse proxy, set
-     * server.forward-headers-strategy=framework so getRemoteAddr() reflects the real client IP.
+     * The client address as Tomcat resolved it. X-Forwarded-For is never read here directly: Tomcat applies it only
+     * for connections from a trusted proxy (server.tomcat.remoteip.internal-proxies), so a client cannot dodge the
+     * per-IP limit or lock out someone else's address by sending the header itself.
      */
     private String extractClientIp(HttpServletRequest request) {
         if (request == null) return "unknown";

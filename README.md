@@ -103,3 +103,29 @@ The application uses [Flyway](https://flywaydb.org/) to manage database schema v
 | Admin | Created by Master Admin | Master Admin promotes users to Admin role via the dashboard |
 | Office Assistant | Created by Master Admin | Same as Admin for rooms, residents, billing and transactions; no Helpdesk or Announcements. Only a Master Admin can assign this role |
 | Resident | Onboarded by Admin | Admin creates room assignments; residents complete profile setup on first login |
+
+## Android App
+
+The Android app (in `jaswantiresidency/android`, built with Capacitor) is a thin shell that loads the hosted website.
+Every deploy therefore reaches installed apps the next time they open; a new APK is only needed when native parts
+change (icon, name, permissions, plugins).
+
+**Hosting requirements**
+- Serve the website over HTTPS and proxy `/api` on the same domain to the backend. Production builds call `/api` by
+  default, so no CORS setup is needed for the site or the app.
+- Only the proxy may reach the backend port. The backend trusts `X-Forwarded-For` / `X-Forwarded-Proto` only from
+  `TRUSTED_PROXIES` (default: loopback and private networks), so the real client IP reaches sign-in throttling and
+  the system log.
+- Serve `index.html` for unknown paths (client-side routing).
+
+**Building the APK** (needs Android Studio / the Android SDK)
+```bash
+cd jaswantiresidency
+APP_URL=https://app.your-domain.in npm run app:sync
+npm run app:open
+```
+Then use Build → Generate Signed App Bundle / APK. Keep the signing keystore and its passwords safe and backed up:
+updates must be signed with the same key.
+
+Inside the app, downloads (receipts, invoices, certificates, exports) open the Android share sheet, the Back button
+closes dialogs before going back, and a branded offline screen appears when the site cannot be reached.

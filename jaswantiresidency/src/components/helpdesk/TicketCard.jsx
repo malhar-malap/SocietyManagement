@@ -34,7 +34,7 @@ const TicketCard = ({ ticket, showResident = false, actions, onOpen }) => {
                         <span><CalendarRange size={14} /> {(ticket.permissionCategory || '').replace(/_/g, ' ').toLowerCase() || 'permission'} · {formatDate(ticket.startDate)} – {formatDate(ticket.endDate)}</span>
                     )}
                     {ticket.hasAttachment && (
-                        <button type="button" className="btn btn-link btn-sm" onClick={(e) => { e.stopPropagation(); viewAuthenticatedFile(`/complaints/${ticket.id}/attachment`); }}>
+                        <button type="button" className="btn btn-link btn-sm" onClick={(e) => { e.stopPropagation(); viewAuthenticatedFile(`/complaints/${ticket.id}/attachment`, `request_${ticket.id}_attachment`); }}>
                             <Paperclip size={14} /> View attachment
                         </button>
                     )}

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import api from './axiosConfig';
 import { notifyError } from '../utils/notify';
+import { isNativeApp } from '../utils/nativeApp';
+import { previewBlob, saveBlob } from '../utils/saveFile';
 
 // All protected files are fetched through the authenticated axios client, so the access token travels in the
 // Authorization header. It is never put in a URL, where it would leak into logs, history and Referer headers.
@@ -11,26 +13,18 @@ const fetchBlob = async (url) => {
     return { blob: new Blob([response.data], { type }), headers: response.headers };
 };
 
+const filenameFrom = (headers, fallback) => {
+    const match = (headers['content-disposition'] || '').match(/filename=["']?([^"';]+)["']?/);
+    return match && match[1] ? match[1] : fallback;
+};
+
 /**
- * Downloads a binary file and triggers a browser save dialog.
+ * Downloads a file: a browser save on the website, the share sheet in the Android app.
  */
 export const downloadAuthenticatedFile = async (url, fallbackFilename = 'download') => {
     try {
         const { blob, headers } = await fetchBlob(url);
-        const disposition = headers['content-disposition'];
-        let filename = fallbackFilename;
-        if (disposition) {
-            const match = disposition.match(/filename=["']?([^"';]+)["']?/);
-            if (match && match[1]) filename = match[1];
-        }
-        const blobUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(() => window.URL.revokeObjectURL(blobUrl), 2000);
+        await saveBlob(blob, filenameFrom(headers, fallbackFilename));
     } catch (err) {
         console.error('File download failed:', err);
         notifyError('Failed to download the file. Please try again.');
@@ -38,20 +32,14 @@ export const downloadAuthenticatedFile = async (url, fallbackFilename = 'downloa
 };
 
 /**
- * Opens a file (PDF/image) in a new tab. The tab is opened synchronously, inside the click, so popup blockers
- * allow it; the file is loaded into it once downloaded.
+ * Opens a file (PDF/image). On the website it opens in a new tab, opened synchronously inside the click so popup
+ * blockers allow it; in the Android app it goes to the share sheet, where the resident picks a viewer.
  */
-export const viewAuthenticatedFile = async (url) => {
-    const preview = window.open('', '_blank');
+export const viewAuthenticatedFile = async (url, fallbackFilename = 'file') => {
+    const preview = isNativeApp() ? null : window.open('', '_blank');
     try {
-        const { blob } = await fetchBlob(url);
-        const blobUrl = window.URL.createObjectURL(blob);
-        if (preview) {
-            preview.location.href = blobUrl;
-        } else {
-            window.open(blobUrl, '_blank');
-        }
-        setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60000);
+        const { blob, headers } = await fetchBlob(url);
+        await previewBlob(blob, filenameFrom(headers, fallbackFilename), preview);
     } catch (err) {
         console.error('File preview failed:', err);
         if (preview) preview.close();

@@ -3,6 +3,7 @@ import { Check, Copy, KeyRound } from 'lucide-react';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
 import { Alert } from './ui/Feedback';
+import { copyText } from '../utils/clipboard';
 
 /**
  * Shows a newly issued temporary password exactly once. It is not stored anywhere in the app afterwards, so the
@@ -13,12 +14,7 @@ const TemporaryPasswordDialog = ({ info, onClose }) => {
     useEffect(() => { setCopied(false); }, [info]);
 
     const copy = async () => {
-        try {
-            await navigator.clipboard.writeText(info.password);
-            setCopied(true);
-        } catch {
-            setCopied(false);
-        }
+        setCopied(await copyText(info.password));
     };
 
     return (

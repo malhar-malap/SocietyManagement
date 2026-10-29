@@ -15,6 +15,7 @@ import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import SetupProfile from './pages/SetupProfile';
 import { COMMUNITY_ROLES, STAFF_ROLES, homeFor } from './utils/roles';
+import useAndroidBackButton from './hooks/useAndroidBackButton';
 
 // Resident Pages
 const ResidentDashboard = lazy(() => import('./pages/ResidentDashboard'));
@@ -58,6 +59,7 @@ const ErrorPage = ({ code, title, message }) => {
 };
 
 function App() {
+    useAndroidBackButton();
     return (
         <AuthProvider>
             <BrowserRouter>

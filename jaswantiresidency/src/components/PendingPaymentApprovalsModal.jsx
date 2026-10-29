@@ -178,7 +178,7 @@ const PendingPaymentApprovalsModal = ({ isOpen, onClose, onActionSuccess }) => {
                                 <span className="field-label">Proof of payment</span>
                                 <div className="proof">
                                     {screenshot.src ? (
-                                        <button type="button" className="proof-btn" onClick={() => viewAuthenticatedFile(screenshotUrl)} aria-label="Open the screenshot full size">
+                                        <button type="button" className="proof-btn" onClick={() => viewAuthenticatedFile(screenshotUrl, 'payment_proof')} aria-label="Open the screenshot full size">
                                             <img src={screenshot.src} alt="Payment proof" />
                                             <span className="proof-zoom"><Maximize2 size={14} /> Full size</span>
                                         </button>

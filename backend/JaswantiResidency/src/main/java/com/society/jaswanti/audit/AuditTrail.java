@@ -55,7 +55,8 @@ public final class AuditTrail {
 
     /**
      * Fills in where the action came from (method, path, client IP) and what it targeted, from the current request.
-     * The IP is the socket address: X-Forwarded-For is client-controlled and is not trusted for the audit trail.
+     * The IP is the client address as Tomcat resolved it: X-Forwarded-For counts only when it comes from a trusted
+     * proxy, never straight from a client.
      */
     public static void applyRequestContext(ActivityLog log) {
         RequestAttributes attributes = RequestContextHolder.getRequestAttributes();

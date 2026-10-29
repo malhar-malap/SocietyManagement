@@ -1,5 +1,6 @@
 import api from './axiosConfig';
 import { downloadAuthenticatedFile } from './fileUtils';
+import { saveBlob } from '../utils/saveFile';
 
 export const getAdminDashboard = async () => {
     const response = await api.get('/dashboard/admin');
@@ -92,14 +93,7 @@ export const exportSystemLogs = async (params) => {
     const response = await api.get('/system-logs/export', { params, responseType: 'blob' });
     const disposition = response.headers['content-disposition'] || '';
     const match = disposition.match(/filename=["']?([^"';]+)["']?/);
-    const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = match ? match[1] : 'system-logs.csv';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
+    await saveBlob(new Blob([response.data], { type: 'text/csv' }), match ? match[1] : 'system-logs.csv');
 };
 
 // Billing Endpoints
